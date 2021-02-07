@@ -1,0 +1,1 @@
+recursive-include grid2opviz/assets/ *.js *.css
