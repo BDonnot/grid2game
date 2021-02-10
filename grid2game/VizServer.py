@@ -78,9 +78,11 @@ class VizServer:
         self.load_info = "p"
         self.gen_info = "p"
         self.env.seed(args.env_seed)
-
-        self.real_time = self.plot_helper.plot_rt(self.env.obs)
-        self.forecast = self.plot_helper.plot_forecat(self.env.sim_obs)
+        self.plot_helper.init_figs(self.env.obs, self.env.sim_obs)
+        # self.plot_helper.update_rt(self.env.obs)
+        # self.plot_helper.update_forecat(self.env.sim_obs)
+        self.real_time = self.plot_helper.figure_rt
+        self.forecast = self.plot_helper.figure_forecat
 
         # Register controls update callback
         self.app.callback([dash.dependencies.Output("real-time-graph", "figure"),
@@ -191,21 +193,23 @@ class VizServer:
         ])
 
         ### Graph widget
-        real_time_graph = dcc.Graph(id="real-time-graph", className="w-100 h-100",
-                          config={
-                              'displayModeBar': False,
-                              "responsive": True,
-                              "autosizable": True
-                          })
-        simulate_graph = dcc.Graph(id="simulated-graph", className="w-100 h-100",
-                          config={
-                              'displayModeBar': False,
-                              "responsive": True,
-                              "autosizable": True
-                          })
+        real_time_graph = dcc.Graph(id="real-time-graph",
+                                    className="w-100 h-100",
+                                    config={
+                                        'displayModeBar': False,
+                                        "responsive": True,
+                                        "autosizable": True
+                                    })
+        simulate_graph = dcc.Graph(id="simulated-graph",
+                                   className="w-100 h-100",
+                                   config={
+                                       'displayModeBar': False,
+                                       "responsive": True,
+                                       "autosizable": True
+                                   })
         graph_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-7 "\
-                      "order-last order-sm-last order-md-last order-xl-frist " \
-                      "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
+                    "order-last order-sm-last order-md-last order-xl-frist " \
+                    "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
         rt_graph_label = html.Label("Real time observation:", style={'text-align': 'center'})
         rt_graph_div = html.Div(id="rt_graph_div", className=graph_css,
                                 children=[
@@ -273,23 +277,36 @@ class VizServer:
                         line_unit, line_side, load_unit, gen_unit, stor_unit):
         # Store units
         # TODO optimize to recompute only the right stuff (and not everything everytime like today)
-        self.plot_helper.line_info = line_unit
-        self.plot_helper.line_side = line_side
-        self.plot_helper.load_info = load_unit
-        self.plot_helper.gen_info = gen_unit
-        self.plot_helper.storage_info = stor_unit
+        if line_unit != self.plot_helper.line_info:
+            self.plot_helper.line_info = line_unit
+            self.plot_helper.update_lines_info()
+        if line_side != self.plot_helper.line_side:
+            self.plot_helper.line_side = line_side
+            self.plot_helper.update_lines_side()
+        if load_unit != self.plot_helper.load_info:
+            self.plot_helper.load_info = load_unit
+            self.plot_helper.update_loads_info()
+        if gen_unit != self.plot_helper.gen_info:
+            self.plot_helper.gen_info = gen_unit
+            self.plot_helper.update_gens_info()
+        if stor_unit != self.plot_helper.storage_info:
+            self.plot_helper.storage_info = stor_unit
+            self.plot_helper.update_storages_info()
 
         # "step" has been clicked
         if self.step_clicks < step_clicks:
             self.step_clicks = step_clicks
             self.env.step()
+            self.plot_helper.update_rt(self.env.obs)
+            self.plot_helper.update_forecat(self.env.sim_obs)
 
         if self.simulate_clicks < simulate_clicks:
             self.env.simulate()
+            self.plot_helper.update_forecat(self.env.sim_obs)
 
         # regenerate the graphs
-        self.real_time = self.plot_helper.plot_rt(self.env.obs)
-        self.forecast = self.plot_helper.plot_forecat(self.env.sim_obs)
+        # self.real_time = self.plot_helper.plot_rt(self.env.obs)
+        # self.forecast = self.plot_helper.plot_forecat(self.env.sim_obs)
         return [self.real_time, self.forecast]
 
     def run(self, debug=False):

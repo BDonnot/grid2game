@@ -50,5 +50,5 @@ class Env(object):
     def simulate(self, action=None):
         if action is None:
             action = self._current_action
-        self._sim_obs, self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
+        self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
         return self._sim_obs, self._sim_obs, self._sim_reward, self._sim_done, self._sim_info

@@ -1,0 +1,1 @@
+grid2game --dev --env_name educ_case14_storage --is_test
