@@ -174,6 +174,7 @@ class Plot(PlotParams):
 
     def get_object_clicked(self, clickData):
         """return the figure of the object clicked on"""
+        # TODO not sure it's best suited here !
         obj_type = None
         obj_id = None
         res_type = tuple()
@@ -217,10 +218,14 @@ class Plot(PlotParams):
                                       hoverinfo="skip",
                                       marker=self._marker_gen,
                                       showlegend=False)
-                    res_type = (f"Generator id {obj_id}",
+                    res_type = (f"Generator id {obj_id} ({obj_name}, {self.grid.gen_type[obj_id]})",
                                 -self.grid.gen_max_ramp_down[obj_id],  # TODO use gen_pmin
                                 self.grid.gen_max_ramp_up[obj_id],  # TODO use gen_pmax
-                                self.obs_rt.actual_dispatch[obj_id])
+                                0.,
+                                f"prod (target): {self.obs_rt.prod_p[obj_id]:.2f}MW (min: {self.obs_rt.gen_pmin[obj_id]}, max: {self.obs_rt.gen_pmax[obj_id]})",
+                                f"dispatch (target): {self.obs_rt.target_dispatch[obj_id]:.2f}MW",
+                                f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW",
+                                )
 
                 self.fig_clicked.add_trace(tmp_)
                 self._set_layout(self.fig_clicked)

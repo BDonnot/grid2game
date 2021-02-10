@@ -114,6 +114,9 @@ class VizServer:
                            dash.dependencies.Output("gen-dispatch", "min"),
                            dash.dependencies.Output("gen-dispatch", "max"),
                            dash.dependencies.Output("gen-dispatch", "value"),
+                           dash.dependencies.Output("gen_p", "children"),
+                           dash.dependencies.Output("target_disp", "children"),
+                           dash.dependencies.Output("actual_disp", "children"),
                            ],
                           [dash.dependencies.Input("real-time-graph", "clickData")])(self.display_click_data)
 
@@ -254,7 +257,7 @@ class VizServer:
                                     rt_graph_label,
                                     rt_date_time,
                                     real_time_graph],
-                                style={'display': 'inline-block', 'width': '50vh', 'height': '48vh'}
+                                style={'display': 'inline-block', 'width': '50vh', 'height': '60vh'}
                                 )
         forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
         forecast_date_time = html.P("", style={'text-align': 'center'}, id="forecast_date_time")
@@ -265,7 +268,7 @@ class VizServer:
                                      forecast_date_time,
                                      simulate_graph],
 
-                                 style={'display': 'inline-block', 'width': '50vh', 'height': '48vh'}
+                                 style={'display': 'inline-block', 'width': '50vh', 'height': '60vh'}
                                  )
 
         graph_col = html.Div(id="graph-col",
@@ -316,14 +319,17 @@ class VizServer:
                 'overflowX': 'scroll'
             }
         }
-        generator_clicked = html.Div([html.P("Generator id",
-                                             id="gen-id-clicked"),
+        generator_clicked = html.Div([html.P("Generator id", id="gen-id-clicked"),
+                                      html.P("Redispatching:"),
                                       dcc.Input(placeholder="redispatch to apply: ",
                                                 id='gen-dispatch',
                                                 type='range',
                                                 min=-1.0,
                                                 max=1.0,
                                                 ),
+                                      html.P("gen_p", id="gen_p"),
+                                      html.P("target_disp", id="target_disp"),
+                                      html.P("actual_disp", id="actual_disp"),
                                       html.P("",
                                              id="gen-id-hidden",
                                              style={'display': 'none'}
@@ -352,7 +358,9 @@ class VizServer:
             # )
         ], className='six columns')
 
-        interaction_and_action = html.Div([layout_click, action_col], className="row")
+        interaction_and_action = html.Div([html.Br(),
+                                           layout_click,
+                                           action_col], className="row")
 
         # Final page
         layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
@@ -361,9 +369,9 @@ class VizServer:
                           children=[
                               header,
                               controls_row,
-                              html.Hr(),
+                              html.Br(),
                               state_row,
-                              html.Hr(),
+                              html.Br(),
                               interaction_and_action
                           ])
         return layout
@@ -382,7 +390,7 @@ class VizServer:
         fig, obj_type, obj_id, res_type = self.plot_helper.get_object_clicked(clickData)
         style_gen_input = {'display': 'none'}
         gen_id_clicked = ""
-        gen_res = ["Generator id", -1., 1., 0.]  # gen_id, min_redisp_val, max_redisp_val, redisp_val
+        gen_res = ["Generator id", -1., 1., 0., "gen_p", "target_disp", "actual_disp"]  # gen_id, min_redisp_val, max_redisp_val, redisp_val
 
         # https://stackoverflow.com/questions/50213761/changing-visibility-of-a-dash-component-by-updating-other-component
         if clickData is not None and obj_type == "gen":
@@ -426,7 +434,7 @@ class VizServer:
             self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
         # TODO ugly way to display the date and time ...
-        return [self.real_time, self.forecast, self.rt_datetime, self.for_datetime, self.env.current_action.__str__()]
+        return [self.real_time, self.forecast, self.rt_datetime, self.for_datetime]
 
     def run(self, debug=False):
         self.app.run_server(debug=debug)
