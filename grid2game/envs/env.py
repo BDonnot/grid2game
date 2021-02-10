@@ -45,6 +45,7 @@ class Env(object):
             action = self._current_action
         self.past_envs.append(self.glop_env.copy())
         self._obs, reward, done, info = self.glop_env.step(action)
+        self._current_action = self.glop_env.action_space()
         return self.obs, reward, done, info
 
     def simulate(self, action=None):

@@ -10,6 +10,7 @@ import os
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
+import json
 
 import grid2op
 from grid2game.plot import Plot
@@ -20,8 +21,8 @@ class VizServer:
     def __init__(self, args):
         meta_tags=[
             {
-                'name': 'gridopviz',
-                'content': 'Viz tool for grdi2op'
+                'name': 'grid2game',
+                'content': 'Interactive plots for grdi2op'
             },
             {
                 'http-equiv': 'X-UA-Compatible',
@@ -43,7 +44,7 @@ class VizServer:
         external_scripts = [
             {
                 "src": "https://code.jquery.com/jquery-3.4.1.slim.min.js",
-                "integrity" : "sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n",
+                "integrity": "sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n",
                 "crossorigin": "anonymous"
             },
             {
@@ -61,17 +62,18 @@ class VizServer:
             os.path.join(os.path.dirname(__file__),
                          "assets")
         )
+
+        # create the dash app
         self.app = dash.Dash(__name__,
                              meta_tags=meta_tags,
                              assets_folder=assets_dir,
                              external_stylesheets=external_stylesheets,
                              external_scripts=external_scripts)
-        # self.episode = self.load(args)
+
+        # create the grid2op related things
         self.env = Env(args.env_name, test=args.is_test)
         self.plot_helper = Plot(self.env.observation_space)
-        self.app.layout = self.setupLayout()
 
-        # self.plotter = PlotPlotly(observation_space=self.plot_helper, responsive=True)
         self.step_clicks = 0
         self.simulate_clicks = 0
         self.line_info = "rho"
@@ -79,14 +81,21 @@ class VizServer:
         self.gen_info = "p"
         self.env.seed(args.env_seed)
         self.plot_helper.init_figs(self.env.obs, self.env.sim_obs)
-        # self.plot_helper.update_rt(self.env.obs)
-        # self.plot_helper.update_forecat(self.env.sim_obs)
         self.real_time = self.plot_helper.figure_rt
         self.forecast = self.plot_helper.figure_forecat
 
-        # Register controls update callback
+        # ugly hack for the date time display
+        self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
+        self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
+
+        # initialize the layout
+        self.app.layout = self.setupLayout()
+
+        # Register controls update callback (unit information, step and simulate)
         self.app.callback([dash.dependencies.Output("real-time-graph", "figure"),
                            dash.dependencies.Output("simulated-graph", "figure"),
+                           dash.dependencies.Output("rt_date_time", "children"),
+                           dash.dependencies.Output("forecast_date_time", "children"),
                            ],
                           [dash.dependencies.Input("step", "n_clicks"),
                            dash.dependencies.Input("simulate", "n_clicks"),
@@ -98,9 +107,29 @@ class VizServer:
                            ],
                           )(self.controlTriggers)
 
+        # register callbacks for when a data is clicked on
+        self.app.callback([dash.dependencies.Output("generator_clicked", "style"),
+                           dash.dependencies.Output("gen-id-hidden", "children"),
+                           dash.dependencies.Output("gen-id-clicked", "children"),
+                           dash.dependencies.Output("gen-dispatch", "min"),
+                           dash.dependencies.Output("gen-dispatch", "max"),
+                           dash.dependencies.Output("gen-dispatch", "value"),
+                           ],
+                          [dash.dependencies.Input("real-time-graph", "clickData")])(self.display_click_data)
+
+        # print the current action
+        self.app.callback([dash.dependencies.Output("current_action", "children"),
+                           ],
+                          [
+                            dash.dependencies.Input("gen-id-hidden", "children"),
+                            dash.dependencies.Input('gen-dispatch', "value"),
+                          ])(self.display_action)
+
     def setupLayout(self):
+        # layout of the app
+
         # Header
-        title = html.H1(children='Viz demo')
+        title = html.H1(children='Grid2Game')
         header = html.Header(id="header", className="row w-100", children=[title])
 
         # App
@@ -113,18 +142,21 @@ class VizServer:
                                      id="simulate",
                                      n_clicks=0,
                                      className="btn btn-primary")
+        # TODO add a button "trust assistant up to" that will play the actions suggested by the
+        # TODO assistant
 
         # change the units
+        # TODO make that disapearing / appearing based on a button "show options" for example
         line_info_label = html.Label("Line unit:")
         line_info = dcc.Dropdown(id='line-info-dropdown',
             options=[
                 {'label': 'Capacity', 'value': 'rho'},
                 {'label': 'A', 'value': 'a'},
-                {'label': 'W', 'value': 'p'},
+                {'label': 'MW', 'value': 'p'},
                 {'label': 'kV', 'value': 'v'},
                 {'label': 'MVAr', 'value': 'q'},
                 {'label': 'thermal limit', 'value': 'th_lim'},
-                {'label': 'coodown', 'value': 'cooldown'},
+                {'label': 'cooldown', 'value': 'cooldown'},
                 {'label': '# step overflow', 'value': 'timestep_overflow'},
                 {'label': 'name', 'value': 'name'},
                 {'label': 'None', 'value': 'none'},
@@ -142,7 +174,7 @@ class VizServer:
         load_info_label = html.Label("Load unit:")
         load_info = dcc.Dropdown(id='load-info-dropdown',
                                  options=[
-                                     {'label': 'W', 'value': 'p'},
+                                     {'label': 'MW', 'value': 'p'},
                                      {'label': 'kV', 'value': 'v'},
                                      {'label': 'MVar', 'value': 'q'},
                                      {'label': 'name', 'value': 'name'},
@@ -153,7 +185,7 @@ class VizServer:
         gen_info_label = html.Label("Gen. unit:")
         gen_info = dcc.Dropdown(id='gen-info-dropdown',
                                 options=[
-                                    {'label': 'W', 'value': 'p'},
+                                    {'label': 'MW', 'value': 'p'},
                                     {'label': 'kV', 'value': 'v'},
                                     {'label': 'MVar', 'value': 'q'},
                                     {'label': 'name', 'value': 'name'},
@@ -168,7 +200,7 @@ class VizServer:
         stor_info_label = html.Label("Stor. unit:")
         stor_info = dcc.Dropdown(id='stor-info-dropdown',
                                 options=[
-                                    {'label': 'W', 'value': 'p'},
+                                    {'label': 'MW', 'value': 'p'},
                                     {'label': 'MWh', 'value': 'MWh'},
                                     {'label': 'None', 'value': 'none'},
                                 ], value='p', clearable=False)
@@ -194,36 +226,46 @@ class VizServer:
 
         ### Graph widget
         real_time_graph = dcc.Graph(id="real-time-graph",
-                                    className="w-100 h-100",
+                                    # className="w-100 h-100",
                                     config={
                                         'displayModeBar': False,
                                         "responsive": True,
                                         "autosizable": True
-                                    })
+                                    },
+                                    figure=self.real_time)
         simulate_graph = dcc.Graph(id="simulated-graph",
-                                   className="w-100 h-100",
+                                   # className="w-100 h-100",
                                    config={
                                        'displayModeBar': False,
                                        "responsive": True,
                                        "autosizable": True
-                                   })
+                                   },
+                                   figure=self.forecast)
+
         graph_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-7 "\
                     "order-last order-sm-last order-md-last order-xl-frist " \
                     "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
-        rt_graph_label = html.Label("Real time observation:", style={'text-align': 'center'})
-        rt_graph_div = html.Div(id="rt_graph_div", className=graph_css,
+        graph_css = "six columns"
+        rt_graph_label = html.H3("Real time observation:", style={'text-align': 'center'})
+        rt_date_time = html.P("", style={'text-align': 'center'}, id="rt_date_time")
+        rt_graph_div = html.Div(id="rt_graph_div",
+                                className=graph_css,
                                 children=[
                                     rt_graph_label,
+                                    rt_date_time,
                                     real_time_graph],
-                                # style={'display': 'inline-block'}  # to allow stacking next to each other
+                                style={'display': 'inline-block', 'width': '50vh', 'height': '48vh'}
                                 )
-        forecast_graph_label = html.Label("Forecast (t+5mins):", style={'text-align': 'center'})
+        forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
+        forecast_date_time = html.P("", style={'text-align': 'center'}, id="forecast_date_time")
         sim_graph_div = html.Div(id="sim_graph_div",
                                  className=graph_css,
                                  children=[
                                      forecast_graph_label,
+                                     forecast_date_time,
                                      simulate_graph],
-                                 # style={'display': 'inline-block'}  # to allow stacking next to each other
+
+                                 style={'display': 'inline-block', 'width': '50vh', 'height': '48vh'}
                                  )
 
         graph_col = html.Div(id="graph-col",
@@ -231,52 +273,128 @@ class VizServer:
                                  rt_graph_div,
                                  sim_graph_div
                              ],
-                             style={'display': 'inline-block'}  # to allow stacking next to each other
+                             className="row",
+                             # style={'display': 'inline-block'}  # to allow stacking next to each other
                              )
-
-        # ### Action widget
-        last_action = html.Pre(id="last-action")
-        next_action = html.Pre(id="next-action")
-        action_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-5 " \
-                     "order-first order-sm-first order-md-first order-xl-last"
-        action_col = html.Div(id="action_widget", className=action_css, children=[
-            last_action,
-            next_action
-        ])
 
         ## Grid state widget
         row_css = "row d-xl-flex flex-xl-grow-1"
         state_row = html.Div(id="state-row", className=row_css, children=[
-            graph_col,
-            action_col
+            graph_col
         ])
+
+        # TODO temporal indicator for cumulated load / generator, and generator by types
+        # TODO temporal indicator of average flows on lines, with min / max flow
+
+        # page to click the data
+        # see https://dash.plotly.com/interactive-graphing
+        # TODO layout for the action made:
+        # action on generator (redispatch)
+        # action on storage (produce / absorb power)
+        # action on line (connection / disconnection)
+        # action on substation (later maybe)
+        # print the action
+        # reset the action
+
+        # ### Action widget
+        current_action = html.Pre(id="current_action")
+        action_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-5 " \
+                     "order-first order-sm-first order-md-first order-xl-last"
+        action_css = "six columns"
+        action_col = html.Div(id="action_widget",
+                              className=action_css,
+                              children=[
+                                  html.P("Current action"),
+                                  current_action,
+                              ],
+                              style={'display': 'inline-block'}
+                              )
+
+        styles = {
+            'pre': {
+                'border': 'thin lightgrey solid',
+                'overflowX': 'scroll'
+            }
+        }
+        generator_clicked = html.Div([html.P("Generator id",
+                                             id="gen-id-clicked"),
+                                      dcc.Input(placeholder="redispatch to apply: ",
+                                                id='gen-dispatch',
+                                                type='range',
+                                                min=-1.0,
+                                                max=1.0,
+                                                ),
+                                      html.P("",
+                                             id="gen-id-hidden",
+                                             style={'display': 'none'}
+                                             )
+                                      ],
+                                     id="generator_clicked",
+                                     className="six columns",
+                                     style={'display': 'inline-block'}
+                                     )
+        layout_click = html.Div([generator_clicked,
+            # dcc.Markdown("""
+            #             **Click Data**
+            #
+            #             Click on points in the graph.
+            #         """),
+            # html.Div([
+            #     dcc.Graph(id="clicked_graph_fig",
+            #               config={
+            #                   'displayModeBar': False,
+            #                   "responsive": True,
+            #                   "autosizable": True
+            #               },
+            #               )],
+            #     id="clicked-state",
+            #     style={'display': 'block'}
+            # )
+        ], className='six columns')
+
+        interaction_and_action = html.Div([layout_click, action_col], className="row")
 
         # Final page
         layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
-        layout = html.Div(id="grid2game", className=layout_css,
+        layout = html.Div(id="grid2game",
+                          className=layout_css,
                           children=[
                               header,
                               controls_row,
-                              state_row
+                              html.Hr(),
+                              state_row,
+                              html.Hr(),
+                              interaction_and_action
                           ])
         return layout
 
-    def updateAction(self, step):
-        # TODO it's not working anymore
-        prev_step = step - 1
-        prev_act = self.env.action_space()  # TODO
-        curr_act = self.env.action_space()  # TODO
-        if prev_step >= 0:
-            html_prev_act = [html.P("Previous action:"), html.P(str(prev_act))]
-        else:
-            html_prev_act = [html.P("Previous action:"), html.P("N/A")]
-        html_curr_act = [html.P("Next Action:"), html.P(str(curr_act))]
-        return [html_prev_act, html_curr_act]
+    def display_action(self, gen_id, redisp):
+        if gen_id != "":
+            # TODO handle better the action (this is ugly to handle it from here!)
+
+            # TODO initialize the value to the last seen value for the dispatch, and not the
+            # value in the observation
+            self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
+
+        return [self.env.current_action.__str__()]
+
+    def display_click_data(self, clickData):
+        fig, obj_type, obj_id, res_type = self.plot_helper.get_object_clicked(clickData)
+        style_gen_input = {'display': 'none'}
+        gen_id_clicked = ""
+        gen_res = ["Generator id", -1., 1., 0.]  # gen_id, min_redisp_val, max_redisp_val, redisp_val
+
+        # https://stackoverflow.com/questions/50213761/changing-visibility-of-a-dash-component-by-updating-other-component
+        if clickData is not None and obj_type == "gen":
+            gen_id_clicked = f"{obj_id}"
+            style_gen_input = {'display': 'inline-block'}
+            gen_res = res_type
+        # return: gen_style, gen_id, min_val, max_val
+        return [style_gen_input, gen_id_clicked, *gen_res]
 
     def controlTriggers(self, step_clicks, simulate_clicks,
                         line_unit, line_side, load_unit, gen_unit, stor_unit):
-        # Store units
-        # TODO optimize to recompute only the right stuff (and not everything everytime like today)
+        # controls the panels of the main graph of the grid
         if line_unit != self.plot_helper.line_info:
             self.plot_helper.line_info = line_unit
             self.plot_helper.update_lines_info()
@@ -299,15 +417,16 @@ class VizServer:
             self.env.step()
             self.plot_helper.update_rt(self.env.obs)
             self.plot_helper.update_forecat(self.env.sim_obs)
+            self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
+            self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
         if self.simulate_clicks < simulate_clicks:
             self.env.simulate()
             self.plot_helper.update_forecat(self.env.sim_obs)
+            self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
-        # regenerate the graphs
-        # self.real_time = self.plot_helper.plot_rt(self.env.obs)
-        # self.forecast = self.plot_helper.plot_forecat(self.env.sim_obs)
-        return [self.real_time, self.forecast]
+        # TODO ugly way to display the date and time ...
+        return [self.real_time, self.forecast, self.rt_datetime, self.for_datetime, self.env.current_action.__str__()]
 
     def run(self, debug=False):
         self.app.run_server(debug=debug)

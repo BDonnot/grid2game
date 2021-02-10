@@ -36,6 +36,8 @@ def cli():
 
     # TODO for backend too
 
+    # TODO add an option to change the parameters of the environment
+
     return parser.parse_args()
 
 

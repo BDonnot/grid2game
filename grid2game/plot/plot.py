@@ -6,13 +6,13 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
-import plotly.graph_objects as go
 import cmath
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly.colors as pc
 
 from grid2op.PlotGrid import PlotPlotly
 from grid2op.Space import GridObjects
-import plotly.colors as pc
-
 
 # https://dash.plotly.com/dash-core-components/graph
 # https://dash.plotly.com/interactive-graphing
@@ -21,6 +21,13 @@ import plotly.colors as pc
 class PlotParams(object):
     """this is what you need to modify if you want to customize the plots"""
     def __init__(self):
+        # figure width
+        # self.width = 1280  # original
+        # self.height = 720  # original
+        ratio = 1
+        self.width = 1280 / ratio
+        self.height = 720 / ratio
+
         ### bus color
         self.col_bus1 = "red"
         self.col_bus2 = "blue"
@@ -126,8 +133,7 @@ class Plot(PlotParams):
         # initialize the figures
         self.figure_rt = None
         self.figure_forecat = None
-        self.width = 1280
-        self.height = 720
+        self.fig_clicked = None
 
         # and the units
         self.line_info = "rho"
@@ -136,7 +142,22 @@ class Plot(PlotParams):
         self.gen_info = "p"
         self.storage_info = "p"
 
+        # converter for the clickable objects (for position to clickable stuff)
+        self.pos_to_object = {}
+        for sub_id, name in enumerate(self.grid.name_sub):
+            self.pos_to_object[tuple(self.layout[name])] = ("sub", name, sub_id)
+        for gen_id, name in enumerate(self.grid.name_gen):
+            self.pos_to_object[tuple(self.layout[name])] = ("gen", name, gen_id)
+        for stor_id, name in enumerate(self.grid.name_storage):
+            self.pos_to_object[tuple(self.layout[name])] = ("stor", name, stor_id)
+        for line_id, name in enumerate(self.grid.name_line):
+            (x_or, y_or), (x_ex, y_ex) = self.layout[name]
+            x_mid = int((x_or + x_ex) / 2)
+            y_mid = int((y_or + y_ex) / 2)
+            self.pos_to_object[(x_mid, y_mid)] = ("line", name, line_id)
+
         # need to be initialized
+        self.for_trace_datetime = {}
         self.for_trace_sub = {}
         self.for_trace_load = {}
         self.for_trace_gen = {}
@@ -147,14 +168,70 @@ class Plot(PlotParams):
         self.rt_trace_gen = {}
         self.rt_trace_stor = {}
         self.rt_trace_line = {}
+        self.rt_trace_datetime = {}
         self.obs_forecast = None
         self.obs_rt = None
+
+    def get_object_clicked(self, clickData):
+        """return the figure of the object clicked on"""
+        obj_type = None
+        obj_id = None
+        res_type = tuple()
+        if clickData is not None:
+            pts = clickData['points'][0]
+            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            if pos_clicked in self.pos_to_object:
+                (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
+                self.fig_clicked = go.Figure()
+                if obj_type == "sub":
+                    tmp_ = go.Scatter(x=[1],
+                                      y=[1],
+                                      mode="markers",
+                                      name="test_fig",
+                                      hoverinfo="skip",
+                                      marker=self._marker_sub,
+                                      showlegend=False)
+                elif obj_type == "line":
+                    tmp_ = go.Scatter(x=[1, 2],
+                                      y=[1, 2],
+                                      mode="lines",
+                                      name="test_fig",
+                                      hoverinfo="skip",
+                                      marker=self._marker_sub,
+                                      line=dict(color=self.line_color_scheme[0]),
+                                      showlegend=False)
+                elif obj_type == "stor":
+                    tmp_ = go.Scatter(x=[1],
+                                      y=[1],
+                                      mode="markers",
+                                      name="test_fig",
+                                      hoverinfo="skip",
+                                      marker=self._marker_storage,
+                                      showlegend=False)
+                else:
+                    # so obj_type == "gen":
+                    tmp_ = go.Scatter(x=[1],
+                                      y=[1],
+                                      mode="markers",
+                                      name="test_fig",
+                                      hoverinfo="skip",
+                                      marker=self._marker_gen,
+                                      showlegend=False)
+                    res_type = (f"Generator id {obj_id}",
+                                -self.grid.gen_max_ramp_down[obj_id],  # TODO use gen_pmin
+                                self.grid.gen_max_ramp_up[obj_id],  # TODO use gen_pmax
+                                self.obs_rt.actual_dispatch[obj_id])
+
+                self.fig_clicked.add_trace(tmp_)
+                self._set_layout(self.fig_clicked)
+        return self.fig_clicked, obj_type, obj_id, res_type
 
     def init_figs(self, obs_rt, obs_forecast):
         """initialized the figures, and draw them"""
         # create once and for all the figures
         self.figure_rt = go.Figure()
         self.figure_forecat = go.Figure()
+        self.fig_clicked = go.Figure()
 
         self.obs_rt = obs_rt
         self.obs_forecast = obs_forecast
@@ -407,12 +484,14 @@ class Plot(PlotParams):
 
     def _set_layout(self, fig):
         """set the layout of the figure, for now called only once"""
-        fig.update_layout(width=self.width,
-                          height=self.height,
+        # see https://dash.plotly.com/interactive-graphing
+        fig.update_layout(# width=self.width,
+                          # height=self.height,
                           xaxis=dict(visible=False),
                           yaxis=dict(visible=False),
                           plot_bgcolor='rgba(0,0,0,0)',
                           margin=dict(l=0, r=0, b=0, t=0, pad=0),
+                          clickmode='event+select'
                           )
 
     def _one_sub_init(self, name, traces):
@@ -470,6 +549,7 @@ class Plot(PlotParams):
                           mode="markers",
                           # text=[text],
                           name=name+"_img",
+                          hoverinfo='skip',  # load are not clickable
                           marker=self._marker_load,
                           showlegend=False)
         traces.append(tmp_)
@@ -503,8 +583,6 @@ class Plot(PlotParams):
 
     def _one_load(self, name, obs, dict_traces):
         """draw one load"""
-        res_anot, res_trace = [], []
-
         # retrieve its id
         id_ = self.ids[name]
 
@@ -737,6 +815,17 @@ class Plot(PlotParams):
                                 name=name+"_img",
                                 line=line_style,
                                 hoverinfo='skip',
+                                mode='lines',
+                                showlegend=False)
+        # figure.add_trace(line_trace)
+        traces.append(line_trace)
+
+        # middle of the line (clickable)
+        line_trace = go.Scatter(x=[int((x_or + x_ex)/2)],  # need to adjust pos_to_object above if you change this
+                                y=[int((y_or + y_ex)/2)],   # need to adjust pos_to_object above if you change this
+                                name=name+"_click",
+                                line=line_style,
+                                # hoverinfo='skip',
                                 showlegend=False)
         # figure.add_trace(line_trace)
         traces.append(line_trace)
