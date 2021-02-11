@@ -7,116 +7,18 @@
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
 import cmath
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-import plotly.colors as pc
 
 from grid2op.PlotGrid import PlotPlotly
 from grid2op.Space import GridObjects
+
+from grid2game.plot.plot_param import PlotParams
 
 # https://dash.plotly.com/dash-core-components/graph
 # https://dash.plotly.com/interactive-graphing
 
 
-class PlotParams(object):
-    """this is what you need to modify if you want to customize the plots"""
-    def __init__(self):
-        # figure width
-        # self.width = 1280  # original
-        # self.height = 720  # original
-        ratio = 1
-        self.width = 1280 / ratio
-        self.height = 720 / ratio
-
-        ### bus color
-        self.col_bus1 = "red"
-        self.col_bus2 = "blue"
-        self.col_deact = "black"
-
-        # width of the line that connects element to bus
-        self._line_bus_width = 0.5
-
-        ################ from grid2Op, for gen
-        # TODO color for gen too
-        self._gen_radius = 12
-        self._gen_fill_color = "LightGreen"
-        self._gen_line_color = "black"
-        self._gen_line_width = 1
-        self._gen_prefix = "b"
-        self._marker_gen = dict(size=self._gen_radius,
-                                color=self._gen_fill_color,
-                                showscale=False,
-                                line=dict(
-                                    width=self._gen_line_width,
-                                    color=self._gen_line_color
-                                ),
-                                opacity=0.7
-                                )
-
-        ################# from grid2op, for substation
-        self._sub_radius = 25
-        self._sub_fill_color = "PaleTurquoise"
-        self._sub_line_color = "black"
-        self._sub_line_width = 1
-        self._marker_sub = dict(size=self._sub_radius,
-                                color=self._sub_fill_color,
-                                showscale=False,
-                                line=dict(
-                                    width=self._sub_line_width,
-                                    color=self._sub_line_color
-                                )
-                                )
-
-        #################### from grid2op, for lines
-        self._line_prefix = "a"
-        self.line_color_scheme = pc.sequential.Blues_r[:4] + \
-                                 pc.sequential.Oranges[4:6] + \
-                                 pc.sequential.Reds[-3: -1]
-        self._line_bus_radius = 10
-        self._line_bus_colors = ["black", "red", "lime"]
-        self._bus_prefix = "_bus_"
-        self._or_prefix = "_or_"
-        self._ex_prefix = "_ex_"
-        self._line_arrow_radius = 10
-        self._line_arrow_len = 5
-        self._arrow_prefix = "_->_"
-
-        ################ from grid2Op, for load
-        # TODO color for load too
-        self._load_radius = 12
-        self._load_fill_color = "DarkOrange"
-        self._load_line_color = "black"
-        self._load_line_width = 1
-        self._load_prefix = "c"
-        self._marker_load = dict(size=self._load_radius,
-                                 color=self._load_fill_color,
-                                 showscale=False,
-                                 line=dict(
-                                     width=self._load_line_width,
-                                     color=self._load_line_color
-                                 ),
-                                 opacity=0.7
-                                 )
-
-        ################ from grid2Op, for load
-        # TODO color for storage too
-        self._storage_radius = 12
-        self._storage_fill_color = "rosybrown"
-        self._storage_line_color = "black"
-        self._storage_line_width = 1
-        self._storage_prefix = "s"
-        self._marker_storage = dict(size=self._storage_radius,
-                                    color=self._storage_fill_color,
-                                    showscale=False,
-                                    line=dict(
-                                        width=self._storage_line_width,
-                                        color=self._storage_line_color
-                                    ),
-                                    opacity=0.7
-                                    )
-
-
-class Plot(PlotParams):
+class PlotGrids(PlotParams):
     def __init__(self, observation_space):
         super().__init__()
         self.glop_plot = PlotPlotly(observation_space)
@@ -193,31 +95,21 @@ class Plot(PlotParams):
                                       marker=self._marker_sub,
                                       showlegend=False)
                 elif obj_type == "line":
-                    tmp_ = go.Scatter(x=[1, 2],
-                                      y=[1, 2],
-                                      mode="lines",
-                                      name="test_fig",
-                                      hoverinfo="skip",
-                                      marker=self._marker_sub,
-                                      line=dict(color=self.line_color_scheme[0]),
-                                      showlegend=False)
+                    res_type = (f"Line id {obj_id} ({obj_name})",
+                                "0",
+                                f"Flow: {self.obs_rt.a_or[obj_id]:.2f}A (thermal limit {self.obs_rt._thermal_limit[obj_id]:.2f}A)"
+                                )
                 elif obj_type == "stor":
-                    tmp_ = go.Scatter(x=[1],
-                                      y=[1],
-                                      mode="markers",
-                                      name="test_fig",
-                                      hoverinfo="skip",
-                                      marker=self._marker_storage,
-                                      showlegend=False)
+                    res_type = (f"Storage unit id {obj_id} ({obj_name})",
+                                -self.grid.storage_max_p_prod[obj_id],  # TODO use storage_emin
+                                self.grid.storage_max_p_absorb[obj_id],  # TODO use storage_emax
+                                0.,
+                                f"Actual consumption : {self.obs_rt.storage_power[obj_id]:.2f}MW ",
+                                f"Actual capacity: {self.obs_rt.storage_charge[obj_id]:.2f}MWh (min: {self.obs_rt.storage_Emin[obj_id]}, max: {self.obs_rt.storage_Emax[obj_id]})",
+                                )
+
                 else:
                     # so obj_type == "gen":
-                    tmp_ = go.Scatter(x=[1],
-                                      y=[1],
-                                      mode="markers",
-                                      name="test_fig",
-                                      hoverinfo="skip",
-                                      marker=self._marker_gen,
-                                      showlegend=False)
                     res_type = (f"Generator id {obj_id} ({obj_name}, {self.grid.gen_type[obj_id]})",
                                 -self.grid.gen_max_ramp_down[obj_id],  # TODO use gen_pmin
                                 self.grid.gen_max_ramp_up[obj_id],  # TODO use gen_pmax
@@ -227,7 +119,7 @@ class Plot(PlotParams):
                                 f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW",
                                 )
 
-                self.fig_clicked.add_trace(tmp_)
+                # self.fig_clicked.add_trace(tmp_)
                 self._set_layout(self.fig_clicked)
         return self.fig_clicked, obj_type, obj_id, res_type
 
@@ -286,8 +178,8 @@ class Plot(PlotParams):
                                                          if trace.name in self.rt_trace_line else ())
 
         self._update_lines(self.obs_forecast, is_forecast=True)
-        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.rt_trace_line[trace.name])
-                                                         if trace.name in self.rt_trace_line else ())
+        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.for_trace_line[trace.name])
+                                                         if trace.name in self.for_trace_line else ())
 
     def update_lines_side(self, forecast_only=False):
         """update the information displayed for powerlines (side), and updates the traces"""
@@ -298,8 +190,8 @@ class Plot(PlotParams):
                                                          if trace.name in self.rt_trace_line else ())
 
         self._update_lines(self.obs_forecast, is_forecast=True)
-        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.rt_trace_line[trace.name])
-                                                         if trace.name in self.rt_trace_line else ())
+        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.for_trace_line[trace.name])
+                                                         if trace.name in self.for_trace_line else ())
 
     def update_loads_info(self, forecast_only=False):
         """update the information displayed for loads, and updates the traces"""
@@ -487,18 +379,6 @@ class Plot(PlotParams):
         self._update_lines(obs, is_forecast)
         self._update_storages(obs, is_forecast)
 
-    def _set_layout(self, fig):
-        """set the layout of the figure, for now called only once"""
-        # see https://dash.plotly.com/interactive-graphing
-        fig.update_layout(# width=self.width,
-                          # height=self.height,
-                          xaxis=dict(visible=False),
-                          yaxis=dict(visible=False),
-                          plot_bgcolor='rgba(0,0,0,0)',
-                          margin=dict(l=0, r=0, b=0, t=0, pad=0),
-                          clickmode='event+select'
-                          )
-
     def _one_sub_init(self, name, traces):
         """draw one substation"""
         # find position
@@ -528,17 +408,19 @@ class Plot(PlotParams):
              'middle center', 'middle right', 'bottom left', 'bottom
              center', 'bottom right']
          """
+        # TODO this is not perfect for now
+        # use the "angle"  between the substation and the object itself.
         my_x, my_y = my_pos
         s_x, s_y = sub_pos
         res = "middle center"
         if my_x > s_x and my_y > s_y:
             res = 'top center'
         elif my_x <= s_x and my_y > s_y:
-            res = 'middle left'
+            res = 'middle right'
         elif my_x > s_x and my_y <= s_y:
             res = 'bottom center'
         elif my_x <= s_x and my_y <= s_y:
-            res = 'middle right'
+            res = 'middle left'
         return res
 
     def _one_load_init(self, name, traces):
