@@ -14,9 +14,9 @@ from grid2op.PlotGrid.config import NUKE_COLOR, THERMAL_COLOR, WIND_COLOR, SOLAR
 from grid2game.plot.plot_param import PlotParams
 
 
-class PlotTemporalSeries(PlotParams):
+class PlotTemporalSeries(object):
     def __init__(self, env):
-        super().__init__()
+        # super().__init__()
 
         # maybe in the parameters
         self.color_nuclear = NUKE_COLOR
@@ -25,6 +25,9 @@ class PlotTemporalSeries(PlotParams):
         self.color_solar = SOLAR_COLOR
         self.color_hydro = HYDRO_COLOR
         self.color_load = "black"
+
+        # height
+        self.height = 500
 
         self.env = env
 
@@ -58,7 +61,8 @@ class PlotTemporalSeries(PlotParams):
         self.fig_line_cap.add_trace(tmp_)
         self.fig_line_cap.update_layout(title={'text': "Line capacity"},
                                         xaxis_title='date and time',
-                                        yaxis_title="Capacity (%)")
+                                        yaxis_title="Capacity (%)",
+                                        height=int(self.height))
 
         tmp_ = go.Scatter(x=self.env._datetimes,
                           y=self.env._sum_hydro,
@@ -105,7 +109,8 @@ class PlotTemporalSeries(PlotParams):
         self.fig_load_gen.add_trace(tmp_)
         self.fig_load_gen.update_layout(title={'text': "Power production and consumption"},
                                         xaxis_title='date and time',
-                                        yaxis_title="Power (MW)")
+                                        yaxis_title="Power (MW)",
+                                        height=int(self.height))
 
     def update_trace(self):
         self.fig_load_gen.update_traces(x=self.env._datetimes,

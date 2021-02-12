@@ -111,11 +111,17 @@ class VizServer:
         self.app.callback([dash.dependencies.Output("step-button", "className"),
                            dash.dependencies.Output("simulate-button", "className"),
                            dash.dependencies.Output("back-button", "className"),
+                           dash.dependencies.Output("reset-button", "className"),
                            dash.dependencies.Output("continue_til_go-button", "className"),
+                           dash.dependencies.Output("step-button", "n_clicks"),  # callback to call the "plot function"
+                           # dash.dependencies.Output("continue_til_go-button", "n_clicks")
                            ],
                           [dash.dependencies.Input('interval-component', 'n_intervals'),
                            dash.dependencies.Input("continue_til_go-button", "n_clicks"),
-                           dash.dependencies.Input("go_fast-button", "n_clicks")]
+                           dash.dependencies.Input("go_fast-button", "n_clicks"),],
+                          [
+                           dash.dependencies.State("step-button", "n_clicks")
+                          ]
                           )(self.advance_time)
 
         # Register controls update callback (unit information, step and simulate)
@@ -126,8 +132,7 @@ class VizServer:
                            dash.dependencies.Output("graph_gen_load", "figure"),
                            dash.dependencies.Output("graph_flow_cap", "figure"),
                            ],
-                           [dash.dependencies.Input('interval-component', 'n_intervals'),
-                            dash.dependencies.Input("step-button", "n_clicks"),
+                           [dash.dependencies.Input("step-button", "n_clicks"),
                             dash.dependencies.Input("simulate-button", "n_clicks"),
                             dash.dependencies.Input("back-button", "n_clicks"),
                             dash.dependencies.Input("line-info-dropdown", "value"),
@@ -183,6 +188,10 @@ class VizServer:
                             dash.dependencies.Input('line-status-input', "value"),
                           ])(self.display_action)
 
+        # collapse the temporal information
+        self.app.callback([dash.dependencies.Output('temporal-graphs', "style")],
+                          [dash.dependencies.Input('show-temoral-graph', "value")])(self.show_tmeporal_graphs)
+
     def setupLayout(self):
         # layout of the app
 
@@ -221,6 +230,10 @@ class VizServer:
         # TODO add a button "trust assistant up to" that will play the actions suggested by the
         # TODO assistant
 
+        show_temporal_graph = dcc.Checklist(id="show-temoral-graph",
+                                            options=[{'label': 'Display time series', 'value': 'display'}],
+                                            value=["display"]
+                                            )
         # change the units
         # TODO make that disapearing / appearing based on a button "show options" for example
         line_info_label = html.Label("Line unit:")
@@ -305,6 +318,7 @@ class VizServer:
         loadinfo_col = html.Div(id="loadinfo-col", className=button_css, children=[load_info_div])
         geninfo_col = html.Div(id="geninfo-col", className=button_css, children=[gen_info_label, gen_info])
         storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label, stor_info])
+        # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label, show_temporal_graph])
 
         change_units = html.Div(id="change_units",
                                 children=[
@@ -313,6 +327,7 @@ class VizServer:
                                     loadinfo_col,
                                     geninfo_col,
                                     storinfo_col,
+                                    show_temporal_graph
                                 ],
                                 className="row",
                                 )
@@ -416,7 +431,9 @@ class VizServer:
                                              style={'display': 'inline-block',
                                                     'width': '50vh', 'height': '47vh'})
                                     ],
-                                   className="row")
+                                   style={'display': 'block'},
+                                   className="row",
+                                   id="temporal-graphs")
         # page to click the data
         # see https://dash.plotly.com/interactive-graphing
         # TODO layout for the action made:
@@ -538,11 +555,18 @@ class VizServer:
                           ])
         return layout
 
+    def show_tmeporal_graphs(self, show_temporal_graph):
+        """handles the action that displays (or not) the time series graphs"""
+        if show_temporal_graph:
+            return [{'display': 'block'}]
+        return [{'display': 'none'}]
+
     def display_action(self,
                        # step_clicks, simulate_clicks,
                        gen_id, redisp,
                        stor_id, storage_p,
                        line_id, line_status):
+        """displays the actions (as text)"""
         # TODO handle better the action (this is ugly to handle it from here!)
 
         # TODO initialize the value to the last seen value for the dispatch, and not the
@@ -605,10 +629,11 @@ class VizServer:
                 style_line_input, line_id_clicked, *line_res
                 ]
 
-    def advance_time(self, interval, continue_till_go_clicks, go_fast_clicks):
+    def advance_time(self, interval, continue_till_go_clicks, go_fast_clicks, step_clicked):
         self.is_continue_mode = False
         self.is_go_fast = False
         button_shape = "btn btn-primary"
+        button_reset_shape = "btn btn-primary"
         go_button_shape = button_shape
 
         if self.continue_clicks < continue_till_go_clicks:
@@ -619,7 +644,9 @@ class VizServer:
 
         if self.env.is_done:
             # nothing more to do, i am dead
-            return [button_shape, button_shape, button_shape, go_button_shape]
+            button_shape = "btn btn-secondary"
+            go_button_shape = "btn btn-secondary"
+            return [button_shape, button_shape, button_shape, button_reset_shape, go_button_shape]
 
         # TODO here need to address these "heavy" computation
         # if self._is_ok_step_fast is False:
@@ -641,12 +668,15 @@ class VizServer:
         #     go_button_shape = button_shape
 
         if self.continue_clicks % 2 == 1 and not self.is_go_fast:
-            # still in the "go" mode
+            # still in the "advance-time" mode
             self.is_continue_mode = True
             self.make_step()
             button_shape = "btn btn-secondary"
+            button_reset_shape = "btn btn-secondary"
+            step_clicked += 1  # I plot the graph
 
-        return [button_shape, button_shape, button_shape, go_button_shape]
+        return [button_shape, button_shape, button_shape, button_reset_shape, go_button_shape,
+                step_clicked]
 
     def make_step(self):
         self.env.step()
@@ -660,13 +690,17 @@ class VizServer:
         self.plot_temporal.update_trace()
 
     def has_reset(self, reset_clicks):
+        if self.is_continue_mode:
+            # do not reset if in "continue to simulate" mode
+            return ["toto"]
+
         if self.reset_clicks < reset_clicks:
             self.reset_clicks = reset_clicks
             self.env.reset()
             self.update_obs_fig()
         return ["toto"]
 
-    def controlTriggers(self, interval,
+    def controlTriggers(self,
                         step_clicks, simulate_clicks, back_clicks,
                         line_unit, line_side, load_unit, gen_unit, stor_unit):
         # controls the panels of the main graph of the grid
