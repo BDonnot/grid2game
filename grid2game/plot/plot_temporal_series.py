@@ -43,12 +43,15 @@ class PlotTemporalSeries(object):
         # self.fig_load_gen.update_layout(clickmode='event+select')
         # self.fig_line_cap.update_layout(clickmode='event+select')
 
+    def update_layout_height(self):
+        self.fig_line_cap.update_layout(height=int(self.height))
+        self.fig_load_gen.update_layout(height=int(self.height))
+
     def init_traces(self):
         tmp_ = go.Scatter(x=self.env._datetimes,
                           y=self.env._max_line_flow,
                           mode="lines",
                           name="Max. Line capacity",
-                          hoverinfo='skip',
                           showlegend=True)
         self.fig_line_cap.add_trace(tmp_)
         tmp_ = go.Scatter(x=(self.env._datetimes[0],self.env._datetimes[-1]),

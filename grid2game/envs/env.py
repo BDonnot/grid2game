@@ -69,7 +69,10 @@ class Env(object):
         return self._done
 
     def seed(self, seed):
-        return self.glop_env.seed(seed)
+        """seed and reset the environment"""
+        seeds = self.glop_env.seed(seed)
+        self.init_state()
+        return seeds
 
     def step(self, action=None):
         if action is None:

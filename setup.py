@@ -19,7 +19,7 @@ pkgs = {
         "networkx>=2.4",
         "seaborn>=0.10.0",
         "plotly>=4.5.4",
-        "dash>=1.19",
+        "dash>=1.18",
         "imageio",
         "pygifsicle",
         "psutil",
@@ -57,5 +57,5 @@ setup(name='grid2game',
           'console_scripts': [
               'grid2game=grid2game.app:start_cli'
           ]
-     }
-)
+      }
+      )
