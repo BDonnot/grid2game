@@ -5,15 +5,27 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
+import warnings
 import numpy as np
 
 import grid2op
 from grid2op.Action import PlayableAction
+from grid2op.Backend import PandaPowerBackend
+
+try:
+    from lightsim2grid import LightSimBackend
+    bkClass = LightSimBackend
+except ImportError:
+    bkClass = PandaPowerBackend
 
 
 class Env(object):
     def __init__(self, env_name, **kwargs):
-        self.glop_env = grid2op.make(env_name, **kwargs, action_class=PlayableAction)  # TODO
+        # TODO some configuration here
+        self.glop_env = grid2op.make(env_name,
+                                     **kwargs,
+                                     backend=bkClass(),
+                                     action_class=PlayableAction)
 
         # define variables
         self._obs = None
