@@ -120,11 +120,15 @@ class VizServer:
                           )(self.simulate_clicked)
 
         # handle "back" button
-        self.app.callback([dash.dependencies.Output("back_trigger_rt", "n_clicks"),
-                           dash.dependencies.Output("back_trigger_for", "n_clicks")],
+        self.app.callback([dash.dependencies.Output("back_butt_call_act_on_env", "value"),],
                           [dash.dependencies.Input("back-button", "n_clicks")],
-                          state=[dash.dependencies.State("back_trigger_rt", "n_clicks"),
-                                 dash.dependencies.State("back_trigger_for", "n_clicks")]
+                          state=[]
+                          )(self.back_clicked)
+
+        # handle "reset" button
+        self.app.callback([dash.dependencies.Output("reset_butt_call_act_on_env", "value"),],
+                          [dash.dependencies.Input("reset-button", "n_clicks")],
+                          state=[]
                           )(self.back_clicked)
 
         # handle the press to one of the button to change the units
@@ -146,7 +150,10 @@ class VizServer:
         self.app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
                            dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
                           [dash.dependencies.Input("step_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("simul_butt_call_act_on_env", "value")]
+                           dash.dependencies.Input("simul_butt_call_act_on_env", "value"),
+                           dash.dependencies.Input("back_butt_call_act_on_env", "value"),
+                           dash.dependencies.Input("reset_butt_call_act_on_env", "value"),
+                           ]
                           )(self.handle_act_on_env)
 
         # handle triggers: the collapse of the temporal information
@@ -162,16 +169,14 @@ class VizServer:
                            dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
                            dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
                            ],
-                          [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks"),
-                           dash.dependencies.Input("back_trigger_rt", "n_clicks")],
+                          [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
                           []
                           )(self.update_rt_fig)
 
         # handle triggers: refresh of the figures for the forecast
         self.app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
                           [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks"),
-                           # dash.dependencies.Input("simu_trigger_for", "n_clicks"),
-                           dash.dependencies.Input("back_trigger_for", "n_clicks")],
+                           ],
                           []
                           )(self.update_simulated_fig)
 
@@ -643,21 +648,21 @@ class VizServer:
                                        )
 
         # hidden control button, hack for having same output for multiple callbacks
-        step_trigger_rt = html.Label("",
-                                     id="step_trigger_rt",
-                                     n_clicks=0)
-        step_trigger_for = html.Label("",
-                                      id="step_trigger_for",
-                                      n_clicks=0)
-        simu_trigger_for = html.Label("",
-                                      id="simu_trigger_for",
-                                      n_clicks=0)
-        back_trigger_for = html.Label("",
-                                      id="back_trigger_for",
-                                      n_clicks=0)
-        back_trigger_rt = html.Label("",
-                                     id="back_trigger_rt",
-                                     n_clicks=0)
+        # step_trigger_rt = html.Label("",
+        #                              id="step_trigger_rt",
+        #                              n_clicks=0)
+        # step_trigger_for = html.Label("",
+        #                               id="step_trigger_for",
+        #                               n_clicks=0)
+        # simu_trigger_for = html.Label("",
+        #                               id="simu_trigger_for",
+        #                               n_clicks=0)
+        # back_trigger_for = html.Label("",
+        #                               id="back_trigger_for",
+        #                               n_clicks=0)
+        # back_trigger_rt = html.Label("",
+        #                              id="back_trigger_rt",
+        #                              n_clicks=0)
         figrt_trigger_temporal_figs = html.Label("",
                                                  id="figrt_trigger_temporal_figs",
                                                  n_clicks=0)
@@ -692,21 +697,37 @@ class VizServer:
                                                min=0,
                                                max=1,
                                                )
+        back_butt_call_act_on_env = dcc.Input(placeholder=" ",
+                                              id='back_butt_call_act_on_env',
+                                              type='range',
+                                              min=0,
+                                              max=1,
+                                              )
+        go_butt_call_act_on_env = dcc.Input(placeholder=" ",
+                                            id='go_butt_call_act_on_env',
+                                            type='range',
+                                            min=0,
+                                            max=1,
+                                            )
+        reset_butt_call_act_on_env = dcc.Input(placeholder=" ",
+                                               id='reset_butt_call_act_on_env',
+                                               type='range',
+                                               min=0,
+                                               max=1,
+                                               )
         act_on_env_trigger_rt = html.Label("",
                                            id="act_on_env_trigger_rt",
                                            n_clicks=0)
         act_on_env_trigger_for = html.Label("",
                                             id="act_on_env_trigger_for",
                                             n_clicks=0)
-        hidden_interactions = html.Div([step_trigger_rt, step_trigger_for,
-                                        simu_trigger_for,
-                                        back_trigger_for, back_trigger_rt,
-                                        figrt_trigger_temporal_figs, collapsetemp_trigger_temporal_figs,
+        hidden_interactions = html.Div([figrt_trigger_temporal_figs, collapsetemp_trigger_temporal_figs,
                                         unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                         figfor_trigger_for_graph, figrt_trigger_rt_graph,
                                         step_butt_call_act_on_env, simul_butt_call_act_on_env,
+                                        back_butt_call_act_on_env, go_butt_call_act_on_env,
                                         act_on_env_trigger_rt,
-                                        act_on_env_trigger_for
+                                        act_on_env_trigger_for, reset_butt_call_act_on_env
                                         ],
                                        id="hidden_button_for_callbacks",
                                        style={'display': 'none'})
@@ -736,23 +757,21 @@ class VizServer:
         if self.step_clicks < step_clicks:
             # "step" has been clicked
             self.step_clicks = step_clicks
-            if self.is_continue_mode is False:
-                do_step = 1
+            do_step = 1
         else:
             raise dash.exceptions.PreventUpdate
         return [do_step]
 
-    def back_clicked(self, back_clicks, trigger_rt_update, trigger_for_update):
+    def back_clicked(self, back_clicks):
         """handle the interaction for the "back" button"""
+        trigger_act_on_env = 0
         if self.back_clicks < back_clicks:
             # "back" has been clicked
             self.back_clicks = back_clicks
-            if self.is_continue_mode is False:
-                self.env.back()   # TODO have this in a callback (dash will not attempt to modify it in two process)
-                self.update_obs_fig()
+            trigger_act_on_env = 1
         else:
             raise dash.exceptions.PreventUpdate
-        return [trigger_rt_update, trigger_for_update]
+        return [trigger_act_on_env]
 
     def simulate_clicked(self, simulate_clicks):
         """handle the interaction for the "simulate" button"""
@@ -785,7 +804,7 @@ class VizServer:
         return [trigger_rt_graph, trigger_for_graph]
 
     # handle the interaction with the grid2op environment
-    def handle_act_on_env(self, step_butt, simulate_butt):
+    def handle_act_on_env(self, step_butt, simulate_butt, back_butt, reset_butt):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
         however, grid2op environments are not "thread safe": accessing them from different "thread"
@@ -799,17 +818,38 @@ class VizServer:
         """
         trigger_rt = 0
         trigger_for = 0
-        if step_butt is not None and step_butt > 0:
+
+        # check which call backs triggered this calls
+        # see https://dash.plotly.com/advanced-callbacks
+        # section "Determining which Input has fired with dash.callback_context"
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            # no click have been made yet
+            return [trigger_rt, trigger_for]
+        else:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if button_id == "step_butt_call_act_on_env":
             # step has been called
             self.env.step()
-            self.update_obs_fig()
+            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
             trigger_rt = 1
             trigger_for = 1
-        elif simulate_butt is not None and simulate_butt > 0:
+        elif button_id == "simul_butt_call_act_on_env":
             self.env.simulate()
             self.plot_grids.update_forecat(self.env.sim_obs)
             self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
             trigger_rt = 0
+            trigger_for = 1
+        elif button_id == "back_butt_call_act_on_env":
+            self.env.back()
+            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
+            trigger_rt = 1
+            trigger_for = 1
+        elif button_id == "reset_butt_call_act_on_env":
+            self.env.reset()
+            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
+            trigger_rt = 1
             trigger_for = 1
         else:
             raise dash.exceptions.PreventUpdate
@@ -817,7 +857,7 @@ class VizServer:
         return [trigger_rt, trigger_for]
 
     # handle the layout
-    def update_rt_fig(self, env_act, back_trigger):
+    def update_rt_fig(self, env_act):
         """the real time figures need to be updated"""
         trigger_temporal_figs = 0
         trigger_rt_graph = 0
@@ -826,17 +866,24 @@ class VizServer:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
             trigger_for_graph = 1
+        else:
+            raise dash.exceptions.PreventUpdate
         return [trigger_temporal_figs, trigger_rt_graph, trigger_for_graph]
 
-    def update_simulated_fig(self, env_act, back_trigger):
+    def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
         trigger_for_graph = 0
         if env_act is not None and env_act > 0:
             trigger_for_graph = 1
+        else:
+            raise dash.exceptions.PreventUpdate
         return [trigger_for_graph]
 
     def show_tmeporal_graphs(self, show_temporal_graph, trigger_temporal_figs):
         """handles the action that displays (or not) the time series graphs"""
+        if (show_temporal_graph is None or show_temporal_graph == 0) and \
+                (trigger_temporal_figs is None or trigger_temporal_figs == 0):
+            raise dash.exceptions.PreventUpdate
         return [trigger_temporal_figs]
 
     # end point of the trigger stuff: what is displayed on the page !
@@ -848,12 +895,23 @@ class VizServer:
             self.plot_temporal.update_layout_height()  # otherwise figures shrink when trigger is called
             self.plot_temporal.update_trace()
             display_mode = {'display': 'block'}
+        else:
+            raise dash.exceptions.PreventUpdate
         return [display_mode, self.fig_load_gen, self.fig_line_cap]
 
     def update_rt_graph_figs(self, figrt_trigger, unit_trigger):
+        if (figrt_trigger is None or figrt_trigger == 0) and \
+                (unit_trigger is None or unit_trigger == 0):
+            # nothing really triggered this call
+            raise dash.exceptions.PreventUpdate
         return [self.real_time,  self.rt_datetime]
 
     def update_for_graph_figs(self, figrt_trigger, figfor_trigger, unit_trigger):
+        if (figrt_trigger is None or figrt_trigger == 0) and \
+                (figfor_trigger is None or figfor_trigger == 0) and \
+                (unit_trigger is None or unit_trigger == 0):
+            # nothing really triggered this call
+            raise dash.exceptions.PreventUpdate
         return [self.forecast, self.for_datetime]
 
     # auxiliary functions
