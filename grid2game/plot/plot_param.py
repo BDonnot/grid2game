@@ -56,7 +56,8 @@ class PlotParams(object):
                                 line=dict(
                                     width=self._sub_line_width,
                                     color=self._sub_line_color
-                                )
+                                ),
+                                opacity=0.7
                                 )
 
         #################### from grid2op, for lines
@@ -64,7 +65,6 @@ class PlotParams(object):
         self.line_color_scheme = pc.sequential.Blues_r[:4] + \
                                  pc.sequential.Oranges[4:6] + \
                                  pc.sequential.Reds[-3: -1]
-        self._line_bus_radius = 10
         self._line_bus_colors = ["black", "red", "lime"]
         self._bus_prefix = "_bus_"
         self._or_prefix = "_or_"
@@ -106,6 +106,26 @@ class PlotParams(object):
                                     ),
                                     opacity=0.7
                                     )
+
+        # bus when sub zoomed in
+        self._bus_radius = 12
+        self._bus_line_width = 1
+        self._marker_bus1 = dict(size=self._bus_radius,
+                                 color=self.col_bus1,
+                                 showscale=False,
+                                 )
+
+        self._marker_bus2 = dict(size=self._bus_radius,
+                                 color=self.col_bus2,
+                                 showscale=False,
+                                 )
+
+        # not used otherwise, beside when a substation is zoomed in
+        self._marker_line = dict(size=self._bus_radius,
+                                 color=self.line_color_scheme[0],
+                                 showscale=False,
+                                 opacity=0.7
+                                 )
 
     def _set_layout(self, fig):
         """set the layout of the figure, for now called only once"""

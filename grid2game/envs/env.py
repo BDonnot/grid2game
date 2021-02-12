@@ -80,6 +80,11 @@ class Env(object):
     def is_done(self):
         return self._done
 
+    def take_last_action(self):
+        """take the same action as last time"""
+        if self.past_envs:
+            self._current_action = self.past_envs[-1][0]
+
     def seed(self, seed):
         """seed and reset the environment"""
         seeds = self.glop_env.seed(seed)
@@ -89,7 +94,9 @@ class Env(object):
     def step(self, action=None):
         if action is None:
             action = self._current_action
-        self.past_envs.append((self._obs.copy(), self._reward, self._done, self._info, self.glop_env.copy()))
+        self.past_envs.append((self._current_action,
+                               self._obs.copy(), self._reward, self._done, self._info,
+                               self.glop_env.copy()))
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
         self.fill_info_vect()
         self._current_action = self.glop_env.action_space()
@@ -110,11 +117,14 @@ class Env(object):
 
     def back(self):
         if len(self.past_envs):
+            is_this_done = self._done
             self.glop_env.close()
-            *self.past_envs, (self._obs, self._reward, self._done, self._info, self.glop_env) = self.past_envs
-            self._current_action = self.glop_env.action_space()
+            *self.past_envs, (self._current_action,
+                              self._obs, self._reward, self._done, self._info,
+                              self.glop_env) = self.past_envs
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
-            self.pop_vects()
+            if not is_this_done:
+                self.pop_vects()
 
     def reset(self):
         for *_, glop_env in self.past_envs:
@@ -142,6 +152,9 @@ class Env(object):
         self.fill_info_vect()
 
     def fill_info_vect(self):
+        if self._done:
+            # don't had data corresponding to the last observation, which is "wrong"
+            return
         self._sum_load.append(np.sum(self._obs.load_p))
         self._max_line_flow.append(np.max(self._obs.rho))
         self._sum_solar.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "solar"]))

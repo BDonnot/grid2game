@@ -22,6 +22,7 @@ class PlotGrids(PlotParams):
     def __init__(self, observation_space):
         super().__init__()
         self.glop_plot = PlotPlotly(observation_space)
+        self.observation_space = observation_space
         self.grid = GridObjects.init_grid(observation_space)
 
         # process the layout (position of everything)
@@ -35,7 +36,7 @@ class PlotGrids(PlotParams):
         # initialize the figures
         self.figure_rt = None
         self.figure_forecat = None
-        self.fig_clicked = None
+        self.sub_fig = None
 
         # and the units
         self.line_info = "rho"
@@ -74,8 +75,57 @@ class PlotGrids(PlotParams):
         self.obs_forecast = None
         self.obs_rt = None
 
+        # for zomm in substation
+        # TODO check that !
+        self._r_sub_zoom = self.glop_plot._line_bus_radius
+        self._r_bus_1 = 8
+        self._r_bus_2 = 6
+        self._dist_zoomed_in = 1.5  # as fraction of the _r_sub_zoom
+
+    def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, line_side=None):
+        """add an element when a substation is zoomed in"""
+        if line_side is None:
+            tmp_x, tmp_y = self.layout[nm_this_obj]  # init position of the element
+        elif line_side == "or":
+            (tmp_x, tmp_y), _ = self.layout[nm_this_obj]  # init position of the element
+        elif line_side == "ex":
+            _, (tmp_x, tmp_y) = self.layout[nm_this_obj]  # init position of the element
+        else:
+            raise RuntimeError(f"Unrecognize line side {line_side}, should be \"or\" or \"ex\"")
+
+        dist_center = cmath.sqrt((tmp_x - posx) ** 2 + (tmp_y - posy) ** 2)
+        my_dist = self._dist_zoomed_in * self._r_sub_zoom
+        tmp_x = float(posx + my_dist / dist_center * (tmp_x - posx))
+        tmp_y = float(posy + my_dist / dist_center * (tmp_y - posy))
+        # compute intersection with the circles representing the buses
+        posx_bus1 = posx + self._r_bus_1 / my_dist * (tmp_x - posx)
+        posy_bus1 = posy + self._r_bus_1 / my_dist * (tmp_y - posy)
+        posx_bus2 = posx + self._r_bus_2 / my_dist * (tmp_x - posx)
+        posy_bus2 = posy + self._r_bus_2 / my_dist * (tmp_y - posy)
+        # draw everything
+        tmp_ = go.Scatter(x=[tmp_x], y=[tmp_y],
+                          mode="markers",
+                          name=nm_this_obj,
+                          marker=marker,
+                          showlegend=False)
+        self.sub_fig.add_trace(tmp_)
+        tmp_ = go.Scatter(x=[posx_bus1], y=[posy_bus1],
+                          mode="markers",
+                          name=nm_this_obj + "_bus1",
+                          marker=self._marker_bus1,
+                          showlegend=False)
+        self.sub_fig.add_trace(tmp_)
+        tmp_ = go.Scatter(x=[posx_bus2], y=[posy_bus2],
+                          mode="markers",
+                          name=nm_this_obj + "_bus2",
+                          marker=self._marker_bus2,
+                          showlegend=False)
+        self.sub_fig.add_trace(tmp_)
+
     def get_object_clicked(self, clickData):
         """return the figure of the object clicked on"""
+        # TODO refactor all that to split it into different functions...
+
         # TODO not sure it's best suited here !
         obj_type = None
         obj_id = None
@@ -85,15 +135,70 @@ class PlotGrids(PlotParams):
             pos_clicked = (int(pts["x"]), int(pts["y"]))
             if pos_clicked in self.pos_to_object:
                 (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
-                self.fig_clicked = go.Figure()
                 if obj_type == "sub":
-                    tmp_ = go.Scatter(x=[1],
-                                      y=[1],
-                                      mode="markers",
-                                      name="test_fig",
-                                      hoverinfo="skip",
-                                      marker=self._marker_sub,
-                                      showlegend=False)
+                    # draw the substation
+                    self.sub_fig = go.Figure()
+                    (posx, posy) = self.layout[obj_name]
+                    self.sub_fig.add_shape(type="circle",
+                                           xref="x", yref="y",
+                                           fillcolor=self._sub_fill_color,
+                                           x0=posx-self._r_sub_zoom,
+                                           y0=posy-self._r_sub_zoom,
+                                           x1=posx+self._r_sub_zoom,
+                                           y1=posy+self._r_sub_zoom,
+                                           line_color=self._sub_fill_color,
+                                           opacity=0.5
+                                           )
+                    self.sub_fig.add_shape(type="circle",
+                                           xref="x", yref="y",
+                                           x0=posx-self._r_bus_1,
+                                           y0=posy-self._r_bus_1,
+                                           x1=posx+self._r_bus_1,
+                                           y1=posy+self._r_bus_1,
+                                           line_color=self.col_bus1,
+                                           )
+                    self.sub_fig.add_shape(type="circle",
+                                           xref="x", yref="y",
+                                           x0=posx-self._r_bus_2,
+                                           y0=posy-self._r_bus_2,
+                                           x1=posx+self._r_bus_2,
+                                           y1=posy+self._r_bus_2,
+                                           line_color=self.col_bus2,
+                                           )
+                    self.sub_fig.add_trace(go.Scatter(x=[posx],
+                                                      y=[posy],
+                                                      text=[obj_name],
+                                                      mode="text",
+                                                      name=obj_name,
+                                                      showlegend=False
+                                                      ))
+
+                    # draw the objects connected to it
+                    # dict_ = self.grid.get_obj_connect_to(substation_id=obj_id)  # TODO weird bug
+                    dict_ = self.observation_space.get_obj_connect_to(substation_id=obj_id)
+                    for load_id in dict_["loads_id"]:
+                        nm_this_obj = self.grid.name_load[load_id]
+                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_load)
+                    for gen_id in dict_["generators_id"]:
+                        nm_this_obj = self.grid.name_gen[gen_id]
+                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_gen)
+                    for line_id in dict_["lines_or_id"]:
+                        nm_this_obj = self.grid.name_line[line_id]
+                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, "or")
+                    for line_id in dict_["lines_ex_id"]:
+                        nm_this_obj = self.grid.name_line[line_id]
+                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, "ex")
+                    for stor_id in dict_["storages_id"]:
+                        nm_this_obj = self.grid.name_storage[stor_id]
+                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage)
+                    # TODO add the right color for the busbar to which the object is connected
+
+                    # TODO and do something other than the color, maybe with dashed and dotted
+
+                    # TODO save the coordinates computed in the `_add_element_to_sub` for reuse later on
+                    res_type = (f"Substation id {obj_id}",
+                                self.sub_fig
+                                )
                 elif obj_type == "line":
                     res_type = (f"Line id {obj_id} ({obj_name})",
                                 "0",
@@ -118,17 +223,14 @@ class PlotGrids(PlotParams):
                                 f"dispatch (target): {self.obs_rt.target_dispatch[obj_id]:.2f}MW",
                                 f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW",
                                 )
-
-                # self.fig_clicked.add_trace(tmp_)
-                self._set_layout(self.fig_clicked)
-        return self.fig_clicked, obj_type, obj_id, res_type
+        return obj_type, obj_id, res_type
 
     def init_figs(self, obs_rt, obs_forecast):
         """initialized the figures, and draw them"""
         # create once and for all the figures
         self.figure_rt = go.Figure()
         self.figure_forecat = go.Figure()
-        self.fig_clicked = go.Figure()
+        self.sub_fig = go.Figure()
 
         self.obs_rt = obs_rt
         self.obs_forecast = obs_forecast

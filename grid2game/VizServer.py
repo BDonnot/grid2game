@@ -23,7 +23,7 @@ class VizServer:
     SELF_LOOP_STOP = 0
     SELF_LOOP_GO = 1
     SELF_LOOP_GOFAST = 2
-    
+
     def __init__(self, args):
         meta_tags=[
             {
@@ -158,6 +158,62 @@ class VizServer:
                            dash.dependencies.State("unit_trigger_for_graph", "n_clicks")]
                           )(self.unit_clicked)
 
+        # handle the interaction with the graph
+        self.app.callback([dash.dependencies.Output("do_display_action", "value"),
+                           dash.dependencies.Output("generator_clicked", "style"),
+                           dash.dependencies.Output("gen-id-hidden", "children"),
+                           dash.dependencies.Output("gen-id-clicked", "children"),
+                           dash.dependencies.Output("gen-dispatch", "min"),
+                           dash.dependencies.Output("gen-dispatch", "max"),
+                           dash.dependencies.Output("gen-dispatch", "value"),
+                           dash.dependencies.Output("gen_p", "children"),
+                           dash.dependencies.Output("target_disp", "children"),
+                           dash.dependencies.Output("actual_disp", "children"),
+
+                           dash.dependencies.Output("storage_clicked", "style"),
+                           dash.dependencies.Output("storage-id-hidden", "children"),
+                           dash.dependencies.Output("stor-id-clicked", "children"),
+                           dash.dependencies.Output("storage-power-input", "min"),
+                           dash.dependencies.Output("storage-power-input", "max"),
+                           dash.dependencies.Output("storage-power-input", "value"),
+                           dash.dependencies.Output("storage_p", "children"),
+                           dash.dependencies.Output("storage_energy", "children"),
+
+                           dash.dependencies.Output("line_clicked", "style"),
+                           dash.dependencies.Output("line-id-hidden", "children"),
+                           dash.dependencies.Output("line-id-clicked", "children"),
+                           dash.dependencies.Output("line-status-input", "value"),
+                           dash.dependencies.Output("line_flow", "children"),
+
+                           dash.dependencies.Output("sub_clicked", "style"),
+                           dash.dependencies.Output("sub-id-hidden", "children"),
+                           dash.dependencies.Output("sub-id-clicked", "children"),
+                           dash.dependencies.Output("graph_clicked_sub", "figure"),
+
+                           ],
+                          [dash.dependencies.Input('real-time-graph', 'clickData'),
+                           dash.dependencies.Input("back-button", "n_clicks"),
+                           dash.dependencies.Input("step-button", "n_clicks"),
+                           dash.dependencies.Input("simulate-button", "n_clicks"),
+                           dash.dependencies.Input("go-button", "n_clicks"),
+                           dash.dependencies.Input("gofast-button", "n_clicks"),
+                           ]
+                          )(self.display_click_data)
+
+        # handle display of the action, if needed
+        self.app.callback([dash.dependencies.Output("current_action", "children"),
+                           ],
+                          [dash.dependencies.Input("do_display_action", "value"),
+                           dash.dependencies.Input("gen-id-hidden", "children"),
+                           dash.dependencies.Input('gen-dispatch', "value"),
+                           dash.dependencies.Input("storage-id-hidden", "children"),
+                           dash.dependencies.Input('storage-power-input', "value"),
+                           dash.dependencies.Input("line-id-hidden", "children"),
+                           dash.dependencies.Input('line-status-input', "value"),
+                           dash.dependencies.Input('sub-id-hidden', "children"),
+                           dash.dependencies.Input("graph_clicked_sub", "clickData")
+                          ])(self.display_action)
+
         # handle triggers: the collapse of the temporal information
         # TODO do not work now !
         self.app.callback([dash.dependencies.Output("collapsetemp_trigger_temporal_figs", "n_clicks")
@@ -165,7 +221,6 @@ class VizServer:
                           [dash.dependencies.Input('show-temoral-graph', "value")],
                           [dash.dependencies.State("collapsetemp_trigger_temporal_figs", "n_clicks")]
                           )(self.show_temporal_graphs)
-
 
         # handle the interaction with self.env, that should be done all in one function, otherwise
         # there are concurrency issues
@@ -576,9 +631,31 @@ class VizServer:
                                 className="six columns",
                                 style={'display': 'inline-block'}
                                 )
+        sub_clicked = html.Div([html.P("sub id", id="sub-id-clicked"),
+                                html.P("New Topology:"),
+                                dcc.Graph(id="graph_clicked_sub",
+                                          config={
+                                              'displayModeBar': False,
+                                              "responsive": True,
+                                              "autosizable": True
+                                          },
+                                          style={'display': 'inline-block',
+                                                 'width': '50vh', 'height': '47vh'
+                                                 }
+                                          ),
+                                html.P("",
+                                       id="sub-id-hidden",
+                                       style={'display': 'none'}
+                                       )
+                                ],
+                               id="sub_clicked",
+                               className="six columns",
+                               style={'display': 'inline-block'}
+                               )
         layout_click = html.Div([generator_clicked,
                                  storage_clicked,
-                                 line_clicked],
+                                 line_clicked,
+                                 sub_clicked],
                                 className='six columns')
 
         interaction_and_action = html.Div([html.Br(),
@@ -591,21 +668,6 @@ class VizServer:
                                        )
 
         # hidden control button, hack for having same output for multiple callbacks
-        # step_trigger_rt = html.Label("",
-        #                              id="step_trigger_rt",
-        #                              n_clicks=0)
-        # step_trigger_for = html.Label("",
-        #                               id="step_trigger_for",
-        #                               n_clicks=0)
-        # simu_trigger_for = html.Label("",
-        #                               id="simu_trigger_for",
-        #                               n_clicks=0)
-        # back_trigger_for = html.Label("",
-        #                               id="back_trigger_for",
-        #                               n_clicks=0)
-        # back_trigger_rt = html.Label("",
-        #                              id="back_trigger_rt",
-        #                              n_clicks=0)
         figrt_trigger_temporal_figs = html.Label("",
                                                  id="figrt_trigger_temporal_figs",
                                                  n_clicks=0)
@@ -676,6 +738,12 @@ class VizServer:
                                              min=0,
                                              max=2,
                                              )
+        do_display_action = dcc.Input(placeholder=" ",
+                                      id='do_display_action',
+                                      type='range',
+                                      min=0,
+                                      max=1,
+                                      )
 
         # triggering the update of the figures
         act_on_env_trigger_rt = html.Label("",
@@ -692,7 +760,8 @@ class VizServer:
                                         gofast_butt_call_act_on_env,
                                         act_on_env_trigger_rt,
                                         act_on_env_trigger_for, reset_butt_call_act_on_env,
-                                        act_on_env_call_selfloop, selfloop_call_act_on_env
+                                        act_on_env_call_selfloop, selfloop_call_act_on_env,
+                                        do_display_action
                                         ],
                                        id="hidden_button_for_callbacks",
                                        style={'display': 'none'})
@@ -707,9 +776,9 @@ class VizServer:
                               html.Br(),
                               state_row,
                               html.Br(),
-                              temporal_graphs,
-                              html.Br(),
                               interaction_and_action,
+                              html.Br(),
+                              temporal_graphs,
                               interval_object,
                               hidden_interactions
                           ])
@@ -755,7 +824,6 @@ class VizServer:
             # "back" has been clicked
             self.go_clicks = go_clicks
             trigger_act_on_env = 1
-            print("I called go")
         else:
             raise dash.exceptions.PreventUpdate
         return [trigger_act_on_env]
@@ -766,7 +834,6 @@ class VizServer:
             # "back" has been clicked
             self.gofast_clicks = gofast_clicks
             trigger_act_on_env = 1
-            print("I called go fast")
         else:
             raise dash.exceptions.PreventUpdate
         return [trigger_act_on_env]
@@ -985,169 +1052,118 @@ class VizServer:
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
     # self.plot_temporal.fig_load_gen, self.plot_temporal.fig_line_cap
-    ######## old ugly stuff
     def display_action(self,
-                       # step_clicks, simulate_clicks,
+                       do_display,
                        gen_id, redisp,
                        stor_id, storage_p,
-                       line_id, line_status):
-        """displays the actions (as text)"""
-        # TODO handle better the action (this is ugly to handle it from here!)
+                       line_id, line_status,
+                       sub_id, clicked_sub_fig):
+        """
+        modify the action taken based on the inputs,
+        then displays the action (as text)"""
+        # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
-        # TODO initialize the value to the last seen value for the dispatch, and not the
-        # value in the observation
-
-        res = None
-        # if self.step_clicks < step_clicks or self.simulate_clicks < simulate_clicks:
-        if False:
-            # someone clicked on the "step" or "simulate" button
-            res = [f"{self.env.current_action}"]
+        if not do_display:
+            # i should not display the action
+            res = [""]
         else:
+            # i need to display the action
+            is_modif = False
             if gen_id != "":
                 self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
+                is_modif = True
             if stor_id != "":
                 self.env._current_action.storage_p = [(int(stor_id), float(storage_p))]
+                is_modif = True
             if line_id != "" and line_status is not None:
                 self.env._current_action.line_set_status = [(int(line_id), int(line_status))]
+                is_modif = True
+            if sub_id != "":
+                if clicked_sub_fig is not None:
+                    # i modified a substation topology
+                    is_modif = True
+                    # TODO update the action AND the figure of the substation !!!!
+            if not is_modif:
+                raise dash.exceptions.PreventUpdate
+
+            # TODO optim here to save that if not needed because nothing has changed
             res = [f"{self.env.current_action}"]
         return res
 
-    def display_click_data(self, clickData):
-        fig, obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
+    def display_click_data(self, clickData,
+                           back_clicked, step_clicked, simulate_clicked, go_clicked,
+                           gofast_clicked):
+        """display the intearction window when the real time graph is clicked on"""
+        do_display_action = 0
         style_gen_input = {'display': 'none'}
         gen_id_clicked = ""
-        gen_res = ["Generator id", -1., 1., 0., "gen_p", "target_disp", "actual_disp"]  # gen_id, min_redisp_val, max_redisp_val, redisp_val
+        gen_res = ["", -1., 1., 0., "gen_p", "target_disp", "actual_disp"]
 
         style_storage_input = {'display': 'none'}
         storage_id_clicked = ""
-        storage_res = ["Storage id", -1., 1., 0., "storage_power", "storage_capaticy"]
+        storage_res = ["", -1., 1., 0., "storage_power", "storage_capaticy"]
 
         style_line_input = {'display': 'none'}
         line_id_clicked = ""
-        line_res = ["line id", 1, "flow"]
+        line_res = ["", 0, "flow"]
+
+        style_sub_input = {'display': 'none'}
+        sub_id_clicked = ""
+        sub_res = ["", self.plot_grids.sub_fig]
+
+        # check which call backs triggered this calls
+        # see https://dash.plotly.com/advanced-callbacks
+        # section "Determining which Input has fired with dash.callback_context"
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            # no click have been made yet
+            # so no action displayed
+            return [do_display_action,
+                    style_gen_input, gen_id_clicked, *gen_res,
+                    style_storage_input, storage_id_clicked, *storage_res,
+                    style_line_input, line_id_clicked, *line_res,
+                    style_sub_input, sub_id_clicked, *sub_res
+                    ]
+
+        else:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
         # https://stackoverflow.com/questions/50213761/changing-visibility-of-a-dash-component-by-updating-other-component
-        # if self.step_clicks < step_clicks:
-        #     # someone clicked on the "step" button
-        #     pass
-        # if self.simulate_clicks < simulate_clicks:
-        #     # someone clicked on the "simulate" button
-        #     pass
-
-        if clickData is None or self.is_continue_mode:
-            # either i did not click on any data, or i am in the "go mode"
-            pass
-        elif obj_type == "gen":
-            gen_id_clicked = f"{obj_id}"
-            style_gen_input = {'display': 'inline-block'}
-            gen_res = res_type
-        elif obj_type == "stor":
-            storage_id_clicked = f"{obj_id}"
-            style_storage_input = {'display': 'inline-block'}
-            storage_res = res_type
-        elif obj_type == "line":
-            line_id_clicked = f"{obj_id}"
-            style_line_input = {'display': 'inline-block'}
-            line_res = res_type
-        # return: gen_style, gen_id, min_val, max_val
-        return [style_gen_input, gen_id_clicked, *gen_res,
+        if clickData is None:
+            # i never clicked on any data
+            do_display_action = 0
+        elif button_id == "step-button" or button_id == "simulate-button" or \
+                button_id == "go-button" or button_id == "gofast-button" or\
+                button_id == "back-button":
+            # i never clicked on simulate, step, go, gofast or back
+            do_display_action = 0
+        else:
+            obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
+            if obj_type == "gen":
+                gen_id_clicked = f"{obj_id}"
+                style_gen_input = {'display': 'inline-block'}
+                gen_res = res_type
+                do_display_action = 1
+            elif obj_type == "stor":
+                storage_id_clicked = f"{obj_id}"
+                style_storage_input = {'display': 'inline-block'}
+                storage_res = res_type
+                do_display_action = 1
+            elif obj_type == "line":
+                line_id_clicked = f"{obj_id}"
+                style_line_input = {'display': 'inline-block'}
+                line_res = res_type
+                do_display_action = 1
+            elif obj_type == "sub":
+                sub_id_clicked = f"{obj_id}"
+                style_sub_input = {'display': 'inline-block'}
+                sub_res = res_type
+                do_display_action = 1
+            else:
+                raise dash.exceptions.PreventUpdate
+        return [do_display_action,
+                style_gen_input, gen_id_clicked, *gen_res,
                 style_storage_input, storage_id_clicked, *storage_res,
-                style_line_input, line_id_clicked, *line_res
+                style_line_input, line_id_clicked, *line_res,
+                style_sub_input, sub_id_clicked, *sub_res
                 ]
-
-    def advance_time(self, interval, continue_till_go_clicks, go_fast_clicks, step_clicked):
-        self.is_continue_mode = False
-        self.is_go_fast = False
-        button_shape = "btn btn-primary"
-        button_reset_shape = "btn btn-primary"
-        go_button_shape = button_shape
-
-        if self.continue_clicks < continue_till_go_clicks:
-            self.continue_clicks = continue_till_go_clicks
-
-        if self.go_fast_clicks < go_fast_clicks:
-            self.go_fast_clicks = go_fast_clicks
-
-        if self.env.is_done:
-            # nothing more to do, i am dead
-            button_shape = "btn btn-secondary"
-            go_button_shape = "btn btn-secondary"
-            return [button_shape, button_shape, button_shape, button_reset_shape, go_button_shape]
-
-        # TODO here need to address these "heavy" computation
-        # if self._is_ok_step_fast is False:
-        #     button_shape = "btn btn-secondary"
-        #     go_button_shape = button_shape
-        #
-        # if self.go_fast_clicks % 2 == 1 and not self.is_go_fast and self._is_ok_step_fast:
-        #     # still in the "go_fast" mode
-        #     self.is_continue_mode = True
-        #     self.is_go_fast = True
-        #
-        #     self._is_ok_step_fast = False
-        #     # weird stuff to prevent dash to call "make_step" twice
-        #     for i in range(self.nb_step_gofast):
-        #         self.make_step()
-        #     self._is_ok_step_fast = True
-        #
-        #     button_shape = "btn btn-secondary"
-        #     go_button_shape = button_shape
-
-        if self.continue_clicks % 2 == 1 and not self.is_go_fast:
-            # still in the "advance-time" mode
-            self.is_continue_mode = True
-            self.make_step()
-            button_shape = "btn btn-secondary"
-            button_reset_shape = "btn btn-secondary"
-            step_clicked += 1  # I plot the graph
-
-        return [button_shape, button_shape, button_shape, button_reset_shape, go_button_shape,
-                step_clicked]
-
-    # def has_reset(self, reset_clicks):
-    #     if self.is_continue_mode:
-    #         # do not reset if in "continue to simulate" mode
-    #         return ["toto"]
-    #
-    #     if self.reset_clicks < reset_clicks:
-    #         self.reset_clicks = reset_clicks
-    #         self.env.reset()
-    #         self.update_obs_fig()
-    #     return ["toto"]
-
-    def controlTriggers(self,
-                        step_clicks, simulate_clicks, back_clicks,
-                        line_unit, line_side, load_unit, gen_unit, stor_unit):
-        # controls the panels of the main graph of the grid
-        if line_unit != self.plot_grids.line_info:
-            self.plot_grids.line_info = line_unit
-            self.plot_grids.update_lines_info()
-        if line_side != self.plot_grids.line_side:
-            self.plot_grids.line_side = line_side
-            self.plot_grids.update_lines_side()
-        if load_unit != self.plot_grids.load_info:
-            self.plot_grids.load_info = load_unit
-            self.plot_grids.update_loads_info()
-        if gen_unit != self.plot_grids.gen_info:
-            self.plot_grids.gen_info = gen_unit
-            self.plot_grids.update_gens_info()
-        if stor_unit != self.plot_grids.storage_info:
-            self.plot_grids.storage_info = stor_unit
-            self.plot_grids.update_storages_info()
-
-        if self.step_clicks < step_clicks:
-            # "step" has been clicked
-            self.step_clicks = step_clicks
-            if self.is_continue_mode is False:
-                self.make_step()
-
-        if self.simulate_clicks < simulate_clicks:
-            self.simulate_clicks = simulate_clicks
-            # simulate has been called
-            if self.is_continue_mode is False:
-                self.env.simulate()
-                self.plot_grids.update_forecat(self.env.sim_obs)
-                self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
-
-        # TODO ugly way to display the date and time ...
-        return [self.real_time, self.forecast, self.rt_datetime, self.for_datetime,
-                self.plot_temporal.fig_load_gen, self.plot_temporal.fig_line_cap]
