@@ -37,6 +37,9 @@ class PlotGrids(PlotParams):
         self.figure_rt = None
         self.figure_forecat = None
         self.sub_fig = None
+        self._last_sub_clicked = None
+        self.figs_substation_zoomed = []
+        self.objs_info_zoomed = {}
 
         # and the units
         self.line_info = "rho"
@@ -75,14 +78,17 @@ class PlotGrids(PlotParams):
         self.obs_forecast = None
         self.obs_rt = None
 
-        # for zomm in substation
+        # for zoom in substation
         # TODO check that !
-        self._r_sub_zoom = self.glop_plot._line_bus_radius
-        self._r_bus_1 = 8
-        self._r_bus_2 = 6
+        self._r_sub_zoom = 60
+        self._dist_bus_1 = 0.6  # as fraction of the _r_sub_zoom
+        self._dist_bus_2 = 0.8  # as fraction of the _r_sub_zoom
         self._dist_zoomed_in = 1.5  # as fraction of the _r_sub_zoom
+        self.style_bus1 = "dash"
+        self.style_bus2 = 'dot'
 
-    def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, line_side=None):
+    def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, fig,
+                            pos_obj, pos_in_sub, line_side=None):
         """add an element when a substation is zoomed in"""
         if line_side is None:
             tmp_x, tmp_y = self.layout[nm_this_obj]  # init position of the element
@@ -91,39 +97,166 @@ class PlotGrids(PlotParams):
         elif line_side == "ex":
             _, (tmp_x, tmp_y) = self.layout[nm_this_obj]  # init position of the element
         else:
-            raise RuntimeError(f"Unrecognize line side {line_side}, should be \"or\" or \"ex\"")
+            raise RuntimeError(f"Unrecognized line side {line_side}, should be \"or\" or \"ex\"")
 
         dist_center = cmath.sqrt((tmp_x - posx) ** 2 + (tmp_y - posy) ** 2)
+        dist_center = dist_center.real
         my_dist = self._dist_zoomed_in * self._r_sub_zoom
-        tmp_x = float(posx + my_dist / dist_center * (tmp_x - posx))
-        tmp_y = float(posy + my_dist / dist_center * (tmp_y - posy))
+        tmp_x = int(posx + my_dist / dist_center * (tmp_x - posx))
+        tmp_y = int(posy + my_dist / dist_center * (tmp_y - posy))
         # compute intersection with the circles representing the buses
-        posx_bus1 = posx + self._r_bus_1 / my_dist * (tmp_x - posx)
-        posy_bus1 = posy + self._r_bus_1 / my_dist * (tmp_y - posy)
-        posx_bus2 = posx + self._r_bus_2 / my_dist * (tmp_x - posx)
-        posy_bus2 = posy + self._r_bus_2 / my_dist * (tmp_y - posy)
+        posx_bus1 = int(posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus1 = int(posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
+        posx_bus2 = int(posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus2 = int(posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
+        # dict to map coordinate to objects
+        pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub)
+        pos_obj[(posx_bus1, posy_bus1)] = (nm_this_obj, "bus1", pos_in_sub)
+        pos_obj[(posx_bus2, posy_bus2)] = (nm_this_obj, "bus2", pos_in_sub)
+        # dict to map object to their coordinates
+        if line_side is None:
+            self.objs_info_zoomed[nm_this_obj] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
+        elif line_side == "ex":
+            self.objs_info_zoomed[nm_this_obj+"_ex"] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
+        elif line_side == "or":
+            self.objs_info_zoomed[nm_this_obj+"_or"] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
+
         # draw everything
         tmp_ = go.Scatter(x=[tmp_x], y=[tmp_y],
                           mode="markers",
                           name=nm_this_obj,
                           marker=marker,
                           showlegend=False)
-        self.sub_fig.add_trace(tmp_)
+        fig.add_trace(tmp_)
         tmp_ = go.Scatter(x=[posx_bus1], y=[posy_bus1],
                           mode="markers",
                           name=nm_this_obj + "_bus1",
                           marker=self._marker_bus1,
                           showlegend=False)
-        self.sub_fig.add_trace(tmp_)
+        fig.add_trace(tmp_)
         tmp_ = go.Scatter(x=[posx_bus2], y=[posy_bus2],
                           mode="markers",
                           name=nm_this_obj + "_bus2",
                           marker=self._marker_bus2,
                           showlegend=False)
-        self.sub_fig.add_trace(tmp_)
+        fig.add_trace(tmp_)
+
+        # line that connected the bus to the object
+        tmp = go.Scatter(x=[tmp_x, posx_bus1],
+                         y=[tmp_y, posy_bus1],
+                         mode="lines",
+                         name=nm_this_obj+"_current_bus",
+                         showlegend=False,
+                         line=dict(color=self.col_bus1, dash=self.style_bus1)
+                         )
+        fig.add_trace(tmp)
+
+    def _init_figures_substation_zoomed(self):
+        """init all the figures for the substation, when zoomed in"""
+        self.figs_substation_zoomed = []
+        for sub_id, sub_name in enumerate(self.grid.name_sub):
+            tmp_fig = go.Figure()
+            (posx, posy) = self.layout[sub_name]
+            tmp_fig.add_shape(type="circle",
+                                   xref="x", yref="y",
+                                   fillcolor=self._sub_fill_color,
+                                   x0=posx - self._r_sub_zoom,
+                                   y0=posy - self._r_sub_zoom,
+                                   x1=posx + self._r_sub_zoom,
+                                   y1=posy + self._r_sub_zoom,
+                                   line_color=self._sub_fill_color,
+                                   opacity=0.5
+                                   )
+            tmp_fig.add_shape(type="circle",
+                              xref="x", yref="y",
+                              x0=posx - self._dist_bus_1 * self._r_sub_zoom,
+                              y0=posy - self._dist_bus_1 * self._r_sub_zoom,
+                              x1=posx + self._dist_bus_1 * self._r_sub_zoom,
+                              y1=posy + self._dist_bus_1 * self._r_sub_zoom,
+                              line=dict(color=self.col_bus1, dash=self.style_bus1)
+                              )
+            tmp_fig.add_shape(type="circle",
+                              xref="x", yref="y",
+                              x0=posx - self._dist_bus_2 * self._r_sub_zoom,
+                              y0=posy - self._dist_bus_2 * self._r_sub_zoom,
+                              x1=posx + self._dist_bus_2 * self._r_sub_zoom,
+                              y1=posy + self._dist_bus_2 * self._r_sub_zoom,
+                              line=dict(color=self.col_bus2, dash=self.style_bus2)
+                              )
+            tmp_fig.add_trace(go.Scatter(x=[posx],
+                                         y=[posy],
+                                         text=[sub_name],
+                                         mode="text",
+                                         name=sub_name,
+                                         showlegend=False
+                                         ))
+
+            pos_objs = {}
+            # draw the objects connected to it
+            # dict_ = self.grid.get_obj_connect_to(substation_id=obj_id)  # TODO weird bug
+            dict_ = self.observation_space.get_obj_connect_to(substation_id=sub_id)
+            for load_id in dict_["loads_id"]:
+                nm_this_obj = self.grid.name_load[load_id]
+                pos_in_sub = self.grid.load_to_sub_pos[load_id]
+                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_load,
+                                         tmp_fig, pos_objs, pos_in_sub)
+            for gen_id in dict_["generators_id"]:
+                nm_this_obj = self.grid.name_gen[gen_id]
+                pos_in_sub = self.grid.gen_to_sub_pos[gen_id]
+                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_gen,
+                                         tmp_fig, pos_objs, pos_in_sub)
+            for line_id in dict_["lines_or_id"]:
+                nm_this_obj = self.grid.name_line[line_id]
+                pos_in_sub = self.grid.line_or_to_sub_pos[line_id]
+                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, tmp_fig,
+                                         pos_objs, pos_in_sub, "or")
+            for line_id in dict_["lines_ex_id"]:
+                nm_this_obj = self.grid.name_line[line_id]
+                pos_in_sub = self.grid.line_ex_to_sub_pos[line_id]
+                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, tmp_fig,
+                                         pos_objs, pos_in_sub, "ex")
+            for stor_id in dict_["storages_id"]:
+                nm_this_obj = self.grid.name_storage[stor_id]
+                pos_in_sub = self.grid.storage_to_sub_pos[stor_id]
+                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage,
+                                         tmp_fig, pos_objs, pos_in_sub)
+
+            self.figs_substation_zoomed.append((tmp_fig, pos_objs))
+
+    def retrieve_obj_info(self, obj_info):
+        if obj_info[self.grid.LOA_COL] != -1:
+            obj_id = obj_info[self.grid.LOA_COL]
+            nm_this_obj = self.grid.name_load[obj_id]
+            (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = \
+                self.objs_info_zoomed[nm_this_obj]
+        elif obj_info[self.grid.GEN_COL] != -1:
+            obj_id = obj_info[self.grid.GEN_COL]
+            nm_this_obj = self.grid.name_gen[obj_id]
+            (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = \
+                self.objs_info_zoomed[nm_this_obj]
+        elif obj_info[self.grid.STORAGE_COL] != -1:
+            obj_id = obj_info[self.grid.STORAGE_COL]
+            nm_this_obj = self.grid.name_storage[obj_id]
+            (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = \
+                self.objs_info_zoomed[nm_this_obj]
+        elif obj_info[self.grid.LOR_COL] != -1:
+            obj_id = obj_info[self.grid.LOR_COL]
+            nm_this_obj = self.grid.name_line[obj_id]
+            (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = \
+                self.objs_info_zoomed[nm_this_obj+"_or"]
+        elif obj_info[self.grid.LEX_COL] != -1:
+            obj_id = obj_info[self.grid.LEX_COL]
+            nm_this_obj = self.grid.name_line[obj_id]
+            (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = \
+                self.objs_info_zoomed[nm_this_obj+"_ex"]
+        else:
+            raise RuntimeError("Unknown element in the substation. Have your forgotten to had a "
+                               "case in the retrieve_obj_info function that handles "
+                               "grid2op.Spaces.grid_objects_types ?")
+        return nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2)
 
     def get_object_clicked(self, clickData):
-        """return the figure of the object clicked on"""
+        """return the proper information when the main graph is clicked"""
         # TODO refactor all that to split it into different functions...
 
         # TODO not sure it's best suited here !
@@ -137,72 +270,33 @@ class PlotGrids(PlotParams):
                 (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
                 if obj_type == "sub":
                     # draw the substation
-                    self.sub_fig = go.Figure()
-                    (posx, posy) = self.layout[obj_name]
-                    self.sub_fig.add_shape(type="circle",
-                                           xref="x", yref="y",
-                                           fillcolor=self._sub_fill_color,
-                                           x0=posx-self._r_sub_zoom,
-                                           y0=posy-self._r_sub_zoom,
-                                           x1=posx+self._r_sub_zoom,
-                                           y1=posy+self._r_sub_zoom,
-                                           line_color=self._sub_fill_color,
-                                           opacity=0.5
-                                           )
-                    self.sub_fig.add_shape(type="circle",
-                                           xref="x", yref="y",
-                                           x0=posx-self._r_bus_1,
-                                           y0=posy-self._r_bus_1,
-                                           x1=posx+self._r_bus_1,
-                                           y1=posy+self._r_bus_1,
-                                           line_color=self.col_bus1,
-                                           )
-                    self.sub_fig.add_shape(type="circle",
-                                           xref="x", yref="y",
-                                           x0=posx-self._r_bus_2,
-                                           y0=posy-self._r_bus_2,
-                                           x1=posx+self._r_bus_2,
-                                           y1=posy+self._r_bus_2,
-                                           line_color=self.col_bus2,
-                                           )
-                    self.sub_fig.add_trace(go.Scatter(x=[posx],
-                                                      y=[posy],
-                                                      text=[obj_name],
-                                                      mode="text",
-                                                      name=obj_name,
-                                                      showlegend=False
-                                                      ))
+                    self.sub_fig, _ = self.figs_substation_zoomed[obj_id]
+                    self._last_sub_clicked = obj_id
 
-                    # draw the objects connected to it
-                    # dict_ = self.grid.get_obj_connect_to(substation_id=obj_id)  # TODO weird bug
-                    dict_ = self.observation_space.get_obj_connect_to(substation_id=obj_id)
-                    for load_id in dict_["loads_id"]:
-                        nm_this_obj = self.grid.name_load[load_id]
-                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_load)
-                    for gen_id in dict_["generators_id"]:
-                        nm_this_obj = self.grid.name_gen[gen_id]
-                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_gen)
-                    for line_id in dict_["lines_or_id"]:
-                        nm_this_obj = self.grid.name_line[line_id]
-                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, "or")
-                    for line_id in dict_["lines_ex_id"]:
-                        nm_this_obj = self.grid.name_line[line_id]
-                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, "ex")
-                    for stor_id in dict_["storages_id"]:
-                        nm_this_obj = self.grid.name_storage[stor_id]
-                        self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage)
-                    # TODO add the right color for the busbar to which the object is connected
-
-                    # TODO and do something other than the color, maybe with dashed and dotted
-
-                    # TODO save the coordinates computed in the `_add_element_to_sub` for reuse later on
+                    # add the right color to which the object is connected
+                    current_topo = self.obs_rt.sub_topology(obj_id)
+                    objs_this_sub = self.obs_rt.get_obj_substations(substation_id=obj_id)
+                    for obj_info, obj_bus in zip(objs_this_sub, current_topo):
+                        nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = self.retrieve_obj_info(obj_info)
+                        line_style = dict(color=self.col_bus1, dash=self.style_bus1)
+                        bus_x = xbus1
+                        bus_y = ybus1
+                        if obj_bus == 2:
+                            line_style = dict(color=self.col_bus2, dash=self.style_bus2)
+                            bus_x = xbus2
+                            bus_y = ybus2
+                        self.sub_fig.update_traces(x=[x_this_obj, bus_x],
+                                                   y=[y_this_obj, bus_y],
+                                                   line=line_style,
+                                                   selector=dict(name=nm_this_obj+"_current_bus"))
                     res_type = (f"Substation id {obj_id}",
                                 self.sub_fig
                                 )
                 elif obj_type == "line":
                     res_type = (f"Line id {obj_id} ({obj_name})",
                                 "0",
-                                f"Flow: {self.obs_rt.a_or[obj_id]:.2f}A (thermal limit {self.obs_rt._thermal_limit[obj_id]:.2f}A)"
+                                f"Flow: {self.obs_rt.a_or[obj_id]:.2f}A "
+                                f"(thermal limit {self.obs_rt._thermal_limit[obj_id]:.2f}A)"
                                 )
                 elif obj_type == "stor":
                     res_type = (f"Storage unit id {obj_id} ({obj_name})",
@@ -231,6 +325,9 @@ class PlotGrids(PlotParams):
         self.figure_rt = go.Figure()
         self.figure_forecat = go.Figure()
         self.sub_fig = go.Figure()
+
+        # to initialized the zoomed in substations layout
+        self._init_figures_substation_zoomed()
 
         self.obs_rt = obs_rt
         self.obs_forecast = obs_forecast
