@@ -51,7 +51,22 @@ class PlotTemporalSeries(object):
         tmp_ = go.Scatter(x=self.env._datetimes,
                           y=self.env._max_line_flow,
                           mode="lines",
-                          name="Max. Line capacity",
+                          name="Highest line capacity",
+                          line=dict(color="red"),
+                          showlegend=True)
+        self.fig_line_cap.add_trace(tmp_)
+        tmp_ = go.Scatter(x=self.env._datetimes,
+                          y=self.env._secondmax_line_flow,
+                          mode="lines",
+                          name="2nd highest line cap.",
+                          line=dict(color="crimson"),
+                          showlegend=True)
+        self.fig_line_cap.add_trace(tmp_)
+        tmp_ = go.Scatter(x=self.env._datetimes,
+                          y=self.env._thirdmax_line_flow,
+                          mode="lines",
+                          name="3rd highest line cap.",
+                          line=dict(color="coral"),
                           showlegend=True)
         self.fig_line_cap.add_trace(tmp_)
         tmp_ = go.Scatter(x=(self.env._datetimes[0],self.env._datetimes[-1]),
@@ -60,7 +75,7 @@ class PlotTemporalSeries(object):
                           name="Overflow limit",
                           hoverinfo='skip',
                           showlegend=True,
-                          line=dict(color="red", dash="dash"))
+                          line=dict(color="darkred", dash="dash", width=2))
         self.fig_line_cap.add_trace(tmp_)
         self.fig_line_cap.update_layout(title={'text': "Line capacity"},
                                         xaxis_title='date and time',
@@ -137,6 +152,12 @@ class PlotTemporalSeries(object):
 
         self.fig_line_cap.update_traces(x=self.env._datetimes,
                                         y=self.env._max_line_flow,
-                                        selector=dict(name="Max. Line capacity"))
+                                        selector=dict(name="Highest line capacity"))
+        self.fig_line_cap.update_traces(x=self.env._datetimes,
+                                        y=self.env._secondmax_line_flow,
+                                        selector=dict(name="2nd highest line cap."))
+        self.fig_line_cap.update_traces(x=self.env._datetimes,
+                                        y=self.env._thirdmax_line_flow,
+                                        selector=dict(name="3rd highest line cap."))
         self.fig_line_cap.update_traces(x=(self.env._datetimes[0], self.env._datetimes[-1]),
                                         selector=dict(name="Overflow limit"))

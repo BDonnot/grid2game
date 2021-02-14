@@ -42,6 +42,8 @@ class Env(object):
         # todo have that in another class
         self._sum_load = None
         self._max_line_flow = None
+        self._secondmax_line_flow = None
+        self._thirdmax_line_flow = None
         self._sum_solar = None
         self._sum_wind = None
         self._sum_thermal = None
@@ -142,6 +144,8 @@ class Env(object):
 
         self._sum_load = []
         self._max_line_flow = []
+        self._secondmax_line_flow = []
+        self._thirdmax_line_flow = []
         self._sum_solar = []
         self._sum_wind = []
         self._sum_thermal = []
@@ -156,7 +160,10 @@ class Env(object):
             # don't had data corresponding to the last observation, which is "wrong"
             return
         self._sum_load.append(np.sum(self._obs.load_p))
-        self._max_line_flow.append(np.max(self._obs.rho))
+        rhos_ = np.partition(self._obs.rho.flatten(), -3)
+        self._max_line_flow.append(rhos_[-1])
+        self._secondmax_line_flow.append(rhos_[-2])
+        self._thirdmax_line_flow.append(rhos_[-3])
         self._sum_solar.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "solar"]))
         self._sum_wind.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "wind"]))
         self._sum_thermal.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "thermal"]))
@@ -167,6 +174,8 @@ class Env(object):
     def pop_vects(self):
         *self._sum_load, _ = self._sum_load
         *self._max_line_flow, _ = self._max_line_flow
+        *self._secondmax_line_flow, _ = self._secondmax_line_flow
+        *self._thirdmax_line_flow, _ = self._thirdmax_line_flow
         *self._sum_solar, _ = self._sum_solar
         *self._sum_wind, _ = self._sum_wind
         *self._sum_thermal, _ = self._sum_thermal

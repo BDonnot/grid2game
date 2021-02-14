@@ -88,7 +88,8 @@ class PlotGrids(PlotParams):
         self.style_bus2 = 'dot'
 
     def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, fig,
-                            pos_obj, pos_in_sub, line_side=None):
+                            pos_obj, pos_in_sub, pos_in_topo_vect,
+                            line_side=None):
         """add an element when a substation is zoomed in"""
         if line_side is None:
             tmp_x, tmp_y = self.layout[nm_this_obj]  # init position of the element
@@ -110,9 +111,9 @@ class PlotGrids(PlotParams):
         posx_bus2 = int(posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
         posy_bus2 = int(posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
         # dict to map coordinate to objects
-        pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub)
-        pos_obj[(posx_bus1, posy_bus1)] = (nm_this_obj, "bus1", pos_in_sub)
-        pos_obj[(posx_bus2, posy_bus2)] = (nm_this_obj, "bus2", pos_in_sub)
+        pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub, pos_in_topo_vect)
+        pos_obj[(posx_bus1, posy_bus1)] = (nm_this_obj, "bus1", pos_in_sub, pos_in_topo_vect)
+        pos_obj[(posx_bus2, posy_bus2)] = (nm_this_obj, "bus2", pos_in_sub, pos_in_topo_vect)
         # dict to map object to their coordinates
         if line_side is None:
             self.objs_info_zoomed[nm_this_obj] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
@@ -198,28 +199,33 @@ class PlotGrids(PlotParams):
             for load_id in dict_["loads_id"]:
                 nm_this_obj = self.grid.name_load[load_id]
                 pos_in_sub = self.grid.load_to_sub_pos[load_id]
+                pos_topo_vect = self.grid.load_pos_topo_vect[load_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_load,
-                                         tmp_fig, pos_objs, pos_in_sub)
+                                         tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
             for gen_id in dict_["generators_id"]:
                 nm_this_obj = self.grid.name_gen[gen_id]
                 pos_in_sub = self.grid.gen_to_sub_pos[gen_id]
+                pos_topo_vect = self.grid.gen_pos_topo_vect[gen_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_gen,
-                                         tmp_fig, pos_objs, pos_in_sub)
+                                         tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
             for line_id in dict_["lines_or_id"]:
                 nm_this_obj = self.grid.name_line[line_id]
                 pos_in_sub = self.grid.line_or_to_sub_pos[line_id]
+                pos_topo_vect = self.grid.line_or_pos_topo_vect[line_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, tmp_fig,
-                                         pos_objs, pos_in_sub, "or")
+                                         pos_objs, pos_in_sub, pos_topo_vect, "or")
             for line_id in dict_["lines_ex_id"]:
                 nm_this_obj = self.grid.name_line[line_id]
                 pos_in_sub = self.grid.line_ex_to_sub_pos[line_id]
+                pos_topo_vect = self.grid.line_ex_pos_topo_vect[line_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, tmp_fig,
-                                         pos_objs, pos_in_sub, "ex")
+                                         pos_objs, pos_in_sub, pos_topo_vect, "ex")
             for stor_id in dict_["storages_id"]:
                 nm_this_obj = self.grid.name_storage[stor_id]
                 pos_in_sub = self.grid.storage_to_sub_pos[stor_id]
+                pos_topo_vect = self.grid.storage_pos_topo_vect[stor_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage,
-                                         tmp_fig, pos_objs, pos_in_sub)
+                                         tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
 
             self.figs_substation_zoomed.append((tmp_fig, pos_objs))
 
@@ -254,6 +260,18 @@ class PlotGrids(PlotParams):
                                "case in the retrieve_obj_info function that handles "
                                "grid2op.Spaces.grid_objects_types ?")
         return nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2)
+
+    def get_object_clicked_sub(self, clickData):
+        """handles which object is clicked on when a substation is being zoomed in"""
+        _, dict_sub = self.figs_substation_zoomed[self._last_sub_clicked]
+        res = (None, 0)
+        if clickData is not None:
+            pts = clickData['points'][0]
+            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            if pos_clicked in dict_sub:
+                (nm_this_obj, what_clicked, pos_in_sub, pos_in_topo_vect) = dict_sub[pos_clicked]
+                res = (pos_in_topo_vect, -1 if what_clicked == "obj" else (1 if what_clicked == "bus1" else 2))
+        return res
 
     def get_object_clicked(self, clickData):
         """return the proper information when the main graph is clicked"""
@@ -313,7 +331,7 @@ class PlotGrids(PlotParams):
                                 -self.grid.gen_max_ramp_down[obj_id],  # TODO use gen_pmin
                                 self.grid.gen_max_ramp_up[obj_id],  # TODO use gen_pmax
                                 0.,
-                                f"prod (target): {self.obs_rt.prod_p[obj_id]:.2f}MW (min: {self.obs_rt.gen_pmin[obj_id]}, max: {self.obs_rt.gen_pmax[obj_id]})",
+                                f"prod : {self.obs_rt.prod_p[obj_id]:.2f}MW (min: {self.obs_rt.gen_pmin[obj_id]}, max: {self.obs_rt.gen_pmax[obj_id]})",
                                 f"dispatch (target): {self.obs_rt.target_dispatch[obj_id]:.2f}MW",
                                 f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW",
                                 )
@@ -890,7 +908,7 @@ class PlotGrids(PlotParams):
 
         # position
         connected = True
-        color = self.line_color_scheme[0]
+        color = self.line_color_ok
 
         (x_or, y_or), (x_ex, y_ex) = self.layout[name]
         line_style = dict(dash=None if connected else "dash",
@@ -994,11 +1012,26 @@ class PlotGrids(PlotParams):
         connected = obs.line_status[id_]
 
         # coloring
-        color = self.line_color_scheme[0]
+        rho = obs.rho[id_]
+        color = self.line_color_ok
+        width = 1
+        # TODO handle line color differently
+        if rho > 1.0:
+            color = "darkred"
+            width = 3
+        elif rho > 0.95:
+            color = "red"
+        elif rho > 0.90:
+            color = "coral"
+        elif rho > 0.85:
+            color = "orange red"
+        elif rho > 0.75:
+            color = "orange"
+        elif rho > 0.50:
+            color = "darkblue"
 
-        # position
         line_style = dict(dash=None if connected else "dash",
-                          color=color)
+                          color=color, width=width)
         dict_traces[name+"_img"] = {"line": line_style}
 
         # arrow for the buses

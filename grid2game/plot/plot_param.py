@@ -62,9 +62,11 @@ class PlotParams(object):
 
         #################### from grid2op, for lines
         self._line_prefix = "a"
+        # TODO line_color_scheme is not used
         self.line_color_scheme = pc.sequential.Blues_r[:4] + \
                                  pc.sequential.Oranges[4:6] + \
                                  pc.sequential.Reds[-3: -1]
+        self.line_color_ok = "lightblue"
         self._line_bus_colors = ["black", "red", "lime"]
         self._bus_prefix = "_bus_"
         self._or_prefix = "_or_"

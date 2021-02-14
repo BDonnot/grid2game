@@ -353,7 +353,7 @@ class VizServer:
                 {'label': '# step overflow', 'value': 'timestep_overflow'},
                 {'label': 'name', 'value': 'name'},
                 {'label': 'None', 'value': 'none'},
-            ], value='rho', clearable=False)
+            ], value='none', clearable=False)
 
         line_side_label = html.Label("Line side:")
         line_side = dcc.Dropdown(id='line-side-dropdown',
@@ -375,7 +375,7 @@ class VizServer:
                                      {'label': 'name', 'value': 'name'},
                                      {'label': 'None', 'value': 'none'},
                                  ],
-                                 value='p',
+                                 value='none',
                                  clearable=False)
         load_info_div = html.Div(id="load-info", children=[load_info_label, load_info])
 
@@ -393,7 +393,7 @@ class VizServer:
                                     {'label': 'actual_dispatch', 'value': 'actual_dispatch'},
                                     {'label': 'None', 'value': 'none'},
                                 ],
-                                value='p',
+                                value='none',
                                 clearable=False)
 
         stor_info_label = html.Label("Stor. unit:")
@@ -403,7 +403,7 @@ class VizServer:
                                     {'label': 'MWh', 'value': 'MWh'},
                                     {'label': 'None', 'value': 'none'},
                                  ],
-                                 value='p',
+                                 value='none',
                                  clearable=False)
 
         # html display
@@ -898,7 +898,10 @@ class VizServer:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
         # NB the checks need to be done in that order, otherwise it might lead to unexpected behaviour
-        if button_id == "selfloop_call_act_on_env":
+        if self.env.is_done and (button_id == "selfloop_call_act_on_env"):
+            # no need to continue the "go" or "gofast" if the environment is "self looping"
+            pass
+        elif button_id == "selfloop_call_act_on_env":
             # "go" or "gofast" has been called, i do another loop
             if self_loop == 1:
                 # go has been called
@@ -1081,8 +1084,11 @@ class VizServer:
             if sub_id != "":
                 if clicked_sub_fig is not None:
                     # i modified a substation topology
-                    is_modif = True
-                    # TODO update the action AND the figure of the substation !!!!
+                    obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
+                    if obj_id is not None:
+                        self.env._current_action.set_bus = [(obj_id, new_bus)]
+                        is_modif = True
+                    # TODO the figure of the substation !!!!
             if not is_modif:
                 raise dash.exceptions.PreventUpdate
 
