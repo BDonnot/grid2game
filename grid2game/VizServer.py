@@ -413,7 +413,6 @@ class VizServer:
         back_col = html.Div(id="back-col", className=button_css, children=[back_button])
         continue_til_go_col = html.Div(id="continue_til_go-col", className=button_css, children=[continue_til_go])
         go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast],
-                               # style={'display': 'none'}  # TODO that do not work for now
                                )
 
         lineinfo_col = html.Div(id="lineinfo-col", className=button_css, children=[line_info_label, line_info])
