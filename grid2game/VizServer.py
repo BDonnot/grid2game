@@ -19,16 +19,15 @@ from grid2game.envs import Env
 
 
 class VizServer:
-    # TODO
     SELF_LOOP_STOP = 0
     SELF_LOOP_GO = 1
     SELF_LOOP_GOFAST = 2
 
     def __init__(self, args):
-        meta_tags=[
+        meta_tags = [
             {
                 'name': 'grid2game',
-                'content': 'Interactive plots for grdi2op'
+                'content': 'Grid2Game a gamified platform to interact with grid2op environments'
             },
             {
                 'http-equiv': 'X-UA-Compatible',
@@ -219,7 +218,7 @@ class VizServer:
         self.app.callback([dash.dependencies.Output("collapsetemp_trigger_temporal_figs", "n_clicks")
                            ],
                           [dash.dependencies.Input('show-temoral-graph', "value")],
-                          [dash.dependencies.State("collapsetemp_trigger_temporal_figs", "n_clicks")]
+                          []
                           )(self.show_temporal_graphs)
 
         # handle the interaction with self.env, that should be done all in one function, otherwise
@@ -270,7 +269,7 @@ class VizServer:
                            dash.dependencies.Output("graph_flow_cap", "figure"),
                            ],
                           [dash.dependencies.Input("figrt_trigger_temporal_figs", "n_clicks"),
-                           # dash.dependencies.Input("collapsetemp_trigger_temporal_figs", "n_clicks")
+                           dash.dependencies.Input("collapsetemp_trigger_temporal_figs", "n_clicks")
                           ],
                           [dash.dependencies.State('show-temoral-graph', "value")]
                           )(self.update_temporal_figs)
@@ -335,7 +334,7 @@ class VizServer:
         # TODO assistant
 
         show_temporal_graph = dcc.Checklist(id="show-temoral-graph",
-                                            options=[{'label': '(TODO) Display time series', 'value': 'display'}],
+                                            options=[{'label': 'Display time series', 'value': 'display'}],
                                             value=["display"]
                                             )
         # change the units
@@ -869,7 +868,12 @@ class VizServer:
         return [trigger_rt_graph, trigger_for_graph]
 
     # handle the interaction with the grid2op environment
-    def handle_act_on_env(self, step_butt, simulate_butt, back_butt, reset_butt, go_butt,
+    def handle_act_on_env(self,
+                          step_butt,
+                          simulate_butt,
+                          back_butt,
+                          reset_butt,
+                          go_butt,
                           gofast_butt,
                           self_loop):
         """
@@ -885,8 +889,9 @@ class VizServer:
         """
         trigger_rt = 0  # do i trigger the update of the "real time figures"
         trigger_for = 0   # do i trigger the update of the "forecast" figures
-        trigger_me_again = 0  # do i call myself again
+        trigger_me_again = self.SELF_LOOP_STOP  # do i call myself again
 
+        print(f"handle_act_on_env: {self_loop}")
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
         # section "Determining which Input has fired with dash.callback_context"
@@ -926,7 +931,7 @@ class VizServer:
                     break
                 self.env.step()
             self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_me_again = 2
+            trigger_me_again = self.SELF_LOOP_GOFAST
         elif button_id == "go_butt_call_act_on_env":
             # "go" is calling, i initialize the self loop
             if not self.env.is_done:
@@ -934,7 +939,7 @@ class VizServer:
             self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
             trigger_rt = 1
             trigger_for = 1
-            trigger_me_again = 1
+            trigger_me_again = self.SELF_LOOP_GO
         elif button_id == "step_butt_call_act_on_env":
             # "step" is calling
             if not self.env.is_done:
@@ -963,33 +968,34 @@ class VizServer:
         else:
             # nothing really called me, so i stop here
             raise dash.exceptions.PreventUpdate
-
+        print(f"handle_act_on_env: {trigger_me_again}")
         return [trigger_rt, trigger_for, trigger_me_again]
 
     def self_loop_step(self, act_on_env_call_selfloop):
         """
         Allows to do a "self loop" on act_on_env step.
-        This is usefull in a "go fast" or in a "go" mode
+        This is useful in a "go fast" or in a "go" mode
         """
+        print(f"self loop called with {act_on_env_call_selfloop}")
         if act_on_env_call_selfloop is None or act_on_env_call_selfloop == 0:
             # there is not self loop, i stop
             raise dash.exceptions.PreventUpdate
 
         button_shape = "btn btn-primary"
         go_button_shape = "btn btn-primary"
-        selfloop_call_act_on_env = 0
+        selfloop_call_act_on_env = self.SELF_LOOP_STOP
 
-        # check if i am in a self loop or not
+        # check if i am in a self loop or not (should be in this order)
         if self.gofast_clicks % 2 == 1:
             # i'm in the "go fast" mode
             button_shape = "btn btn-secondary"
             go_button_shape = "btn btn-secondary"
-            selfloop_call_act_on_env = 2
+            selfloop_call_act_on_env = self.SELF_LOOP_GOFAST
         elif self.go_clicks % 2 == 1:
             # i'm not in a "self loop", button should be updated correctly
             button_shape = "btn btn-secondary"
-            selfloop_call_act_on_env = 1
-
+            selfloop_call_act_on_env = self.SELF_LOOP_GO
+        print(f"self loop output with selfloop_call_act_on_env: {act_on_env_call_selfloop}")
         return [button_shape, button_shape, button_shape, button_shape, go_button_shape,
                 selfloop_call_act_on_env]
 
@@ -1012,15 +1018,14 @@ class VizServer:
             raise dash.exceptions.PreventUpdate
         return [trigger_for_graph]
 
-    def show_temporal_graphs(self, show_temporal_graph, trigger_temporal_figs):
+    def show_temporal_graphs(self, show_temporal_graph):
         """handles the action that displays (or not) the time series graphs"""
-        if (show_temporal_graph is None or show_temporal_graph == 0) and \
-                (trigger_temporal_figs is None or trigger_temporal_figs == 0):
+        if (show_temporal_graph is None or show_temporal_graph == 0):
             raise dash.exceptions.PreventUpdate
-        return [trigger_temporal_figs]
+        return [1]
 
     # end point of the trigger stuff: what is displayed on the page !
-    def update_temporal_figs(self, figrt_trigger, graph_state):
+    def update_temporal_figs(self, figrt_trigger, collapsetemp_trigger, graph_state):
         # TODO collapsetemp_trigger is deactivated otherwise it does not work
         display_mode = {'display': 'none'}
         if graph_state:
@@ -1028,7 +1033,8 @@ class VizServer:
             self.plot_temporal.update_layout_height()  # otherwise figures shrink when trigger is called
             self.plot_temporal.update_trace()
             display_mode = {'display': 'block'}
-        else:
+        if (figrt_trigger is None or figrt_trigger == 0) and \
+                (collapsetemp_trigger is None or collapsetemp_trigger == 0):
             raise dash.exceptions.PreventUpdate
         return [display_mode, self.fig_load_gen, self.fig_line_cap]
 
@@ -1050,11 +1056,10 @@ class VizServer:
     # auxiliary functions
     def update_obs_fig(self):
         self.plot_grids.update_rt(self.env.obs)
-        self.plot_grids.update_forecat(self.env.sim_obs)
         self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
+        self.plot_grids.update_forecat(self.env.sim_obs)
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
-    # self.plot_temporal.fig_load_gen, self.plot_temporal.fig_line_cap
     def display_action(self,
                        do_display,
                        gen_id, redisp,
@@ -1063,7 +1068,8 @@ class VizServer:
                        sub_id, clicked_sub_fig):
         """
         modify the action taken based on the inputs,
-        then displays the action (as text)"""
+        then displays the action (as text)
+        """
         # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
         if not do_display:
@@ -1082,13 +1088,13 @@ class VizServer:
                 self.env._current_action.line_set_status = [(int(line_id), int(line_status))]
                 is_modif = True
             if sub_id != "":
+                is_modif = True
                 if clicked_sub_fig is not None:
                     # i modified a substation topology
                     obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
                     if obj_id is not None:
                         self.env._current_action.set_bus = [(obj_id, new_bus)]
-                        is_modif = True
-                    # TODO the figure of the substation !!!!
+
             if not is_modif:
                 raise dash.exceptions.PreventUpdate
 
@@ -1096,10 +1102,14 @@ class VizServer:
             res = [f"{self.env.current_action}"]
         return res
 
-    def display_click_data(self, clickData,
-                           back_clicked, step_clicked, simulate_clicked, go_clicked,
+    def display_click_data(self,
+                           clickData,
+                           back_clicked,
+                           step_clicked,
+                           simulate_clicked,
+                           go_clicked,
                            gofast_clicked):
-        """display the intearction window when the real time graph is clicked on"""
+        """display the interaction window when the real time graph is clicked on"""
         do_display_action = 0
         style_gen_input = {'display': 'none'}
         gen_id_clicked = ""
