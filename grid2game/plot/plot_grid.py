@@ -42,11 +42,16 @@ class PlotGrids(PlotParams):
         self.objs_info_zoomed = {}
 
         # and the units
-        self.line_info = "rho"
-        self.line_side = "or"
-        self.load_info = "p"
-        self.gen_info = "p"
-        self.storage_info = "p"
+        # self.line_info = "rho"
+        # self.line_side = "or"
+        # self.load_info = "p"
+        # self.gen_info = "p"
+        # self.storage_info = "p"
+        self.line_info = "none"
+        self.line_side = "none"
+        self.load_info = "none"
+        self.gen_info = "none"
+        self.storage_info = "none"
 
         # converter for the clickable objects (for position to clickable stuff)
         self.pos_to_object = {}

@@ -213,14 +213,6 @@ class VizServer:
                            dash.dependencies.Input("graph_clicked_sub", "clickData")
                           ])(self.display_action)
 
-        # handle triggers: the collapse of the temporal information
-        # TODO do not work now !
-        self.app.callback([dash.dependencies.Output("collapsetemp_trigger_temporal_figs", "n_clicks")
-                           ],
-                          [dash.dependencies.Input('show-temoral-graph', "value")],
-                          []
-                          )(self.show_temporal_graphs)
-
         # handle the interaction with self.env, that should be done all in one function, otherwise
         # there are concurrency issues
         self.app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
@@ -233,7 +225,10 @@ class VizServer:
                            dash.dependencies.Input("go_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("gofast_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("selfloop_call_act_on_env", "value"),
-                           ]
+                           ],
+                          [dash.dependencies.State("act_on_env_trigger_rt", "n_clicks"),
+                           dash.dependencies.State("act_on_env_trigger_for", "n_clicks"),
+                           dash.dependencies.State("act_on_env_call_selfloop", "value")]
                           )(self.handle_act_on_env)
 
         # self loop
@@ -264,15 +259,19 @@ class VizServer:
 
         # final graph display
         # handle triggers: refresh the figures (temporal series part)
-        self.app.callback([dash.dependencies.Output('temporal_graphs', "style"),
+        self.app.callback([
                            dash.dependencies.Output("graph_gen_load", "figure"),
                            dash.dependencies.Output("graph_flow_cap", "figure"),
                            ],
                           [dash.dependencies.Input("figrt_trigger_temporal_figs", "n_clicks"),
-                           dash.dependencies.Input("collapsetemp_trigger_temporal_figs", "n_clicks")
-                          ],
-                          [dash.dependencies.State('show-temoral-graph', "value")]
+                           dash.dependencies.Input("showtempo_trigger_rt_graph", "n_clicks")
+                           ],
                           )(self.update_temporal_figs)
+
+        self.app.callback([dash.dependencies.Output('temporal_graphs', "style"),
+                           dash.dependencies.Output("showtempo_trigger_rt_graph", "n_clicks")],
+                          [dash.dependencies.Input('show-temoral-graph', "value")]
+                          )(self.show_hide_tempo_graph)
 
         # handle final graph of the real time grid
         self.app.callback([dash.dependencies.Output("real-time-graph", "figure"),
@@ -334,8 +333,8 @@ class VizServer:
         # TODO assistant
 
         show_temporal_graph = dcc.Checklist(id="show-temoral-graph",
-                                            options=[{'label': 'Display time series', 'value': 'display'}],
-                                            value=["display"]
+                                            options=[{'label': 'Display time series', 'value': '1'}],
+                                            value=["1"]
                                             )
         # change the units
         # TODO make that disapearing / appearing based on a button "show options" for example
@@ -472,7 +471,7 @@ class VizServer:
                     "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
         graph_css = "six columns"
         rt_graph_label = html.H3("Real time observation:", style={'text-align': 'center'})
-        rt_date_time = html.P("", style={'text-align': 'center'}, id="rt_date_time")
+        rt_date_time = html.P(self.rt_datetime, style={'text-align': 'center'}, id="rt_date_time")
         rt_graph_div = html.Div(id="rt_graph_div",
                                 className=graph_css,
                                 children=[
@@ -482,7 +481,7 @@ class VizServer:
                                 style={'display': 'inline-block', 'width': '50vh', 'height': '55vh'}
                                 )
         forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
-        forecast_date_time = html.P("", style={'text-align': 'center'}, id="forecast_date_time")
+        forecast_date_time = html.P(self.for_datetime, style={'text-align': 'center'}, id="forecast_date_time")
         sim_graph_div = html.Div(id="sim_graph_div",
                                  className=graph_css,
                                  children=[
@@ -669,9 +668,9 @@ class VizServer:
         figrt_trigger_temporal_figs = html.Label("",
                                                  id="figrt_trigger_temporal_figs",
                                                  n_clicks=0)
-        collapsetemp_trigger_temporal_figs = html.Label("",
-                                                        id="collapsetemp_trigger_temporal_figs",
-                                                        n_clicks=0)
+        # collapsetemp_trigger_temporal_figs = html.Label("",
+        #                                                 id="collapsetemp_trigger_temporal_figs",
+        #                                                 n_clicks=0)
         unit_trigger_rt_graph = html.Label("",
                                            id="unit_trigger_rt_graph",
                                            n_clicks=0)
@@ -687,6 +686,10 @@ class VizServer:
         figfor_trigger_for_graph = html.Label("",
                                               id="figfor_trigger_for_graph",
                                               n_clicks=0)
+
+        showtempo_trigger_rt_graph = html.Label("",
+                                                id="showtempo_trigger_rt_graph",
+                                                n_clicks=0)
 
         step_butt_call_act_on_env = dcc.Input(placeholder=" ",
                                               id='step_butt_call_act_on_env',
@@ -750,9 +753,10 @@ class VizServer:
         act_on_env_trigger_for = html.Label("",
                                             id="act_on_env_trigger_for",
                                             n_clicks=0)
-        hidden_interactions = html.Div([figrt_trigger_temporal_figs, collapsetemp_trigger_temporal_figs,
+        hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                         unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                         figfor_trigger_for_graph, figrt_trigger_rt_graph,
+                                        showtempo_trigger_rt_graph,
                                         step_butt_call_act_on_env, simul_butt_call_act_on_env,
                                         back_butt_call_act_on_env, go_butt_call_act_on_env,
                                         gofast_butt_call_act_on_env,
@@ -874,7 +878,10 @@ class VizServer:
                           reset_butt,
                           go_butt,
                           gofast_butt,
-                          self_loop):
+                          self_loop,
+                          state_trigger_rt,
+                          state_trigger_for,
+                          state_trigger_self_loop):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
         however, grid2op environments are not "thread safe": accessing them from different "thread"
@@ -886,21 +893,20 @@ class VizServer:
         see https://dash.plotly.com/advanced-callbacks, paragraph
         "Prevent Callback Execution Upon Initial Component Render"
         """
-        trigger_rt = 0  # do i trigger the update of the "real time figures"
-        trigger_for = 0   # do i trigger the update of the "forecast" figures
-        trigger_me_again = self.SELF_LOOP_STOP  # do i call myself again
+        trigger_rt = state_trigger_rt  # do i trigger the update of the "real time figures"
+        trigger_for = state_trigger_for   # do i trigger the update of the "forecast" figures
+        trigger_me_again = state_trigger_self_loop # self.SELF_LOOP_STOP  # do i call myself again
 
-        print(f"handle_act_on_env: {self_loop}")
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
         # section "Determining which Input has fired with dash.callback_context"
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            return [trigger_rt, trigger_for]
+            return [trigger_rt, trigger_for, trigger_me_again]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-
+        print(f"button_id: {button_id}")
         # NB the checks need to be done in that order, otherwise it might lead to unexpected behaviour
         if self.env.is_done and (button_id == "selfloop_call_act_on_env"):
             # no need to continue the "go" or "gofast" if the environment is "self looping"
@@ -967,7 +973,7 @@ class VizServer:
         else:
             # nothing really called me, so i stop here
             raise dash.exceptions.PreventUpdate
-        print(f"handle_act_on_env: {trigger_me_again}")
+        print(f"handle_act_on_env: trigger_rt {trigger_rt}, trigger_for {trigger_for}")
         return [trigger_rt, trigger_for, trigger_me_again]
 
     def self_loop_step(self, act_on_env_call_selfloop):
@@ -975,7 +981,6 @@ class VizServer:
         Allows to do a "self loop" on act_on_env step.
         This is useful in a "go fast" or in a "go" mode
         """
-        print(f"self loop called with {act_on_env_call_selfloop}")
         if act_on_env_call_selfloop is None or act_on_env_call_selfloop == 0:
             # there is not self loop, i stop
             raise dash.exceptions.PreventUpdate
@@ -994,13 +999,13 @@ class VizServer:
             # i'm not in a "self loop", button should be updated correctly
             button_shape = "btn btn-secondary"
             selfloop_call_act_on_env = self.SELF_LOOP_GO
-        print(f"self loop output with selfloop_call_act_on_env: {act_on_env_call_selfloop}")
         return [button_shape, button_shape, button_shape, button_shape, go_button_shape,
                 selfloop_call_act_on_env]
 
     # handle the layout
     def update_rt_fig(self, env_act):
         """the real time figures need to be updated"""
+        print(f"update_rt_fig: env_act {env_act}")
         if env_act is not None and env_act > 0:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
@@ -1019,23 +1024,33 @@ class VizServer:
 
     def show_temporal_graphs(self, show_temporal_graph):
         """handles the action that displays (or not) the time series graphs"""
-        if (show_temporal_graph is None or show_temporal_graph == 0):
+        if (show_temporal_graph is None or show_temporal_graph.empty()):
             raise dash.exceptions.PreventUpdate
         return [1]
 
-    # end point of the trigger stuff: what is displayed on the page !
-    def update_temporal_figs(self, figrt_trigger, collapsetemp_trigger, graph_state):
-        # TODO collapsetemp_trigger is deactivated otherwise it does not work
+    # define the style of the temporal graph, whether is how it or not
+    def show_hide_tempo_graph(self, do_i_show):
         display_mode = {'display': 'none'}
-        if graph_state:
+        if do_i_show:
             # i should display the figure
-            self.plot_temporal.update_layout_height()  # otherwise figures shrink when trigger is called
-            self.plot_temporal.update_trace()
             display_mode = {'display': 'block'}
+            self.plot_temporal.update_layout_height()  # otherwise figures shrink when trigger is called
+        return [display_mode, 1]
+
+    # end point of the trigger stuff: what is displayed on the page !
+    def update_temporal_figs(self, figrt_trigger, showhide_trigger):
+        print("I enter update_temporal_figs")
         if (figrt_trigger is None or figrt_trigger == 0) and \
-                (collapsetemp_trigger is None or collapsetemp_trigger == 0):
+                (showhide_trigger is None or showhide_trigger == 0):
             raise dash.exceptions.PreventUpdate
-        return [display_mode, self.fig_load_gen, self.fig_line_cap]
+        self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace()
+        print("Ok i update the figures")
+        print(f"self.fig_load_gen: {self.fig_load_gen}")
+
+        # print(f"update_temporal_figs: ok i updated it (display_mode: {display_mode})")
+        # print(f"update_temporal_figs: ok i updated it (collapsetemp_trigger: {collapsetemp_trigger})")
+        # print(f"update_temporal_figs: ok i updated it (graph_state: {graph_state})")
+        return [self.fig_load_gen, self.fig_line_cap]
 
     def update_rt_graph_figs(self, figrt_trigger, unit_trigger):
         if (figrt_trigger is None or figrt_trigger == 0) and \

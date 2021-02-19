@@ -161,3 +161,4 @@ class PlotTemporalSeries(object):
                                         selector=dict(name="3rd highest line cap."))
         self.fig_line_cap.update_traces(x=(self.env._datetimes[0], self.env._datetimes[-1]),
                                         selector=dict(name="Overflow limit"))
+        return self.fig_load_gen, self.fig_line_cap
