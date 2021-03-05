@@ -155,7 +155,6 @@ class Env(object):
     def choose_next_action(self):
         self._assistant_action = None
         if self.next_action_from == self.ASSISTANT:
-            # TODO
             # self._assistant_action = self.glop_env.action_space.sample()
             self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
             self._current_action = self._assistant_action
@@ -255,7 +254,6 @@ class Env(object):
 
     def next_action_is_assistant(self):
         """the next action is chosen to be given by the assistant"""
-        # TODO
         self.next_action_from = self.ASSISTANT
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
