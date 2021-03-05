@@ -76,7 +76,11 @@ class VizServer:
                              external_scripts=external_scripts)
 
         # create the grid2op related things
-        self.env = Env(args.env_name, test=args.is_test)
+        self.assistant_path = str(args.assistant_path)
+        self.env = Env(args.env_name,
+                       test=args.is_test,
+                       assistant_path=self.assistant_path,
+                       assistant_seed=int(args.assistant_seed))
         self.plot_grids = PlotGrids(self.env.observation_space)
         self.plot_temporal = PlotTemporalSeries(self.env)
         self.fig_load_gen = self.plot_temporal.fig_load_gen
@@ -202,7 +206,8 @@ class VizServer:
         # handle display of the action, if needed
         self.app.callback([dash.dependencies.Output("current_action", "children"),
                            ],
-                          [dash.dependencies.Input("do_display_action", "value"),
+                          [dash.dependencies.Input("which_action_button", "value"),
+                           dash.dependencies.Input("do_display_action", "value"),
                            dash.dependencies.Input("gen-id-hidden", "children"),
                            dash.dependencies.Input('gen-dispatch', "value"),
                            dash.dependencies.Input("storage-id-hidden", "children"),
@@ -268,10 +273,11 @@ class VizServer:
                            ],
                           )(self.update_temporal_figs)
 
-        self.app.callback([dash.dependencies.Output('temporal_graphs', "style"),
-                           dash.dependencies.Output("showtempo_trigger_rt_graph", "n_clicks")],
-                          [dash.dependencies.Input('show-temoral-graph', "value")]
-                          )(self.show_hide_tempo_graph)
+        # self.app.callback([dash.dependencies.Output('temporal_graphs', "style"),
+        #                    dash.dependencies.Output("showtempo_trigger_rt_graph", "n_clicks")
+        #                    ],
+        #                   [dash.dependencies.Input('show-temporal-graph', "value")]
+        #                   )(self.show_hide_tempo_graph)
 
         # handle final graph of the real time grid
         self.app.callback([dash.dependencies.Output("real-time-graph", "figure"),
@@ -289,6 +295,11 @@ class VizServer:
                            dash.dependencies.Input("unit_trigger_for_graph", "n_clicks"),
                            ]
                           )(self.update_for_graph_figs)
+
+        # load the assistant
+        self.app.callback([dash.dependencies.Output("current_assistant_path", "children")],
+                          [dash.dependencies.Input("select_assistant", "value")]
+                          )(self.load_assistant)
 
     def run(self, debug=False):
         self.app.run_server(debug=debug)
@@ -332,8 +343,8 @@ class VizServer:
         # TODO add a button "trust assistant up to" that will play the actions suggested by the
         # TODO assistant
 
-        show_temporal_graph = dcc.Checklist(id="show-temoral-graph",
-                                            options=[{'label': 'Display time series', 'value': '1'}],
+        show_temporal_graph = dcc.Checklist(id="show-temporal-graph",
+                                            options=[{'label': 'TODO Display time series', 'value': '1'}],
                                             value=["1"]
                                             )
         # change the units
@@ -428,7 +439,7 @@ class VizServer:
                                     loadinfo_col,
                                     geninfo_col,
                                     storinfo_col,
-                                    show_temporal_graph
+                                    # show_temporal_graph
                                 ],
                                 className="row",
                                 )
@@ -442,10 +453,32 @@ class VizServer:
                                     continue_til_go_col,
                                     go_fast_col,
                                 ])
+        select_assistant = html.Div(id='select_assistant_box',
+                                    children=html.Div([dcc.Input(placeholder='Copy paste assistant location',
+                                                                 id="select_assistant",
+                                                                 type="text",
+                                                                 style={
+                                                                     'width': '70%',
+                                                                     'height': '55px',
+                                                                     'lineHeight': '55px'}),
+                                                       html.P(self.assistant_path,
+                                                              id="current_assistant_path",
+                                                              )],
+                                                      className="row",
+                                                      ),
+                                    style={
+                                          'borderWidth': '1px',
+                                          'borderStyle': 'dashed',
+                                          'borderRadius': '5px',
+                                          'textAlign': 'center',
+                                          'margin': '10px'
+                                    }
+                                    )
         controls_row = html.Div(id="controls-row",
                                 children=[
                                     reset_col,
                                     controls_row,
+                                    select_assistant,
                                     change_units
                                 ])
         ### Graph widget
@@ -551,14 +584,25 @@ class VizServer:
 
         # ### Action widget
         current_action = html.Pre(id="current_action")
+        which_action_button = dcc.Dropdown(id='which_action_button',
+                                           options=[
+                                               {'label': 'do nothing', 'value': 'dn'},
+                                               {'label': 'previous', 'value': 'prev'},
+                                               {'label': 'assistant', 'value': 'assistant'},
+                                           ],
+                                           value='assistant',
+                                           clearable=False)
         action_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-5 " \
                      "order-first order-sm-first order-md-first order-xl-last"
         action_css = "six columns"
+        action_widget_title = html.Div(id="action_widget_title",
+                                       children=[html.P("Action:  "), which_action_button],
+                                       style={'width': '50vh'},
+                                       )
         action_col = html.Div(id="action_widget",
                               className=action_css,
                               children=[
-                                  html.P("Current action"),
-                                  current_action,
+                                        current_action
                               ],
                               style={'display': 'inline-block'}
                               )
@@ -656,8 +700,9 @@ class VizServer:
                                 className='six columns')
 
         interaction_and_action = html.Div([html.Br(),
-                                           layout_click,
-                                           action_col], className="row")
+                                           action_widget_title,
+                                           html.Div([layout_click, action_col], className="row")
+                                           ])
 
         interval_object = dcc.Interval(id='interval-component',
                                        interval=self.time_refresh * 1000,  # in milliseconds
@@ -906,7 +951,7 @@ class VizServer:
             return [trigger_rt, trigger_for, trigger_me_again]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        print(f"button_id: {button_id}")
+        # print(f"button_id: {button_id}")
         # NB the checks need to be done in that order, otherwise it might lead to unexpected behaviour
         if self.env.is_done and (button_id == "selfloop_call_act_on_env"):
             # no need to continue the "go" or "gofast" if the environment is "self looping"
@@ -973,7 +1018,7 @@ class VizServer:
         else:
             # nothing really called me, so i stop here
             raise dash.exceptions.PreventUpdate
-        print(f"handle_act_on_env: trigger_rt {trigger_rt}, trigger_for {trigger_for}")
+        # print(f"handle_act_on_env: trigger_rt {trigger_rt}, trigger_for {trigger_for}")
         return [trigger_rt, trigger_for, trigger_me_again]
 
     def self_loop_step(self, act_on_env_call_selfloop):
@@ -1005,7 +1050,7 @@ class VizServer:
     # handle the layout
     def update_rt_fig(self, env_act):
         """the real time figures need to be updated"""
-        print(f"update_rt_fig: env_act {env_act}")
+        # print(f"update_rt_fig: env_act {env_act}")
         if env_act is not None and env_act > 0:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
@@ -1039,13 +1084,13 @@ class VizServer:
 
     # end point of the trigger stuff: what is displayed on the page !
     def update_temporal_figs(self, figrt_trigger, showhide_trigger):
-        print("I enter update_temporal_figs")
+        # print("I enter update_temporal_figs")
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (showhide_trigger is None or showhide_trigger == 0):
             raise dash.exceptions.PreventUpdate
         self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace()
-        print("Ok i update the figures")
-        print(f"self.fig_load_gen: {self.fig_load_gen}")
+        # print("Ok i update the figures")
+        # print(f"self.fig_load_gen: {self.fig_load_gen}")
 
         # print(f"update_temporal_figs: ok i updated it (display_mode: {display_mode})")
         # print(f"update_temporal_figs: ok i updated it (collapsetemp_trigger: {collapsetemp_trigger})")
@@ -1075,6 +1120,7 @@ class VizServer:
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
     def display_action(self,
+                       which_action_button,
                        do_display,
                        gen_id, redisp,
                        stor_id, storage_p,
@@ -1086,9 +1132,29 @@ class VizServer:
         """
         # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
-        if not do_display:
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            # no click have been made yet
+            # return [""]
+            return [f"{self.env.current_action}"]
+        else:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        if button_id == "which_action_button":
+            # the "base action" has been modified, so i need to change it here
+            if which_action_button == "dn":
+                self.env.next_action_is_dn()
+            elif which_action_button == "assistant":
+                self.env.next_action_is_assistant()
+            elif which_action_button == "prev":
+                self.env.next_action_is_previous()
+            else:
+                # nothing is done
+                pass
+            res = [f"{self.env.current_action}"]
+        elif not do_display:
             # i should not display the action
-            res = [""]
+            # res = [""]
+            res = [f"{self.env.current_action}"]
         else:
             # i need to display the action
             is_modif = False
@@ -1197,3 +1263,16 @@ class VizServer:
                 style_line_input, line_id_clicked, *line_res,
                 style_sub_input, sub_id_clicked, *sub_res
                 ]
+
+    def format_path(self, path):
+        """just output the name of the submission instead of its whole path"""
+        try:
+            base, res = os.path.split(path)
+            return res
+        except Exception as exc_:
+            return path
+
+    def load_assistant(self, filename):
+        self.assistant_path = filename
+        self.env.load_assistant(self.assistant_path)
+        return [self.format_path(self.assistant_path)]
