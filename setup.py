@@ -9,6 +9,7 @@
 import setuptools
 from setuptools import setup
 
+# test gpg
 pkgs = {
     "required": [
         "numpy>=1.18.2",
