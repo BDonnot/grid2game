@@ -74,6 +74,7 @@ class VizServer:
                              assets_folder=assets_dir,
                              external_stylesheets=external_stylesheets,
                              external_scripts=external_scripts)
+        self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
         self.assistant_path = str(args.assistant_path)
@@ -142,10 +143,16 @@ class VizServer:
                           )(self.go_clicked)
 
         # handle the "go" button
-        self.app.callback([dash.dependencies.Output("gofast_butt_call_act_on_env", "value"),],
+        self.app.callback([dash.dependencies.Output("gofast_butt_call_act_on_env", "value")],
                           [dash.dependencies.Input("gofast-button", "n_clicks")],
                           state=[]
                           )(self.gofast_clicked)
+
+        # handle the "until game over" button
+        self.app.callback([dash.dependencies.Output("untilgo_butt_call_act_on_env", "value")],
+                          [dash.dependencies.Input("go_till_game_over-button", "n_clicks")],
+                          state=[]
+                          )(self.until_game_over_clicked)
 
         # handle the press to one of the button to change the units
         self.app.callback([dash.dependencies.Output("unit_trigger_rt_graph", "n_clicks"),
@@ -200,6 +207,7 @@ class VizServer:
                            dash.dependencies.Input("simulate-button", "n_clicks"),
                            dash.dependencies.Input("go-button", "n_clicks"),
                            dash.dependencies.Input("gofast-button", "n_clicks"),
+                           dash.dependencies.Input("go_till_game_over-button", "n_clicks"),
                            ]
                           )(self.display_click_data)
 
@@ -229,6 +237,7 @@ class VizServer:
                            dash.dependencies.Input("reset_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("go_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("gofast_butt_call_act_on_env", "value"),
+                           dash.dependencies.Input("untilgo_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("selfloop_call_act_on_env", "value"),
                            ],
                           [dash.dependencies.State("act_on_env_trigger_rt", "n_clicks"),
@@ -242,6 +251,7 @@ class VizServer:
                            dash.dependencies.Output("back-button", "className"),
                            dash.dependencies.Output("reset-button", "className"),
                            dash.dependencies.Output("go-button", "className"),
+                           dash.dependencies.Output("go_till_game_over-button", "className"),
                            dash.dependencies.Output("selfloop_call_act_on_env", "value")],
                           [dash.dependencies.Input("act_on_env_call_selfloop", "value")]
                           )(self.self_loop_step)
@@ -297,9 +307,14 @@ class VizServer:
                           )(self.update_for_graph_figs)
 
         # load the assistant
-        self.app.callback([dash.dependencies.Output("current_assistant_path", "children")],
+        self.app.callback([dash.dependencies.Output("current_assistant_path", "children"),
+                           dash.dependencies.Output("clear_assistant_path", "n_clicks")],
                           [dash.dependencies.Input("select_assistant", "value")]
                           )(self.load_assistant)
+
+        self.app.callback([dash.dependencies.Output("select_assistant", "value")],
+                          [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
+                          )(self.clear_loading)
 
     def run(self, debug=False):
         self.app.run_server(debug=debug)
@@ -332,14 +347,18 @@ class VizServer:
                                  id="back-button",
                                  n_clicks=0,
                                  className="btn btn-primary")
-        continue_til_go = html.Label("Go",
-                                     id="go-button",
-                                     n_clicks=0,
-                                     className="btn btn-primary")
+        go_butt = html.Label("Go",
+                             id="go-button",
+                             n_clicks=0,
+                             className="btn btn-primary")
         go_fast = html.Label("Fast",
                              id="gofast-button",
                              n_clicks=0,
                              className="btn btn-primary")
+        go_till_game_over = html.Label("End",
+                                       id="go_till_game_over-button",
+                                       n_clicks=0,
+                                       className="btn btn-primary")
         # TODO add a button "trust assistant up to" that will play the actions suggested by the
         # TODO assistant
 
@@ -421,16 +440,19 @@ class VizServer:
         step_col = html.Div(id="step-col", className=button_css, children=[step_button])
         sim_col = html.Div(id="sim-step-col", className=button_css, children=[simulate_button])
         back_col = html.Div(id="back-col", className=button_css, children=[back_button])
-        continue_til_go_col = html.Div(id="continue_til_go-col", className=button_css, children=[continue_til_go])
-        go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast],
-                               )
+        go_col = html.Div(id="go-col", className=button_css, children=[go_butt])
+        go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast])
+        go_till_game_over_col = html.Div(id="continue_until_game_over-col",
+                                         className=button_css,
+                                         children=[go_till_game_over])
 
         lineinfo_col = html.Div(id="lineinfo-col", className=button_css, children=[line_info_label, line_info])
         lineside_col = html.Div(id="lineside-col", className=button_css, children=[line_side_label, line_side])
         loadinfo_col = html.Div(id="loadinfo-col", className=button_css, children=[load_info_div])
         geninfo_col = html.Div(id="geninfo-col", className=button_css, children=[gen_info_label, gen_info])
         storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label, stor_info])
-        # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label, show_temporal_graph])
+        # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label,
+        # show_temporal_graph])
 
         change_units = html.Div(id="change_units",
                                 children=[
@@ -450,8 +472,9 @@ class VizServer:
                                     back_col,  # TODO display back only if its possible in the self.env
                                     step_col,
                                     sim_col,
-                                    continue_til_go_col,
+                                    go_col,
                                     go_fast_col,
+                                    go_till_game_over_col
                                 ])
         select_assistant = html.Div(id='select_assistant_box',
                                     children=html.Div([dcc.Input(placeholder='Copy paste assistant location',
@@ -463,6 +486,10 @@ class VizServer:
                                                                      'lineHeight': '55px'}),
                                                        html.P(self.assistant_path,
                                                               id="current_assistant_path",
+                                                              style={'width': '25%',
+                                                                     'textAlign': 'center',
+                                                                     'height': '55px',
+                                                                     'vertical-align': 'middle'}
                                                               )],
                                                       className="row",
                                                       ),
@@ -766,6 +793,12 @@ class VizServer:
                                                 min=0,
                                                 max=1,
                                                 )
+        untilgo_butt_call_act_on_env = dcc.Input(placeholder=" ",
+                                                 id='untilgo_butt_call_act_on_env',
+                                                 type='range',
+                                                 min=0,
+                                                 max=1,
+                                                 )
         reset_butt_call_act_on_env = dcc.Input(placeholder=" ",
                                                id='reset_butt_call_act_on_env',
                                                type='range',
@@ -798,6 +831,9 @@ class VizServer:
         act_on_env_trigger_for = html.Label("",
                                             id="act_on_env_trigger_for",
                                             n_clicks=0)
+        clear_assistant_path = html.Label("",
+                                          id="clear_assistant_path",
+                                          n_clicks=0)
         hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                         unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                         figfor_trigger_for_graph, figrt_trigger_rt_graph,
@@ -805,10 +841,11 @@ class VizServer:
                                         step_butt_call_act_on_env, simul_butt_call_act_on_env,
                                         back_butt_call_act_on_env, go_butt_call_act_on_env,
                                         gofast_butt_call_act_on_env,
+                                        untilgo_butt_call_act_on_env,
                                         act_on_env_trigger_rt,
                                         act_on_env_trigger_for, reset_butt_call_act_on_env,
                                         act_on_env_call_selfloop, selfloop_call_act_on_env,
-                                        do_display_action
+                                        do_display_action, clear_assistant_path
                                         ],
                                        id="hidden_button_for_callbacks",
                                        style={'display': 'none'})
@@ -885,6 +922,16 @@ class VizServer:
             raise dash.exceptions.PreventUpdate
         return [trigger_act_on_env]
 
+    def until_game_over_clicked(self, untill_gameover_clicks):
+        """handle the interaction for the "go fast" button"""
+        if self.gofast_clicks < untill_gameover_clicks:
+            # "back" has been clicked
+            self.gofast_clicks = untill_gameover_clicks
+            trigger_act_on_env = 1
+        else:
+            raise dash.exceptions.PreventUpdate
+        return [trigger_act_on_env]
+
     def simulate_clicked(self, simulate_clicks):
         """handle the interaction for the "simulate" button"""
         trigger_act_on_env = 0
@@ -923,6 +970,7 @@ class VizServer:
                           reset_butt,
                           go_butt,
                           gofast_butt,
+                          untilgo_butt,
                           self_loop,
                           state_trigger_rt,
                           state_trigger_for,
@@ -971,6 +1019,17 @@ class VizServer:
             trigger_rt = 1
             trigger_for = 1
             trigger_me_again = self_loop
+        elif button_id == "untilgo_butt_call_act_on_env":
+            # "game over" button is called
+            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
+            trigger_rt = 1
+            trigger_for = 1
+            while True:
+                if self.env.is_done:
+                    break
+                self.env.step()
+            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
+            trigger_me_again = self.SELF_LOOP_STOP
         elif button_id == "gofast_butt_call_act_on_env":
             # "gofast" is calling, i initialize the self loop
             self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
@@ -1045,6 +1104,7 @@ class VizServer:
             button_shape = "btn btn-secondary"
             selfloop_call_act_on_env = self.SELF_LOOP_GO
         return [button_shape, button_shape, button_shape, button_shape, go_button_shape,
+                "btn btn-primary",
                 selfloop_call_act_on_env]
 
     # handle the layout
@@ -1188,7 +1248,8 @@ class VizServer:
                            step_clicked,
                            simulate_clicked,
                            go_clicked,
-                           gofast_clicked):
+                           gofast_clicked,
+                           until_gameover):
         """display the interaction window when the real time graph is clicked on"""
         do_display_action = 0
         style_gen_input = {'display': 'none'}
@@ -1273,6 +1334,19 @@ class VizServer:
             return path
 
     def load_assistant(self, filename):
+        """loads an assistant and display the right things"""
         self.assistant_path = filename
-        self.env.load_assistant(self.assistant_path)
-        return [self.format_path(self.assistant_path)]
+        properly_loaded = self.env.load_assistant(self.assistant_path)
+        clear = 0
+        if properly_loaded:
+            res = self.format_path(self.assistant_path)
+            clear = 1
+        else:
+            res = ""
+        return [res, clear]
+
+    def clear_loading(self, need_clearing):
+        """once an assistant has been """
+        if need_clearing == 0:
+            raise dash.exceptions.PreventUpdate
+        return [""]

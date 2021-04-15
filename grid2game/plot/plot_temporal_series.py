@@ -8,8 +8,18 @@
 
 import plotly.colors as pc
 import plotly.graph_objects as go
-
-from grid2op.PlotGrid.config import NUKE_COLOR, THERMAL_COLOR, WIND_COLOR, SOLAR_COLOR, HYDRO_COLOR
+try:
+    from grid2op.PlotGrid.config import NUKE_COLOR, THERMAL_COLOR, WIND_COLOR, SOLAR_COLOR, HYDRO_COLOR
+except ImportError as exc_:
+    NUKE_COLOR = "#e5cd00"
+    THERMAL_COLOR = "#7e52a0"
+    WIND_COLOR = "#71cdb8"
+    SOLAR_COLOR = "#d66b0d"
+    HYDRO_COLOR = "#1f73b5"
+    import warnings
+    warnings.warn("Please upgrade to grid2op >= 1.5 to benefit from latest grid2op features. This package might "
+                  "not work with grid2op < 1.5",
+                  DeprecationWarning)
 
 from grid2game.plot.plot_param import PlotParams
 
