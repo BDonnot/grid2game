@@ -34,6 +34,10 @@ def cli():
                         default=0, type=int,
                         help="Seed of the assistant")
 
+    parser.add_argument("--assistant_path", required=False,
+                        default="", type=str,
+                        help="path where the \"make_agent\" function is defined")
+
     # TODO for backend too
 
     # TODO add an option to change the parameters of the environment

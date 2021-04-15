@@ -19,13 +19,24 @@ except ImportError:
     bkClass = PandaPowerBackend
 
 
+from grid2game.agents import load_assistant
+
+
 class Env(object):
-    def __init__(self, env_name, **kwargs):
+    ASSISTANT = 0
+    DO_NOTHING = 1
+    LIKE_PREVIOUS = 2
+
+    def __init__(self,
+                 env_name,
+                 assistant_path=None,
+                 assistant_seed=0,
+                 **kwargs):
         # TODO some configuration here
         self.glop_env = grid2op.make(env_name,
-                                     **kwargs,
                                      backend=bkClass(),
-                                     action_class=PlayableAction)
+                                     action_class=PlayableAction,
+                                     **kwargs)
 
         # define variables
         self._obs = None
@@ -51,12 +62,39 @@ class Env(object):
         self._sum_nuclear = None
         self._datetimes = None
 
+        # assistant part
+        self.assistant_path = assistant_path
+        self.assistant_seed = assistant_seed
+        self.next_action_from = self.ASSISTANT
+        self._assistant_action = None  # not to recompute it each time
+        self.assistant = None
+        self._assistant_seed = assistant_seed
+        self.load_assistant(assistant_path)
+
         self.init_state()
         # self._current_action = self.glop_env.action_space()
         # self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
         # self._reward = self.glop_env.reward_range[0]
         # self._done = False
         # self._info = {}
+
+    def load_assistant(self, assistant_path):
+        print(f"attempt to load assistant with path : \"{assistant_path}\"")
+        if assistant_path != "":
+            # a real path has been set up
+            tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env)
+            if tmp is not None:
+                self.assistant = tmp
+            else:
+                # TODO do something smart !
+                pass
+        else:
+            # from grid2op.Agent import RandomAgent  # TODO do nothing here
+            # self.assistant = RandomAgent(self.glop_env.action_space)
+            from grid2op.Agent import DoNothingAgent  # TODO do nothing here
+            self.assistant = DoNothingAgent(self.glop_env.action_space)
+            self.assistant.seed(int(self._assistant_seed))
+        print("assistant loaded")
 
     @property
     def action_space(self):
@@ -96,12 +134,15 @@ class Env(object):
     def step(self, action=None):
         if action is None:
             action = self._current_action
+        print(f"Action: played: {action}, action_mode: {self.next_action_from}")
         self.past_envs.append((self._current_action,
+                               self._assistant_action,
                                self._obs.copy(), self._reward, self._done, self._info,
                                self.glop_env.copy()))
+        self._assistant_action = None
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
         self.fill_info_vect()
-        self._current_action = self.glop_env.action_space()
+        self.choose_next_action()
         if not self._done:
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
         else:
@@ -110,6 +151,20 @@ class Env(object):
             self._sim_info = {}
             self._sim_obs.set_game_over()
         return self.obs, self._reward, self._done, self._info
+
+    def choose_next_action(self):
+        self._assistant_action = None
+        if self.next_action_from == self.ASSISTANT:
+            # self._assistant_action = self.glop_env.action_space.sample()
+            self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
+            self._current_action = self._assistant_action
+        elif self.next_action_from == self.LIKE_PREVIOUS:
+            # next action should be like the previous one
+            pass
+        elif self.next_action_from == self.DO_NOTHING:
+            self._current_action = self.glop_env.action_space()
+        else:
+            raise RuntimeError("Unsupported next action")
 
     def simulate(self, action=None):
         if action is None:
@@ -122,6 +177,7 @@ class Env(object):
             is_this_done = self._done
             self.glop_env.close()
             *self.past_envs, (self._current_action,
+                              self._assistant_action,
                               self._obs, self._reward, self._done, self._info,
                               self.glop_env) = self.past_envs
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
@@ -182,3 +238,25 @@ class Env(object):
         *self._sum_hydro, _ = self._sum_hydro
         *self._sum_nuclear, _ = self._sum_nuclear
         *self._datetimes, _ = self._datetimes
+
+    def next_action_is_dn(self):
+        """or do nothing if first step"""
+        self.next_action_from = self.DO_NOTHING
+        self._current_action = self.glop_env.action_space()
+
+    def next_action_is_previous(self):
+        """or do nothing if first step"""
+        self.next_action_from = self.LIKE_PREVIOUS
+        if self.past_envs:
+            self._current_action = self.past_envs[-1][0]
+        else:
+            self.next_action_is_dn()
+
+    def next_action_is_assistant(self):
+        """the next action is chosen to be given by the assistant"""
+        self.next_action_from = self.ASSISTANT
+        if self._assistant_action is None:
+            # self._assistant_action = self.glop_env.action_space.sample()
+            self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
+        self._current_action = self._assistant_action
+
