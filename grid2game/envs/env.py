@@ -152,7 +152,7 @@ class Env(object):
     def step(self, action=None):
         if action is None:
             action = self._current_action
-        print(f"Action: played: {action}, action_mode: {self.next_action_from}")
+        # print(f"Action: played: {action}, action_mode: {self.next_action_from}")
         self.past_envs.append((self._current_action,
                                self._assistant_action,
                                self._obs.copy(), self._reward, self._done, self._info,

@@ -74,7 +74,7 @@ class VizServer:
                              assets_folder=assets_dir,
                              external_stylesheets=external_stylesheets,
                              external_scripts=external_scripts)
-        self.app.config.suppress_callback_exceptions = True
+        # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
         self.assistant_path = str(args.assistant_path)
