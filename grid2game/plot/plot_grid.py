@@ -7,6 +7,7 @@
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
 import cmath
+import warnings
 import plotly.graph_objects as go
 
 from grid2op.PlotGrid import PlotPlotly
@@ -29,7 +30,10 @@ class PlotGrids(PlotParams):
         self.layout = self.glop_plot._grid_layout
         self.ids = {nm: id_ for id_, nm in enumerate(self.grid.name_load)}
         self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_gen)})
-        self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_storage)})
+        if hasattr(self.grid, "name_storage"):
+            self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_storage)})
+        else:
+            warnings.warn("Please use grid2op >= 1.5", DeprecationWarning)
         self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_sub)})
         self._process_lines_layout()
 
@@ -59,8 +63,9 @@ class PlotGrids(PlotParams):
             self.pos_to_object[tuple(self.layout[name])] = ("sub", name, sub_id)
         for gen_id, name in enumerate(self.grid.name_gen):
             self.pos_to_object[tuple(self.layout[name])] = ("gen", name, gen_id)
-        for stor_id, name in enumerate(self.grid.name_storage):
-            self.pos_to_object[tuple(self.layout[name])] = ("stor", name, stor_id)
+        if hasattr(self.grid, "name_storage"):
+            for stor_id, name in enumerate(self.grid.name_storage):
+                self.pos_to_object[tuple(self.layout[name])] = ("stor", name, stor_id)
         for line_id, name in enumerate(self.grid.name_line):
             (x_or, y_or), (x_ex, y_ex) = self.layout[name]
             x_mid = int((x_or + x_ex) / 2)
@@ -225,12 +230,14 @@ class PlotGrids(PlotParams):
                 pos_topo_vect = self.grid.line_ex_pos_topo_vect[line_id]
                 self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_line, tmp_fig,
                                          pos_objs, pos_in_sub, pos_topo_vect, "ex")
-            for stor_id in dict_["storages_id"]:
-                nm_this_obj = self.grid.name_storage[stor_id]
-                pos_in_sub = self.grid.storage_to_sub_pos[stor_id]
-                pos_topo_vect = self.grid.storage_pos_topo_vect[stor_id]
-                self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage,
-                                         tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
+            if "storages_id" in dict_:
+                # storage units were introduced in grid2op 1.5, this is a "if" for backward compatibility
+                for stor_id in dict_["storages_id"]:
+                    nm_this_obj = self.grid.name_storage[stor_id]
+                    pos_in_sub = self.grid.storage_to_sub_pos[stor_id]
+                    pos_topo_vect = self.grid.storage_pos_topo_vect[stor_id]
+                    self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage,
+                                             tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
 
             self.figs_substation_zoomed.append((tmp_fig, pos_objs))
 
@@ -499,11 +506,12 @@ class PlotGrids(PlotParams):
 
     def _init_storages(self):
         """add all the traces for storage units on the figure. Should be called only once"""
-        traces = []
-        for nm in self.grid.name_storage:
-            self._one_storage_init(nm, traces)
-        self.figure_rt.add_traces(traces)
-        self.figure_forecat.add_traces(traces)
+        if hasattr(self.grid, "name_storage"):
+            traces = []
+            for nm in self.grid.name_storage:
+                self._one_storage_init(nm, traces)
+            self.figure_rt.add_traces(traces)
+            self.figure_forecat.add_traces(traces)
 
     def _init_lines(self):
         """all the traces for the lines on the figure. Should be called only once"""
@@ -580,17 +588,19 @@ class PlotGrids(PlotParams):
 
     def _update_storages(self, obs, is_forecast):
         """update the traces for the storages, without updating the figure."""
-        if is_forecast:
-            # this was a forecast
-            self.for_trace_stor = {}
-            traces = self.for_trace_stor
-        else:
-            # this was the real time
-            self.rt_trace_stor = {}
-            traces = self.rt_trace_stor
+        if hasattr(self.grid, "name_storage"):
+            # "if" for backward compatibility with grid2op < 1.5
+            if is_forecast:
+                # this was a forecast
+                self.for_trace_stor = {}
+                traces = self.for_trace_stor
+            else:
+                # this was the real time
+                self.rt_trace_stor = {}
+                traces = self.rt_trace_stor
 
-        for nm in self.grid.name_storage:
-            self._one_storage(nm, obs, traces)
+            for nm in self.grid.name_storage:
+                self._one_storage(nm, obs, traces)
 
     def _update_all_elements(self, is_forecast):
         """update the traces for all elements, without updating the figure."""

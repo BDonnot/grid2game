@@ -20,7 +20,7 @@ def load_assistant(assistant_path, assistant_seed, env):
         sys.path.append(abs_assistant_path)
         try:
             from submission import make_agent
-            res = make_agent(env, abs_assistant_path)
+            res = make_agent(env, os.path.join(abs_assistant_path, "submission"))
             assert isinstance(res, BaseAgent), "your assistant you be a grid2op.Agent.BaseAgent"
         except Exception as exc_:
             print("Impossible to load your agent. Make sure to include properly the \"make_agent\" function.")

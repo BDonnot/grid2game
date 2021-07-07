@@ -7,6 +7,7 @@
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 import warnings
 import numpy as np
+import copy
 
 import grid2op
 from grid2op.Action import PlayableAction
@@ -40,7 +41,7 @@ class Env(object):
 
         # define variables
         self._obs = None
-        self.past_envs = None
+        self.past_envs = []
         self._current_action = None
         self._sim_obs = None
         self._sim_reward = None
@@ -80,13 +81,16 @@ class Env(object):
 
     def load_assistant(self, assistant_path):
         print(f"attempt to load assistant with path : \"{assistant_path}\"")
+        has_been_loaded = False
         if assistant_path != "":
             # a real path has been set up
             tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env)
             if tmp is not None:
+                # it means the agent has been loaded
                 self.assistant = tmp
+                has_been_loaded = True
             else:
-                # TODO do something smart !
+                # TODO do something smart to warn the error.
                 pass
         else:
             # from grid2op.Agent import RandomAgent  # TODO do nothing here
@@ -94,7 +98,21 @@ class Env(object):
             from grid2op.Agent import DoNothingAgent  # TODO do nothing here
             self.assistant = DoNothingAgent(self.glop_env.action_space)
             self.assistant.seed(int(self._assistant_seed))
+
+        if has_been_loaded:
+            # TODO do i "change the past" ?
+            for step_id in range(len(self.past_envs)):
+                _current_action, \
+                _assistant_action, \
+                _obs, _reward, _done, _info, \
+                glop_env = self.past_envs[step_id]
+                _assistant_action = self.assistant.act(_obs, _reward, _done)
+                self.past_envs[step_id] = (_current_action,
+                                           _assistant_action,
+                                           _obs, _reward, _done, _info,
+                                           glop_env)
         print("assistant loaded")
+        return has_been_loaded
 
     @property
     def action_space(self):
@@ -192,6 +210,8 @@ class Env(object):
     def init_state(self):
         self.past_envs = []
         self._obs = self.glop_env.reset()
+        if self.assistant is not None:
+            self.assistant.reset(self._obs)
         self._current_action = self.glop_env.action_space()
         self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
         self._reward = self.glop_env.reward_range[0]
@@ -220,11 +240,18 @@ class Env(object):
         self._max_line_flow.append(rhos_[-1])
         self._secondmax_line_flow.append(rhos_[-2])
         self._thirdmax_line_flow.append(rhos_[-3])
-        self._sum_solar.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "solar"]))
-        self._sum_wind.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "wind"]))
-        self._sum_thermal.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "thermal"]))
-        self._sum_hydro.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "hydro"]))
-        self._sum_nuclear.append(np.sum(self._obs.gen_p[self.glop_env.gen_type == "nuclear"]))
+        if hasattr(self._obs, "gen_p"):
+            vect_ = self._obs.gen_p
+        else:
+            vect_ = self._obs.prod_p
+            import warnings
+            warnings.warn("DEPRECATED: please use grid2op >= 1.5 for benefiting from all grid2game feature",
+                          DeprecationWarning)
+        self._sum_solar.append(np.sum(vect_[self.glop_env.gen_type == "solar"]))
+        self._sum_wind.append(np.sum(vect_[self.glop_env.gen_type == "wind"]))
+        self._sum_thermal.append(np.sum(vect_[self.glop_env.gen_type == "thermal"]))
+        self._sum_hydro.append(np.sum(vect_[self.glop_env.gen_type == "hydro"]))
+        self._sum_nuclear.append(np.sum(vect_[self.glop_env.gen_type == "nuclear"]))
         self._datetimes.append(self._obs.get_time_stamp())
 
     def pop_vects(self):
@@ -248,7 +275,7 @@ class Env(object):
         """or do nothing if first step"""
         self.next_action_from = self.LIKE_PREVIOUS
         if self.past_envs:
-            self._current_action = self.past_envs[-1][0]
+            self._current_action = copy.deepcopy(self.past_envs[-1][0])
         else:
             self.next_action_is_dn()
 
@@ -258,5 +285,5 @@ class Env(object):
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
             self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
-        self._current_action = self._assistant_action
+        self._current_action = copy.deepcopy(self._assistant_action)
 
