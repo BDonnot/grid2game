@@ -100,6 +100,11 @@ class VizServer:
         # TODO implement the to below
         self.time_refresh = 1  # in seconds (time at which the page will be refreshed)
 
+        # buttons layout
+        self._button_shape = "btn btn-primary"
+        self._go_button_shape = "btn btn-primary"
+        self._gofast_button_shape = "btn btn-primary"
+
         # ugly hack for the date time display
         self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
@@ -111,48 +116,6 @@ class VizServer:
 
         # initialize the layout
         self.app.layout = self.setupLayout()
-
-        # handle "step" button
-        self.app.callback([dash.dependencies.Output("step_butt_call_act_on_env", "value")],
-                          [dash.dependencies.Input("step-button", "n_clicks")],
-                          state=[]
-                          )(self.step_clicked)
-
-        # handle "simulate" button
-        self.app.callback([dash.dependencies.Output("simul_butt_call_act_on_env", "value")],
-                          [dash.dependencies.Input("simulate-button", "n_clicks")],
-                          state=[]
-                          )(self.simulate_clicked)
-
-        # handle "back" button
-        self.app.callback([dash.dependencies.Output("back_butt_call_act_on_env", "value"),],
-                          [dash.dependencies.Input("back-button", "n_clicks")],
-                          state=[]
-                          )(self.back_clicked)
-
-        # handle "reset" button
-        self.app.callback([dash.dependencies.Output("reset_butt_call_act_on_env", "value"),],
-                          [dash.dependencies.Input("reset-button", "n_clicks")],
-                          state=[]
-                          )(self.reset_clicked)
-
-        # handle the "go" button
-        self.app.callback([dash.dependencies.Output("go_butt_call_act_on_env", "value"),],
-                          [dash.dependencies.Input("go-button", "n_clicks")],
-                          state=[]
-                          )(self.go_clicked)
-
-        # handle the "go" button
-        self.app.callback([dash.dependencies.Output("gofast_butt_call_act_on_env", "value")],
-                          [dash.dependencies.Input("gofast-button", "n_clicks")],
-                          state=[]
-                          )(self.gofast_clicked)
-
-        # handle the "until game over" button
-        self.app.callback([dash.dependencies.Output("untilgo_butt_call_act_on_env", "value")],
-                          [dash.dependencies.Input("go_till_game_over-button", "n_clicks")],
-                          state=[]
-                          )(self.until_game_over_clicked)
 
         # handle the press to one of the button to change the units
         self.app.callback([dash.dependencies.Output("unit_trigger_rt_graph", "n_clicks"),
@@ -228,33 +191,36 @@ class VizServer:
 
         # handle the interaction with self.env, that should be done all in one function, otherwise
         # there are concurrency issues
-        self.app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
-                           dash.dependencies.Output("act_on_env_trigger_for", "n_clicks"),
-                           dash.dependencies.Output("act_on_env_call_selfloop", "value")],
-                          [dash.dependencies.Input("step_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("simul_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("back_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("reset_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("go_butt_call_act_on_env", "value"),
-                           dash.dependencies.Input("gofast_butt_call_act_on_env", "value"),
+        self.app.callback([
+            # trigger the computation if needed
+            dash.dependencies.Output("trigger_computation", "value"),
+            # update the button color / shape / etc. if needed
+            dash.dependencies.Output("step-button", "className"),
+            dash.dependencies.Output("simulate-button", "className"),
+            dash.dependencies.Output("back-button", "className"),
+            dash.dependencies.Output("reset-button", "className"),
+            dash.dependencies.Output("go-button", "className"),
+            dash.dependencies.Output("gofast-button", "className"),
+                           ],
+                          [dash.dependencies.Input("step-button", "n_clicks"),
+                           dash.dependencies.Input("simulate-button", "n_clicks"),
+                           dash.dependencies.Input("back-button", "n_clicks"),
+                           dash.dependencies.Input("reset-button", "n_clicks"),
+                           dash.dependencies.Input("go-button", "n_clicks"),
+                           dash.dependencies.Input("gofast-button", "n_clicks"),
                            dash.dependencies.Input("untilgo_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("selfloop_call_act_on_env", "value"),
+                           dash.dependencies.Input("timer", "n_intervals")
                            ],
                           [dash.dependencies.State("act_on_env_trigger_rt", "n_clicks"),
                            dash.dependencies.State("act_on_env_trigger_for", "n_clicks"),
                            dash.dependencies.State("act_on_env_call_selfloop", "value")]
                           )(self.handle_act_on_env)
 
-        # self loop
-        self.app.callback([dash.dependencies.Output("step-button", "className"),
-                           dash.dependencies.Output("simulate-button", "className"),
-                           dash.dependencies.Output("back-button", "className"),
-                           dash.dependencies.Output("reset-button", "className"),
-                           dash.dependencies.Output("go-button", "className"),
-                           dash.dependencies.Output("go_till_game_over-button", "className"),
-                           dash.dependencies.Output("selfloop_call_act_on_env", "value")],
-                          [dash.dependencies.Input("act_on_env_call_selfloop", "value")]
-                          )(self.self_loop_step)
+        self.app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
+                           dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
+                          [dash.dependencies.Input("trigger_computation", "value")]
+                          )(self.computation_wrapper)
 
         # handle triggers: refresh of the figures for real time (graph part)
         self.app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
@@ -358,7 +324,8 @@ class VizServer:
         go_till_game_over = html.Label("End",
                                        id="go_till_game_over-button",
                                        n_clicks=0,
-                                       className="btn btn-primary")
+                                       className="btn btn-primary",
+                                       style={'display': 'none'})
         # TODO add a button "trust assistant up to" that will play the actions suggested by the
         # TODO assistant
 
@@ -823,6 +790,12 @@ class VizServer:
                                       min=0,
                                       max=1,
                                       )
+        trigger_computation = dcc.Input(placeholder=" ",
+                                        id='trigger_computation',
+                                        type='range',
+                                        min=0,
+                                        max=1,
+                                        )
 
         # triggering the update of the figures
         act_on_env_trigger_rt = html.Label("",
@@ -845,10 +818,17 @@ class VizServer:
                                         act_on_env_trigger_rt,
                                         act_on_env_trigger_for, reset_butt_call_act_on_env,
                                         act_on_env_call_selfloop, selfloop_call_act_on_env,
-                                        do_display_action, clear_assistant_path
+                                        do_display_action, clear_assistant_path,
+                                        trigger_computation
                                         ],
                                        id="hidden_button_for_callbacks",
                                        style={'display': 'none'})
+
+        # timer for the automatic callbacks
+        timer_callbacks = dcc.Interval(id="timer",
+                                       interval=500.  # in ms
+                                       )
+
         # Final page
         layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
         layout = html.Div(id="grid2game",
@@ -864,82 +844,11 @@ class VizServer:
                               html.Br(),
                               temporal_graphs,
                               interval_object,
-                              hidden_interactions
+                              hidden_interactions,
+                              timer_callbacks
                           ])
+
         return layout
-
-    # handle the interaction
-    def step_clicked(self, step_clicks):
-        """handle the interaction for the "step" button"""
-        do_step = 0
-        if self.step_clicks < step_clicks:
-            # "step" has been clicked
-            self.step_clicks = step_clicks
-            do_step = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [do_step]
-
-    def back_clicked(self, back_clicks):
-        """handle the interaction for the "back" button"""
-        trigger_act_on_env = 0
-        if self.back_clicks < back_clicks:
-            # "back" has been clicked
-            self.back_clicks = back_clicks
-            trigger_act_on_env = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [trigger_act_on_env]
-
-    def reset_clicked(self, reset_clicks):
-        """handle the interaction for the "reset" button"""
-        trigger_act_on_env = 0
-        if self.reset_clicks < reset_clicks:
-            # "back" has been clicked
-            self.reset_clicks = reset_clicks
-            trigger_act_on_env = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [trigger_act_on_env]
-
-    def go_clicked(self, go_clicks):
-        """handle the interaction for the "go" button"""
-        if self.go_clicks < go_clicks:
-            # "back" has been clicked
-            self.go_clicks = go_clicks
-            trigger_act_on_env = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [trigger_act_on_env]
-
-    def gofast_clicked(self, gofast_clicks):
-        """handle the interaction for the "go fast" button"""
-        if self.gofast_clicks < gofast_clicks:
-            # "back" has been clicked
-            self.gofast_clicks = gofast_clicks
-            trigger_act_on_env = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [trigger_act_on_env]
-
-    def until_game_over_clicked(self, untill_gameover_clicks):
-        """handle the interaction for the "go fast" button"""
-        if self.gofast_clicks < untill_gameover_clicks:
-            # "back" has been clicked
-            self.gofast_clicks = untill_gameover_clicks
-            trigger_act_on_env = 1
-        else:
-            raise dash.exceptions.PreventUpdate
-        return [trigger_act_on_env]
-
-    def simulate_clicked(self, simulate_clicks):
-        """handle the interaction for the "simulate" button"""
-        trigger_act_on_env = 0
-        if self.simulate_clicks < simulate_clicks:
-            self.simulate_clicks = simulate_clicks
-            # simulate has been called
-            trigger_act_on_env = 1
-        return [trigger_act_on_env]
 
     def unit_clicked(self, line_unit, line_side, load_unit, gen_unit, stor_unit,
                      trigger_rt_graph, trigger_for_graph):
@@ -969,12 +878,13 @@ class VizServer:
                           back_butt,
                           reset_butt,
                           go_butt,
-                          gofast_butt,
+                          gofast_clicks,
                           untilgo_butt,
                           self_loop,
                           state_trigger_rt,
                           state_trigger_for,
-                          state_trigger_self_loop):
+                          state_trigger_self_loop,
+                          timer):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
         however, grid2op environments are not "thread safe": accessing them from different "thread"
@@ -986,132 +896,91 @@ class VizServer:
         see https://dash.plotly.com/advanced-callbacks, paragraph
         "Prevent Callback Execution Upon Initial Component Render"
         """
-        trigger_rt = state_trigger_rt  # do i trigger the update of the "real time figures"
-        trigger_for = state_trigger_for   # do i trigger the update of the "forecast" figures
-        trigger_me_again = state_trigger_self_loop # self.SELF_LOOP_STOP  # do i call myself again
-
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
         # section "Determining which Input has fired with dash.callback_context"
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            return [trigger_rt, trigger_for, trigger_me_again]
+            raise dash.exceptions.PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        # print(f"button_id: {button_id}")
-        # NB the checks need to be done in that order, otherwise it might lead to unexpected behaviour
-        if self.env.is_done and (button_id == "selfloop_call_act_on_env"):
-            # no need to continue the "go" or "gofast" if the environment is "self looping"
-            pass
-        elif button_id == "selfloop_call_act_on_env":
-            # "go" or "gofast" has been called, i do another loop
-            if self_loop == 1:
-                # go has been called
-                self.env.step()
-            if self_loop == 2:  # TODO replace "1" and "2" here by variable names !
-                # go fast have been called
-                for i in range(self.nb_step_gofast):
-                    if self.env.is_done:
-                        break
-                    self.env.step()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-            trigger_me_again = self_loop
-        elif button_id == "untilgo_butt_call_act_on_env":
-            # "game over" button is called
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-            while True:
-                if self.env.is_done:
-                    break
-                self.env.step()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_me_again = self.SELF_LOOP_STOP
-        elif button_id == "gofast_butt_call_act_on_env":
-            # "gofast" is calling, i initialize the self loop
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-            for i in range(self.nb_step_gofast):
-                if self.env.is_done:
-                    break
-                self.env.step()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_me_again = self.SELF_LOOP_GOFAST
-        elif button_id == "go_butt_call_act_on_env":
-            # "go" is calling, i initialize the self loop
-            if not self.env.is_done:
-                self.env.step()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-            trigger_me_again = self.SELF_LOOP_GO
-        elif button_id == "step_butt_call_act_on_env":
-            # "step" is calling
-            if not self.env.is_done:
-                self.env.step()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-        elif button_id == "simul_butt_call_act_on_env":
-            # "simulate" is calling
-            self.env.simulate()
-            self.plot_grids.update_forecat(self.env.sim_obs)
-            self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
-            trigger_for = 1
-        elif button_id == "back_butt_call_act_on_env":
-            # "back"" is calling
-            self.env.back()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-        elif button_id == "reset_butt_call_act_on_env":
-            # "reset" is calling
-            self.env.reset()
-            self.update_obs_fig()  # TODO maybe not here, i don't know :thinking:
-            trigger_rt = 1
-            trigger_for = 1
-        else:
-            # nothing really called me, so i stop here
-            raise dash.exceptions.PreventUpdate
-        # print(f"handle_act_on_env: trigger_rt {trigger_rt}, trigger_for {trigger_for}")
-        return [trigger_rt, trigger_for, trigger_me_again]
 
-    def self_loop_step(self, act_on_env_call_selfloop):
-        """
-        Allows to do a "self loop" on act_on_env step.
-        This is useful in a "go fast" or in a "go" mode
-        """
-        if act_on_env_call_selfloop is None or act_on_env_call_selfloop == 0:
-            # there is not self loop, i stop
-            raise dash.exceptions.PreventUpdate
+        trigger_heavy_computation_wrapper = 1
 
-        button_shape = "btn btn-primary"
-        go_button_shape = "btn btn-primary"
-        selfloop_call_act_on_env = self.SELF_LOOP_STOP
+        # now register the next computation to do, based on the button triggerd
+        if button_id == "step-button":
+            self.env.start_computation()
+            self.env.next_computation = "step"
+            self.env.next_computation_kwargs = {}
+        elif button_id == "reset-button":
+            self.env.start_computation()
+            self.env.next_computation = "reset"
+            self.env.next_computation_kwargs = {}
+        elif button_id == "simulate-button":
+            self.env.start_computation()
+            self.env.next_computation = "simulate"
+            self.env.next_computation_kwargs = {}
+        elif button_id == "back-button":
+            self.env.start_computation()
+            self.env.next_computation = "back"
+            self.env.next_computation_kwargs = {}
+        elif button_id == "gofast-button":
+            self.gofast_clicks += 1
+            if self.gofast_clicks % 2:
+                # i clicked on gofast an even number of time, i need to stop computation
+                self.env.stop_computation()
+                self._button_shape = "btn btn-primary"
+                self._go_button_shape = "btn btn-primary"
+            else:
+                # i clicked on gofast an even number of time, i need to stop computation
+                self.env.start_computation()
+                self._button_shape = "btn btn-secondary"
+                self._go_button_shape = "btn btn-secondary"
+            self.env.next_computation = "step_rec_fast"
+            self.env.next_computation_kwargs = {"nb_step_gofast": self.nb_step_gofast}
+        elif button_id == "go-button":
+            self.go_clicks += 1
+            if self.go_clicks % 2:
+                # i clicked on gofast an even number of time, i need to stop computation
+                self.env.stop_computation()
+                self._button_shape = "btn btn-primary"
+                self._gofast_button_shape = "btn btn-primary"
+            else:
+                # i clicked on gofast an even number of time, i need to stop computation
+                self.env.start_computation()
+                self._button_shape = "btn btn-secondary"
+                self._gofast_button_shape = "btn btn-secondary"
+            self.env.next_computation = "step_rec"
+            self.env.next_computation_kwargs = {}
 
-        # check if i am in a self loop or not (should be in this order)
-        if self.gofast_clicks % 2 == 1:
-            # i'm in the "go fast" mode
-            button_shape = "btn btn-secondary"
-            go_button_shape = "btn btn-secondary"
-            selfloop_call_act_on_env = self.SELF_LOOP_GOFAST
-        elif self.go_clicks % 2 == 1:
-            # i'm not in a "self loop", button should be updated correctly
-            button_shape = "btn btn-secondary"
-            selfloop_call_act_on_env = self.SELF_LOOP_GO
-        return [button_shape, button_shape, button_shape, button_shape, go_button_shape,
-                "btn btn-primary",
-                selfloop_call_act_on_env]
+        if not self.env.needs_compute():
+            # don't start the computation if not needed
+            trigger_heavy_computation_wrapper = dash.no_update
+
+        return [trigger_heavy_computation_wrapper,
+                self._button_shape,
+                self._button_shape,
+                self._button_shape,
+                self._button_shape,
+                self._go_button_shape,
+                self._gofast_button_shape]
+
+    def computation_wrapper(self, trigger_heavy_computation_wrapper):
+        # simulate a "state" of the application that depends on the computation
+        if not self.env.is_computing():
+            self.env.heavy_compute()
+        # TODO the condition to update the stuff
+        # TODO and better yet: use the no_update !
+        trigger_rt = 1
+        trigger_for = 1
+        return [trigger_rt, trigger_for]
 
     # handle the layout
     def update_rt_fig(self, env_act):
         """the real time figures need to be updated"""
-        # print(f"update_rt_fig: env_act {env_act}")
         if env_act is not None and env_act > 0:
+            self.update_obs_fig()
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
             trigger_for_graph = 1
@@ -1123,6 +992,8 @@ class VizServer:
         """the simulate figures need to updated"""
         if env_act is not None and env_act > 0:
             trigger_for_graph = 1
+            self.plot_grids.update_forecat(self.env.sim_obs)
+            self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
         else:
             raise dash.exceptions.PreventUpdate
         return [trigger_for_graph]
@@ -1335,6 +1206,8 @@ class VizServer:
 
     def load_assistant(self, filename):
         """loads an assistant and display the right things"""
+        if filename is None:
+            raise dash.exceptions.PreventUpdate
         self.assistant_path = filename
         properly_loaded = self.env.load_assistant(self.assistant_path)
         clear = 0

@@ -9,26 +9,13 @@
 import setuptools
 from setuptools import setup
 
-# test gpg
 pkgs = {
     "required": [
-        "numpy>=1.18.2",
-        "scipy>=1.4.1",
-        "pandas>=1.0.3",
-        "pathlib>=1.0.1",
-        "grid2op>=1.2",  # even 1.5.0 when released
-        "networkx>=2.4",
-        "seaborn>=0.10.0",
-        "plotly>=4.5.4",
-        "dash>=1.18",
-        "imageio",
-        "pygifsicle",
-        "psutil",
-        "requests"
+        "plotly",
+        "dash",
+        "grid2op>=1.5.0"
     ],
-    "extras": {
-        "grid2op>=1.4",  # even 1.5.0 when released
-    }
+    "extras": {}
 }
 
 setup(name='grid2game',

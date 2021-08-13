@@ -131,3 +131,6 @@ dmypy.json
 # pycharm
 .idea/
 
+# junk files
+old-versions.txt
+

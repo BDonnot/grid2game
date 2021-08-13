@@ -21,9 +21,14 @@ except ImportError:
 
 
 from grid2game.agents import load_assistant
+from grid2game.envs.computeWrapper import ComputeWrapper
 
 
-class Env(object):
+class Env(ComputeWrapper):
+    """
+    wrapper of a grid2op environment. What it does compared to a standard grid2op env ? Store everything
+    at every steps to be able to navigate back and forth in the past or in the future.
+    """
     ASSISTANT = 0
     DO_NOTHING = 1
     LIKE_PREVIOUS = 2
@@ -33,6 +38,8 @@ class Env(object):
                  assistant_path=None,
                  assistant_seed=0,
                  **kwargs):
+        ComputeWrapper.__init__(self)
+
         # TODO some configuration here
         self.glop_env = grid2op.make(env_name,
                                      backend=bkClass(),
@@ -79,6 +86,10 @@ class Env(object):
         # self._done = False
         # self._info = {}
 
+        # to control which action will be done when
+        self.next_computation = None
+        self.next_computation_kwargs = {}
+
     def load_assistant(self, assistant_path):
         print(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
@@ -113,6 +124,48 @@ class Env(object):
                                            glop_env)
         print("assistant loaded")
         return has_been_loaded
+
+    def do_computation(self):
+        if self.next_computation == "load_assistant":
+            self.stop_computation()  # this is a "one time" call
+            return self.load_assistant(**self.next_computation_kwargs)
+        elif self.next_computation == "seed":
+            self.stop_computation()  # this is a "one time" call
+            return self.seed(**self.next_computation_kwargs)
+        elif self.next_computation == "step":
+            self.stop_computation()  # this is a "one time" call
+            return self.step(**self.next_computation_kwargs)
+        elif self.next_computation == "step_rec":
+            return self.step()
+        elif self.next_computation == "step_rec_fast":
+            res = None
+            for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
+                res = self.step()
+            return res
+        elif self.next_computation == "choose_next_action":
+            self.stop_computation()  # this is a "one time" call
+            return self.choose_next_action()
+        elif self.next_computation == "simulate":
+            self.stop_computation()  # this is a "one time" call
+            return self.simulate(**self.next_computation_kwargs)
+        elif self.next_computation == "back":
+            self.stop_computation()  # this is a "one time" call
+            return self.back()
+        elif self.next_computation == "reset":
+            self.stop_computation()  # this is a "one time" call
+            return self.reset()
+        elif self.next_computation == "next_action_is_dn":  # TODO is this really public api ?
+            self.stop_computation()  # this is a "one time" call
+            return self.next_action_is_dn()
+        elif self.next_computation == "next_action_is_previous":  # TODO is this really public api ?
+            self.stop_computation()  # this is a "one time" call
+            return self.next_action_is_previous()
+        elif self.next_computation == "next_action_is_assistant":  # TODO is this really public api ?
+            self.stop_computation()  # this is a "one time" call
+            return self.next_action_is_assistant()
+        elif self.next_computation == "take_last_action":  # TODO is this really public api ?
+            self.stop_computation()  # this is a "one time" call
+            return self.take_last_action()
 
     @property
     def action_space(self):
@@ -159,7 +212,7 @@ class Env(object):
                                self.glop_env.copy()))
         self._assistant_action = None
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
-        self.fill_info_vect()
+        self._fill_info_vect()
         self.choose_next_action()
         if not self._done:
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
@@ -167,7 +220,8 @@ class Env(object):
             self._sim_done = True
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
-            self._sim_obs.set_game_over()
+            self._sim_obs.set_game_over(self.glop_env)
+        print(f"grid2game env.py: {self._obs.current_step} / {self._obs.max_step}")
         return self.obs, self._reward, self._done, self._info
 
     def choose_next_action(self):
@@ -200,7 +254,7 @@ class Env(object):
                               self.glop_env) = self.past_envs
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
             if not is_this_done:
-                self.pop_vects()
+                self._pop_vects()
 
     def reset(self):
         for *_, glop_env in self.past_envs:
@@ -229,9 +283,9 @@ class Env(object):
         self._sum_nuclear = []
         self._datetimes = []
 
-        self.fill_info_vect()
+        self._fill_info_vect()
 
-    def fill_info_vect(self):
+    def _fill_info_vect(self):
         if self._done:
             # don't had data corresponding to the last observation, which is "wrong"
             return
@@ -254,7 +308,7 @@ class Env(object):
         self._sum_nuclear.append(np.sum(vect_[self.glop_env.gen_type == "nuclear"]))
         self._datetimes.append(self._obs.get_time_stamp())
 
-    def pop_vects(self):
+    def _pop_vects(self):
         *self._sum_load, _ = self._sum_load
         *self._max_line_flow, _ = self._max_line_flow
         *self._secondmax_line_flow, _ = self._secondmax_line_flow

@@ -28,3 +28,4 @@ def load_assistant(assistant_path, assistant_seed, env):
         print("assistant loaded in \"load_assistant\"")
         res.seed(int(assistant_seed))
     return res
+
