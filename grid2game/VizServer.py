@@ -10,9 +10,7 @@ import os
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-import json
-import plotly
-
+import dash_bootstrap_components as dbc
 from grid2game.plot import PlotGrids
 from grid2game.plot import PlotTemporalSeries
 from grid2game.envs import Env
@@ -39,12 +37,13 @@ class VizServer:
             }
         ]
         external_stylesheets = [
+            dbc.themes.BOOTSTRAP,
             {
                 "rel": "stylesheet",
                 "href": "https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css",
                 "integrity": "sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh",
                 "crossorigin": "anonymous"
-            }
+            },
         ]
         external_scripts = [
             {
@@ -64,8 +63,7 @@ class VizServer:
             }
         ]
         assets_dir = os.path.abspath(
-            os.path.join(os.path.dirname(__file__),
-                         "assets")
+            os.path.join(os.path.dirname(__file__), "assets")
         )
 
         # create the dash app
@@ -99,6 +97,11 @@ class VizServer:
         self.nb_step_gofast = 12  # number of steps made in each frame for the "go_fast" mode
         # TODO implement the to below
         self.time_refresh = 1  # in seconds (time at which the page will be refreshed)
+
+        # remembering the last step, that are not saved in the observation...
+        self._last_step = 0
+        self._last_max_step = 1
+        self._last_done = False
 
         # buttons layout
         self._button_shape = "btn btn-primary"
@@ -226,6 +229,9 @@ class VizServer:
         self.app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
                            dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
                            dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
+                           dash.dependencies.Output("scenario_progression", "value"),
+                           dash.dependencies.Output("scenario_progression", "children"),
+                           dash.dependencies.Output("scenario_progression", "color")
                            ],
                           [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
                           []
@@ -275,7 +281,8 @@ class VizServer:
         # load the assistant
         self.app.callback([dash.dependencies.Output("current_assistant_path", "children"),
                            dash.dependencies.Output("clear_assistant_path", "n_clicks")],
-                          [dash.dependencies.Input("select_assistant", "value")]
+                          [dash.dependencies.Input("load_assistant_button", "n_clicks")],
+                          [dash.dependencies.State("select_assistant", "value")]
                           )(self.load_assistant)
 
         self.app.callback([dash.dependencies.Output("select_assistant", "value")],
@@ -300,7 +307,7 @@ class VizServer:
                                   className="btn btn-primary")
         reset_button_dummy = html.P("", style={'display': 'none'})
 
-        # Controls widget
+        # Controls widget (step, reset etc.)
         step_button = html.Label("Step",
                                  id="step-button",
                                  n_clicks=0,
@@ -320,35 +327,48 @@ class VizServer:
         go_fast = html.Label("Fast",
                              id="gofast-button",
                              n_clicks=0,
-                             className="btn btn-primary")
+                             className="btn btn-primary",
+                             style={'display': 'none'})
         go_till_game_over = html.Label("End",
                                        id="go_till_game_over-button",
                                        n_clicks=0,
                                        className="btn btn-primary",
                                        style={'display': 'none'})
+        # html display
+        button_css = "col-6 col-sm-6 col-md-3 col-lg-3 col-xl-1"
+        reset_col = html.Div(id="reset-col", className=button_css, children=[reset_button, reset_button_dummy])
+        step_col = html.Div(id="step-col", className=button_css, children=[step_button])
+        sim_col = html.Div(id="sim-step-col", className=button_css, children=[simulate_button])
+        back_col = html.Div(id="back-col", className=button_css, children=[back_button])
+        go_col = html.Div(id="go-col", className=button_css, children=[go_butt])
+        go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast])
+        go_till_game_over_col = html.Div(id="continue_until_game_over-col",
+                                         className=button_css,
+                                         children=[go_till_game_over])
+
+        # Units displayed control
         # TODO add a button "trust assistant up to" that will play the actions suggested by the
         # TODO assistant
-
         show_temporal_graph = dcc.Checklist(id="show-temporal-graph",
                                             options=[{'label': 'TODO Display time series', 'value': '1'}],
                                             value=["1"]
                                             )
-        # change the units
+
         # TODO make that disapearing / appearing based on a button "show options" for example
         line_info_label = html.Label("Line unit:")
         line_info = dcc.Dropdown(id='line-info-dropdown',
-            options=[
-                {'label': 'Capacity', 'value': 'rho'},
-                {'label': 'A', 'value': 'a'},
-                {'label': 'MW', 'value': 'p'},
-                {'label': 'kV', 'value': 'v'},
-                {'label': 'MVAr', 'value': 'q'},
-                {'label': 'thermal limit', 'value': 'th_lim'},
-                {'label': 'cooldown', 'value': 'cooldown'},
-                {'label': '# step overflow', 'value': 'timestep_overflow'},
-                {'label': 'name', 'value': 'name'},
-                {'label': 'None', 'value': 'none'},
-            ], value='none', clearable=False)
+                                 options=[
+                                     {'label': 'Capacity', 'value': 'rho'},
+                                     {'label': 'A', 'value': 'a'},
+                                     {'label': 'MW', 'value': 'p'},
+                                     {'label': 'kV', 'value': 'v'},
+                                     {'label': 'MVAr', 'value': 'q'},
+                                     {'label': 'thermal limit', 'value': 'th_lim'},
+                                     {'label': 'cooldown', 'value': 'cooldown'},
+                                     {'label': '# step overflow', 'value': 'timestep_overflow'},
+                                     {'label': 'name', 'value': 'name'},
+                                     {'label': 'None', 'value': 'none'},
+                                 ], value='none', clearable=False)
 
         line_side_label = html.Label("Line side:")
         line_side = dcc.Dropdown(id='line-side-dropdown',
@@ -360,7 +380,7 @@ class VizServer:
                                  ],
                                  value='or',
                                  clearable=False)
-        
+
         load_info_label = html.Label("Load unit:")
         load_info = dcc.Dropdown(id='load-info-dropdown',
                                  options=[
@@ -394,25 +414,12 @@ class VizServer:
         stor_info_label = html.Label("Stor. unit:")
         stor_info = dcc.Dropdown(id='stor-info-dropdown',
                                  options=[
-                                    {'label': 'MW', 'value': 'p'},
-                                    {'label': 'MWh', 'value': 'MWh'},
-                                    {'label': 'None', 'value': 'none'},
+                                     {'label': 'MW', 'value': 'p'},
+                                     {'label': 'MWh', 'value': 'MWh'},
+                                     {'label': 'None', 'value': 'none'},
                                  ],
                                  value='none',
                                  clearable=False)
-
-        # html display
-        button_css = "col-6 col-sm-6 col-md-3 col-lg-3 col-xl-1"
-        reset_col = html.Div(id="reset-col", className=button_css, children=[reset_button, reset_button_dummy])
-        step_col = html.Div(id="step-col", className=button_css, children=[step_button])
-        sim_col = html.Div(id="sim-step-col", className=button_css, children=[simulate_button])
-        back_col = html.Div(id="back-col", className=button_css, children=[back_button])
-        go_col = html.Div(id="go-col", className=button_css, children=[go_butt])
-        go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast])
-        go_till_game_over_col = html.Div(id="continue_until_game_over-col",
-                                         className=button_css,
-                                         children=[go_till_game_over])
-
         lineinfo_col = html.Div(id="lineinfo-col", className=button_css, children=[line_info_label, line_info])
         lineside_col = html.Div(id="lineside-col", className=button_css, children=[line_side_label, line_side])
         loadinfo_col = html.Div(id="loadinfo-col", className=button_css, children=[load_info_div])
@@ -421,6 +428,13 @@ class VizServer:
         # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label,
         # show_temporal_graph])
 
+        # progress in the scenario (progress bar)
+        progress_bar_for_scenario = html.Div(dbc.Progress(id="scenario_progression",
+                                                          value=0.,
+                                                          color="danger",
+                                                          className="mb-3"))
+
+        # general layout
         change_units = html.Div(id="change_units",
                                 children=[
                                     lineinfo_col,
@@ -450,15 +464,27 @@ class VizServer:
                                                                  style={
                                                                      'width': '70%',
                                                                      'height': '55px',
-                                                                     'lineHeight': '55px'}),
-                                                       html.P(self.assistant_path,
+                                                                     'lineHeight': '55px',
+                                                                     'vertical-align': 'middle',
+                                                                     "margin-top": 5,
+                                                                     "margin-left": 20}),
+                                                       html.Label("load",
+                                                                  id="load_assistant_button",
+                                                                  n_clicks=0,
+                                                                  className="btn btn-primary",
+                                                                  style={'height': '35px',
+                                                                         "margin-top": 18,
+                                                                         "margin-left": 5}),
+                                                       html.P(self.format_path(self.assistant_path),
                                                               id="current_assistant_path",
                                                               style={'width': '25%',
                                                                      'textAlign': 'center',
                                                                      'height': '55px',
-                                                                     'vertical-align': 'middle'}
+                                                                     'vertical-align': 'middle',
+                                                                     "margin-top": 20}
                                                               )],
                                                       className="row",
+                                                      style={'height': '65px'},
                                                       ),
                                     style={
                                           'borderWidth': '1px',
@@ -838,6 +864,8 @@ class VizServer:
                               html.Br(),
                               controls_row,
                               html.Br(),
+                              progress_bar_for_scenario,
+                              html.Br(),
                               state_row,
                               html.Br(),
                               interaction_and_action,
@@ -984,9 +1012,34 @@ class VizServer:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
             trigger_for_graph = 1
+
+            # scenario progress bar
+            progress_color = None
+            if not self.env.is_done:
+                self._last_step = self.env.obs.current_step
+                self._last_max_step = self.env.obs.max_step
+                self._last_done = False
+            else:
+                if not self._last_done:
+                    self._last_done = True
+                    if self._last_step != self._last_max_step:
+                        # fail to run the scenario till the end
+                        self._last_step += 1
+                if self._last_step != self._last_max_step:
+                    # fail to run the scenario till the end
+                    progress_color = "danger"
+                else:
+                    # no game over, until the end of the scenario
+                    progress_color = "success"
+
+            progress_pct = 100. * self._last_step / self._last_max_step
+            progress_label = f"{self._last_step} / {self._last_max_step}"
         else:
             raise dash.exceptions.PreventUpdate
-        return [trigger_temporal_figs, trigger_rt_graph, trigger_for_graph]
+        return [trigger_temporal_figs, trigger_rt_graph, trigger_for_graph,
+                progress_pct,
+                progress_label,
+                progress_color]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
@@ -1108,6 +1161,9 @@ class VizServer:
 
             if not is_modif:
                 raise dash.exceptions.PreventUpdate
+            else:
+                # i force the env to do the "current_action" in the next step
+                self.env.next_action_from = self.env.LIKE_PREVIOUS
 
             # TODO optim here to save that if not needed because nothing has changed
             res = [f"{self.env.current_action}"]
@@ -1200,19 +1256,19 @@ class VizServer:
         """just output the name of the submission instead of its whole path"""
         try:
             base, res = os.path.split(path)
-            return res
+            return res.strip()
         except Exception as exc_:
             return path
 
-    def load_assistant(self, filename):
+    def load_assistant(self, trigger_load, assistant_path):
         """loads an assistant and display the right things"""
-        if filename is None:
+        if assistant_path is None:
             raise dash.exceptions.PreventUpdate
-        self.assistant_path = filename
+        self.assistant_path = assistant_path.rstrip().lstrip()
         properly_loaded = self.env.load_assistant(self.assistant_path)
         clear = 0
         if properly_loaded:
-            res = self.format_path(self.assistant_path)
+            res = self.format_path(os.path.abspath(self.assistant_path))
             clear = 1
         else:
             res = ""

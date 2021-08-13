@@ -13,6 +13,7 @@ pkgs = {
     "required": [
         "plotly",
         "dash",
+        "dash_bootstrap_components",
         "grid2op>=1.5.0"
     ],
     "extras": {}
@@ -31,7 +32,7 @@ setup(name='grid2game',
           "Natural Language :: English"
       ],
       keywords=['powergrid', 'power-systems',
-                'grid', 'viz', 'grid2op',
+                'grid', 'grid2op',
                 'Grid2Op', 'visualization'],
       author='Benjamin DONNOT',
       author_email='benjamin.donnot@rte-france.com',

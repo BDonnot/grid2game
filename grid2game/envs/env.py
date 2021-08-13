@@ -8,6 +8,7 @@
 import warnings
 import numpy as np
 import copy
+import time
 
 import grid2op
 from grid2op.Action import PlayableAction
@@ -93,9 +94,9 @@ class Env(ComputeWrapper):
     def load_assistant(self, assistant_path):
         print(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
-        if assistant_path != "":
+        if assistant_path != "" and not assistant_path in {"unload", "\"", "\"\""}:
             # a real path has been set up
-            tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env)
+            tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env.copy())
             if tmp is not None:
                 # it means the agent has been loaded
                 self.assistant = tmp
@@ -104,8 +105,7 @@ class Env(ComputeWrapper):
                 # TODO do something smart to warn the error.
                 pass
         else:
-            # from grid2op.Agent import RandomAgent  # TODO do nothing here
-            # self.assistant = RandomAgent(self.glop_env.action_space)
+            # cancel the assistant
             from grid2op.Agent import DoNothingAgent  # TODO do nothing here
             self.assistant = DoNothingAgent(self.glop_env.action_space)
             self.assistant.seed(int(self._assistant_seed))
@@ -126,6 +126,7 @@ class Env(ComputeWrapper):
         return has_been_loaded
 
     def do_computation(self):
+        # print(f"do_computation: {self.next_computation = }")
         if self.next_computation == "load_assistant":
             self.stop_computation()  # this is a "one time" call
             return self.load_assistant(**self.next_computation_kwargs)
@@ -154,18 +155,20 @@ class Env(ComputeWrapper):
         elif self.next_computation == "reset":
             self.stop_computation()  # this is a "one time" call
             return self.reset()
-        elif self.next_computation == "next_action_is_dn":  # TODO is this really public api ?
-            self.stop_computation()  # this is a "one time" call
-            return self.next_action_is_dn()
-        elif self.next_computation == "next_action_is_previous":  # TODO is this really public api ?
-            self.stop_computation()  # this is a "one time" call
-            return self.next_action_is_previous()
-        elif self.next_computation == "next_action_is_assistant":  # TODO is this really public api ?
-            self.stop_computation()  # this is a "one time" call
-            return self.next_action_is_assistant()
-        elif self.next_computation == "take_last_action":  # TODO is this really public api ?
-            self.stop_computation()  # this is a "one time" call
-            return self.take_last_action()
+        else:
+            raise RuntimeError(f"Unknown method to call: {self.next_computation = }")
+        # elif self.next_computation == "next_action_is_dn":  # TODO is this really public api ?
+        #     self.stop_computation()  # this is a "one time" call
+        #     return self.next_action_is_dn()
+        # elif self.next_computation == "next_action_is_previous":  # TODO is this really public api ?
+        #     self.stop_computation()  # this is a "one time" call
+        #     return self.next_action_is_previous()
+        # elif self.next_computation == "next_action_is_assistant":  # TODO is this really public api ?
+        #     self.stop_computation()  # this is a "one time" call
+        #     return self.next_action_is_assistant()
+        # elif self.next_computation == "take_last_action":  # TODO is this really public api ?
+        #     self.stop_computation()  # this is a "one time" call
+        #     return self.take_last_action()
 
     @property
     def action_space(self):
@@ -203,25 +206,55 @@ class Env(ComputeWrapper):
         return seeds
 
     def step(self, action=None):
+        if self._done:
+            self.stop_computation()
+            return self.obs, self._reward, self._done, self._info
+
         if action is None:
             action = self._current_action
-        # print(f"Action: played: {action}, action_mode: {self.next_action_from}")
-        self.past_envs.append((self._current_action,
-                               self._assistant_action,
-                               self._obs.copy(), self._reward, self._done, self._info,
-                               self.glop_env.copy()))
+        else:
+            # TODO is this correct ? I never really tested that
+            self._current_action = action
+
+        # to improve deep copy speeds
+        time.sleep(0.1)
+        beg_ = time.time()
+        # beg__ = time.time()
+        saved_act = copy.deepcopy(self._current_action)
+        # end__ = time.time()
+        # print(f"\t\t\t time to copy the saved_act: {end__ - beg__:.3f}s")
+        # beg__ = time.time()
+        saved_assistant_act = copy.deepcopy(self._assistant_action)
+        # end__ = time.time()
+        # print(f"\t\t\t time to copy the saved_assistant_act: {end__ - beg__:.3f}s")
+        # beg__ = time.time()
+        obs_cpy = self._obs.copy()
+        # end__ = time.time()
+        # print(f"\t\t\t time to copy the obs: {end__ - beg__:.3f}s")
+        # beg__ = time.time()
+        env_cpy = self.glop_env.copy()
+        # end__ = time.time()
+        # print(f"\t\t\t time to copy the glop_env: {end__ - beg__:.3f}s")
+        this_state = (saved_act,
+                      saved_assistant_act,
+                      obs_cpy, self._reward, self._done, self._info,
+                      env_cpy)
+        end_ = time.time()
+        # print(f"\t\t time to copy the state: {end_-beg_:.3f}s")
+
+        self.past_envs.append(this_state)
         self._assistant_action = None
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
         self._fill_info_vect()
-        self.choose_next_action()
         if not self._done:
-            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
+            self.choose_next_action()
+            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self._current_action)
         else:
             self._sim_done = True
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
-        print(f"grid2game env.py: {self._obs.current_step} / {self._obs.max_step}")
+        # print(f"grid2game env.py: {self._obs.current_step} / {self._obs.max_step}")
         return self.obs, self._reward, self._done, self._info
 
     def choose_next_action(self):
@@ -229,7 +262,7 @@ class Env(ComputeWrapper):
         if self.next_action_from == self.ASSISTANT:
             # self._assistant_action = self.glop_env.action_space.sample()
             self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
-            self._current_action = self._assistant_action
+            self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS:
             # next action should be like the previous one
             pass
@@ -322,11 +355,15 @@ class Env(ComputeWrapper):
 
     def next_action_is_dn(self):
         """or do nothing if first step"""
+        if self.next_action_from == self.DO_NOTHING:
+            return
         self.next_action_from = self.DO_NOTHING
         self._current_action = self.glop_env.action_space()
 
     def next_action_is_previous(self):
         """or do nothing if first step"""
+        if self.next_action_from == self.LIKE_PREVIOUS:
+            return
         self.next_action_from = self.LIKE_PREVIOUS
         if self.past_envs:
             self._current_action = copy.deepcopy(self.past_envs[-1][0])
@@ -335,6 +372,9 @@ class Env(ComputeWrapper):
 
     def next_action_is_assistant(self):
         """the next action is chosen to be given by the assistant"""
+        if self.next_action_from == self.ASSISTANT:
+            return
+
         self.next_action_from = self.ASSISTANT
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
