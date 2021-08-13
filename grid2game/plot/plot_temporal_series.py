@@ -8,6 +8,7 @@
 
 import plotly.colors as pc
 import plotly.graph_objects as go
+
 try:
     from grid2op.PlotGrid.config import NUKE_COLOR, THERMAL_COLOR, WIND_COLOR, SOLAR_COLOR, HYDRO_COLOR
 except ImportError as exc_:
