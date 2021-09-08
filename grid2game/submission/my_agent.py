@@ -1,3 +1,11 @@
+# Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
+# See AUTHORS.txt
+# This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
+# If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
+# you can obtain one at http://mozilla.org/MPL/2.0/.
+# SPDX-License-Identifier: MPL-2.0
+# This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
+
 import numpy as np
 from grid2op.dtypes import dt_float
 from grid2op.Agent import GreedyAgent
@@ -6,9 +14,7 @@ from grid2op.Agent import GreedyAgent
 class MyAgent(GreedyAgent):
     """
     This is a heuristic agent that performs relatively well in the l2rpn_case14_sandbox, mainly because
-    this environment allows to swtich on / off powerline constantly.
-
-    For your experiments, this should be enough though :-)
+    this environment allows to switch on / off powerline constantly without any "cooldown".
 
     Only works correctly for "l2rpn_case14_sandbox" at the moment !
     """
@@ -68,9 +74,6 @@ class MyAgent(GreedyAgent):
                 self.resulting_rewards[i] = simul_reward
             reward_idx = int(np.argmax(self.resulting_rewards))  # rewards.index(max(rewards))
             best_action = self.tested_action[reward_idx]
-            # print(f"grid2game.my_agent: total_dispatch expected: {np.sum(np.abs(sim_obs_saved[reward_idx].actual_dispatch))}")
-            # print(f"grid2game.my_agent: total_dispatch in the obs: {np.sum(np.abs(observation.actual_dispatch))}")
-
         else:
             best_action = self.tested_action[0]
         return best_action
@@ -84,9 +87,7 @@ class MyAgent(GreedyAgent):
             self.tested_action_redisp = res
         if self.tested_action_lines is None:
             self.tested_action_lines = [self.action_space({"set_line_status": [(14, -1)]}),
-                                        # self.action_space({"set_line_status": [(12, -1)]}),
                                         self.action_space({"set_line_status": [(14, +1)]}),
-                                        # self.action_space({"set_line_status": [(12, +1)]})
                                         ]
         res = [self.action_space({})]  # add the do nothing
 
@@ -109,10 +110,6 @@ class MyAgent(GreedyAgent):
         # I attempt to reconnect powerline if can reconnect some
         line_stat_s = observation.line_status
         cooldown = observation.time_before_cooldown_line
-        can_be_reco = ~line_stat_s & (cooldown == 0)
-        # if np.any(can_be_reco):
-        #     res += [self.action_space({"set_line_status": [(id_, +1)]}) for id_ in np.where(can_be_reco)[0]]
-
         return res
 
     def get_all_unitary_curtail(self, num_bin=10, min_value=0.5):

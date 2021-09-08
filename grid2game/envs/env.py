@@ -5,6 +5,7 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
+
 import warnings
 import numpy as np
 import copy
@@ -18,6 +19,7 @@ try:
     from lightsim2grid import LightSimBackend
     bkClass = LightSimBackend
 except ImportError:
+    # TODO: logger here
     bkClass = PandaPowerBackend
 
 
@@ -139,6 +141,7 @@ class Env(ComputeWrapper):
         elif self.next_computation == "step_rec":
             return self.step()
         elif self.next_computation == "step_rec_fast":
+            # currently not used !
             res = None
             for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
                 res = self.step()
@@ -245,6 +248,9 @@ class Env(ComputeWrapper):
         self.past_envs.append(this_state)
         self._assistant_action = None
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
+        if self._obs.time_since_last_alarm == 0:
+            print("The assistant raised an alarm !")
+            self.stop_computation()
         self._fill_info_vect()
         if not self._done:
             self.choose_next_action()

@@ -136,3 +136,4 @@ old-versions.txt
 
 test_advance_callback_cpy.py
 test_circular_dep.py
+bug_chronix2grid.py

@@ -91,7 +91,7 @@ class VizServer:
         self.step_clicks = 0
         self.simulate_clicks = 0
         self.back_clicks = 0
-        self.go_clicks = 0
+        self.go_clicks = 1
         self.gofast_clicks = 0
         self.reset_clicks = 0
         self.nb_step_gofast = 12  # number of steps made in each frame for the "go_fast" mode
@@ -957,6 +957,7 @@ class VizServer:
             self.env.next_computation = "back"
             self.env.next_computation_kwargs = {}
         elif button_id == "gofast-button":
+            # this button is off now !
             self.gofast_clicks += 1
             if self.gofast_clicks % 2:
                 # i clicked on gofast an even number of time, i need to stop computation
