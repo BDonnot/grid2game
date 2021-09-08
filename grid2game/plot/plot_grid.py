@@ -285,8 +285,92 @@ class PlotGrids(PlotParams):
                 res = (pos_in_topo_vect, -1 if what_clicked == "obj" else (1 if what_clicked == "bus1" else 2))
         return res
 
+    def _get_res_sub_clicked(self, obj_id):
+        # draw the substation
+        self.sub_fig, _ = self.figs_substation_zoomed[obj_id]
+        self._last_sub_clicked = obj_id
+
+        # add the right color to which the object is connected
+        current_topo = self.obs_rt.sub_topology(obj_id)
+        objs_this_sub = self.obs_rt.get_obj_substations(substation_id=obj_id)
+        for obj_info, obj_bus in zip(objs_this_sub, current_topo):
+            nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = self.retrieve_obj_info(obj_info)
+            line_style = dict(color=self.col_bus1, dash=self.style_bus1)
+            bus_x = xbus1
+            bus_y = ybus1
+            if obj_bus == 2:
+                line_style = dict(color=self.col_bus2, dash=self.style_bus2)
+                bus_x = xbus2
+                bus_y = ybus2
+            self.sub_fig.update_traces(x=[x_this_obj, bus_x],
+                                       y=[y_this_obj, bus_y],
+                                       line=line_style,
+                                       selector=dict(name=nm_this_obj + "_current_bus"))
+        res_type = (f"Substation id {obj_id}",
+                    self.sub_fig
+                    )
+        return res_type
+
+    def _get_res_line_clicked(self, obj_name, obj_id):
+        res_type = (f"Line id {obj_id} ({obj_name})",
+                    "0",
+                    f"Flow: {self.obs_rt.a_or[obj_id]:.2f}A "
+                    f"(thermal limit {self.obs_rt._thermal_limit[obj_id]:.2f}A)"
+                    )
+        return res_type
+
+    def _get_res_storage_clicked(self, obj_name, obj_id):
+        res_type = (f"Storage unit id {obj_id} ({obj_name})",
+                    -self.grid.storage_max_p_prod[obj_id],  # TODO use storage_emin
+                    self.grid.storage_max_p_absorb[obj_id],  # TODO use storage_emax
+                     0.,
+                     f"Actual consumption : {self.obs_rt.storage_power[obj_id]:.2f}MW ",
+                     f"Actual capacity: {self.obs_rt.storage_charge[obj_id]:.2f}MWh (min: {self.obs_rt.storage_Emin[obj_id]}, max: {self.obs_rt.storage_Emax[obj_id]})",
+                     )
+        return res_type
+
+    def _get_res_gen_clicked(self, obj_name, obj_id):
+        # so obj_type == "gen":
+        if self.grid.gen_renewable[obj_id]:
+            # renewable generator => curtailment
+            min_ = 0.
+            # i do the curtailment th i can: 100% = curtail all the actual production
+            max_ = 1.0 * self.obs_rt.gen_pmax[obj_id]
+            val_ = self.obs_rt.prod_p[obj_id] - 1.0 * self.obs_rt.curtailment_mw[obj_id]
+            str_1_ = f"Pmax (after curtail): {self.obs_rt.curtailment_limit_mw[obj_id]:.2f} MW " \
+                     f"(real Pmax: {self.obs_rt.gen_pmax[obj_id]:.2f}MW)"
+            str_2_ = f"Amount curtail: {self.obs_rt.curtailment_mw[obj_id]:.2f} MW"
+            tmp_ = 100.
+            if self.obs_rt.prod_p[obj_id] > 0 or self.obs_rt.curtailment_mw[obj_id] > 0:
+                tmp_ = (100. * self.obs_rt.prod_p[obj_id] / (
+                        self.obs_rt.prod_p[obj_id] + self.obs_rt.curtailment_mw[obj_id]))
+            prod_str_ = f"prod : {self.obs_rt.prod_p[obj_id]:.2f}MW " \
+                        f"({100. * self.obs_rt.prod_p[obj_id] / self.obs_rt.gen_pmax[obj_id]:.0f}% " \
+                        f"of Pmax) " \
+                        f"({tmp_:.0f} % of what's possible)"
+        else:
+            # standard generator => redispatching
+            min_ = -self.grid.gen_max_ramp_down[obj_id]
+            max_ = self.grid.gen_max_ramp_up[obj_id]
+            val_ = 0.
+            str_1_ = f"dispatch (target): {self.obs_rt.target_dispatch[obj_id]:.2f}MW"
+            str_2_ = f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW"
+            prod_str_ = f"prod : {self.obs_rt.prod_p[obj_id]:.2f}MW (min: {self.obs_rt.gen_pmin[obj_id]}, max: {self.obs_rt.gen_pmax[obj_id]})"
+        res_type = (f"Generator id {obj_id} ({obj_name}, {self.grid.gen_type[obj_id]})",
+                    min_,  # TODO use gen_pmin [ie something like min(-gen_pmin, gen_max_ramp_down) ]
+                    max_,  # TODO use gen_pmax
+                    val_,
+                    prod_str_,
+                    str_1_,
+                    str_2_,
+                    )
+        return res_type
+
     def get_object_clicked(self, clickData):
-        """return the proper information when the main graph is clicked"""
+        """return the proper information when the main graph is clicked.
+
+        These information are then used to build the action "manually" by clicking on the things
+        """
         # TODO refactor all that to split it into different functions...
 
         # TODO not sure it's best suited here !
@@ -299,54 +383,13 @@ class PlotGrids(PlotParams):
             if pos_clicked in self.pos_to_object:
                 (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
                 if obj_type == "sub":
-                    # draw the substation
-                    self.sub_fig, _ = self.figs_substation_zoomed[obj_id]
-                    self._last_sub_clicked = obj_id
-
-                    # add the right color to which the object is connected
-                    current_topo = self.obs_rt.sub_topology(obj_id)
-                    objs_this_sub = self.obs_rt.get_obj_substations(substation_id=obj_id)
-                    for obj_info, obj_bus in zip(objs_this_sub, current_topo):
-                        nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = self.retrieve_obj_info(obj_info)
-                        line_style = dict(color=self.col_bus1, dash=self.style_bus1)
-                        bus_x = xbus1
-                        bus_y = ybus1
-                        if obj_bus == 2:
-                            line_style = dict(color=self.col_bus2, dash=self.style_bus2)
-                            bus_x = xbus2
-                            bus_y = ybus2
-                        self.sub_fig.update_traces(x=[x_this_obj, bus_x],
-                                                   y=[y_this_obj, bus_y],
-                                                   line=line_style,
-                                                   selector=dict(name=nm_this_obj+"_current_bus"))
-                    res_type = (f"Substation id {obj_id}",
-                                self.sub_fig
-                                )
+                    res_type = self._get_res_sub_clicked(obj_id)
                 elif obj_type == "line":
-                    res_type = (f"Line id {obj_id} ({obj_name})",
-                                "0",
-                                f"Flow: {self.obs_rt.a_or[obj_id]:.2f}A "
-                                f"(thermal limit {self.obs_rt._thermal_limit[obj_id]:.2f}A)"
-                                )
+                    res_type = self._get_res_line_clicked(obj_name, obj_id)
                 elif obj_type == "stor":
-                    res_type = (f"Storage unit id {obj_id} ({obj_name})",
-                                -self.grid.storage_max_p_prod[obj_id],  # TODO use storage_emin
-                                self.grid.storage_max_p_absorb[obj_id],  # TODO use storage_emax
-                                0.,
-                                f"Actual consumption : {self.obs_rt.storage_power[obj_id]:.2f}MW ",
-                                f"Actual capacity: {self.obs_rt.storage_charge[obj_id]:.2f}MWh (min: {self.obs_rt.storage_Emin[obj_id]}, max: {self.obs_rt.storage_Emax[obj_id]})",
-                                )
-
+                    res_type = self._get_res_storage_clicked(obj_name, obj_id)
                 else:
-                    # so obj_type == "gen":
-                    res_type = (f"Generator id {obj_id} ({obj_name}, {self.grid.gen_type[obj_id]})",
-                                -self.grid.gen_max_ramp_down[obj_id],  # TODO use gen_pmin
-                                self.grid.gen_max_ramp_up[obj_id],  # TODO use gen_pmax
-                                0.,
-                                f"prod : {self.obs_rt.prod_p[obj_id]:.2f}MW (min: {self.obs_rt.gen_pmin[obj_id]}, max: {self.obs_rt.gen_pmax[obj_id]})",
-                                f"dispatch (target): {self.obs_rt.target_dispatch[obj_id]:.2f}MW",
-                                f"dispatch (actual): {self.obs_rt.actual_dispatch[obj_id]:.2f}MW",
-                                )
+                    res_type = self._get_res_gen_clicked(obj_name, obj_id)
         return obj_type, obj_id, res_type
 
     def init_figs(self, obs_rt, obs_forecast):

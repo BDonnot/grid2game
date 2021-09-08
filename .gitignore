@@ -134,3 +134,5 @@ dmypy.json
 # junk files
 old-versions.txt
 
+test_advance_callback_cpy.py
+test_circular_dep.py

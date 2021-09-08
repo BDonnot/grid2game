@@ -136,7 +136,9 @@ class VizServer:
 
         # handle the interaction with the graph
         self.app.callback([dash.dependencies.Output("do_display_action", "value"),
+
                            dash.dependencies.Output("generator_clicked", "style"),
+                           dash.dependencies.Output("gen-redisp-curtail", "children"),
                            dash.dependencies.Output("gen-id-hidden", "children"),
                            dash.dependencies.Output("gen-id-clicked", "children"),
                            dash.dependencies.Output("gen-dispatch", "min"),
@@ -182,6 +184,7 @@ class VizServer:
                            ],
                           [dash.dependencies.Input("which_action_button", "value"),
                            dash.dependencies.Input("do_display_action", "value"),
+                           dash.dependencies.Input("gen-redisp-curtail", "children"),
                            dash.dependencies.Input("gen-id-hidden", "children"),
                            dash.dependencies.Input('gen-dispatch', "value"),
                            dash.dependencies.Input("storage-id-hidden", "children"),
@@ -634,7 +637,7 @@ class VizServer:
             }
         }
         generator_clicked = html.Div([html.P("Generator id", id="gen-id-clicked"),
-                                      html.P("Redispatching:"),
+                                      html.P("Redispatching / curtailment:", id="gen-redisp-curtail"),
                                       dcc.Input(placeholder="redispatch to apply: ",
                                                 id='gen-dispatch',
                                                 type='range',
@@ -1106,7 +1109,7 @@ class VizServer:
     def display_action(self,
                        which_action_button,
                        do_display,
-                       gen_id, redisp,
+                       gen_redisp_curtail, gen_id, redisp,
                        stor_id, storage_p,
                        line_id, line_status,
                        sub_id, clicked_sub_fig):
@@ -1143,8 +1146,18 @@ class VizServer:
             # i need to display the action
             is_modif = False
             if gen_id != "":
-                self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
-                is_modif = True
+                try:
+                    gen_id_int = int(gen_id)
+                    if self.env.glop_env.gen_renewable[gen_id_int]:
+                        self.env._current_action.curtail_mw = [(int(gen_id), float(redisp))]
+
+                    else:
+                        self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
+                    is_modif = True
+                except Exception as exc_:
+                    # either initialization of something else
+                    print(exc_)
+                    pass
             if stor_id != "":
                 self.env._current_action.storage_p = [(int(stor_id), float(storage_p))]
                 is_modif = True
@@ -1179,6 +1192,7 @@ class VizServer:
                            until_gameover):
         """display the interaction window when the real time graph is clicked on"""
         do_display_action = 0
+        gen_redisp_curtail = ""
         style_gen_input = {'display': 'none'}
         gen_id_clicked = ""
         gen_res = ["", -1., 1., 0., "gen_p", "target_disp", "actual_disp"]
@@ -1203,7 +1217,7 @@ class VizServer:
             # no click have been made yet
             # so no action displayed
             return [do_display_action,
-                    style_gen_input, gen_id_clicked, *gen_res,
+                    style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                     style_storage_input, storage_id_clicked, *storage_res,
                     style_line_input, line_id_clicked, *line_res,
                     style_sub_input, sub_id_clicked, *sub_res
@@ -1224,6 +1238,7 @@ class VizServer:
         else:
             obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
             if obj_type == "gen":
+                gen_redisp_curtail = "Curtail (MW)" if self.env.glop_env.gen_renewable[obj_id] else "Redispatch"
                 gen_id_clicked = f"{obj_id}"
                 style_gen_input = {'display': 'inline-block'}
                 gen_res = res_type
@@ -1246,7 +1261,7 @@ class VizServer:
             else:
                 raise dash.exceptions.PreventUpdate
         return [do_display_action,
-                style_gen_input, gen_id_clicked, *gen_res,
+                style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                 style_storage_input, storage_id_clicked, *storage_res,
                 style_line_input, line_id_clicked, *line_res,
                 style_sub_input, sub_id_clicked, *sub_res
