@@ -169,15 +169,15 @@ class PlotGrids(PlotParams):
             tmp_fig = go.Figure()
             (posx, posy) = self.layout[sub_name]
             tmp_fig.add_shape(type="circle",
-                                   xref="x", yref="y",
-                                   fillcolor=self._sub_fill_color,
-                                   x0=posx - self._r_sub_zoom,
-                                   y0=posy - self._r_sub_zoom,
-                                   x1=posx + self._r_sub_zoom,
-                                   y1=posy + self._r_sub_zoom,
-                                   line_color=self._sub_fill_color,
-                                   opacity=0.5
-                                   )
+                              xref="x", yref="y",
+                              fillcolor=self._sub_fill_color,
+                              x0=posx - self._r_sub_zoom,
+                              y0=posy - self._r_sub_zoom,
+                              x1=posx + self._r_sub_zoom,
+                              y1=posy + self._r_sub_zoom,
+                              line_color=self._sub_fill_color,
+                              opacity=0.5
+                              )
             tmp_fig.add_shape(type="circle",
                               xref="x", yref="y",
                               x0=posx - self._dist_bus_1 * self._r_sub_zoom,
@@ -238,7 +238,11 @@ class PlotGrids(PlotParams):
                     pos_topo_vect = self.grid.storage_pos_topo_vect[stor_id]
                     self._add_element_to_sub(nm_this_obj, posx, posy, self._marker_storage,
                                              tmp_fig, pos_objs, pos_in_sub, pos_topo_vect)
-
+            tmp_fig.layout.update({
+                                   "xaxis": {'visible': False},
+                                   "yaxis": {'visible': False},
+                                   "margin": dict(l=0, r=0, t=0, b=0)}
+                                  )
             self.figs_substation_zoomed.append((tmp_fig, pos_objs))
 
     def retrieve_obj_info(self, obj_info):

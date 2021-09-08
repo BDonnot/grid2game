@@ -485,9 +485,10 @@ class VizServer:
                                                                      'height': '55px',
                                                                      'vertical-align': 'middle',
                                                                      "margin-top": 20}
-                                                              )],
+                                                              ),
+                                                       ],
                                                       className="row",
-                                                      style={'height': '65px'},
+                                                      style={'height': '65px', 'width': '100%'},
                                                       ),
                                     style={
                                           'borderWidth': '1px',
@@ -534,7 +535,9 @@ class VizServer:
                                     rt_graph_label,
                                     rt_date_time,
                                     real_time_graph],
-                                style={'display': 'inline-block', 'width': '50vh', 'height': '55vh'}
+                                style={'display': 'inline-block',
+                                       'width': '50%',
+                                       }
                                 )
         forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
         forecast_date_time = html.P(self.for_datetime, style={'text-align': 'center'}, id="forecast_date_time")
@@ -545,7 +548,9 @@ class VizServer:
                                      forecast_date_time,
                                      simulate_graph],
 
-                                 style={'display': 'inline-block', 'width': '50vh', 'height': '55vh'}
+                                 style={'display': 'inline-block',
+                                        'width': '50%',
+                                        }
                                  )
 
         graph_col = html.Div(id="graph-col",
@@ -554,14 +559,16 @@ class VizServer:
                                  sim_graph_div
                              ],
                              className="row",
+                             style={'width': '100%', 'height': '55vh'},
                              # style={'display': 'inline-block'}  # to allow stacking next to each other
                              )
 
         ## Grid state widget
         row_css = "row d-xl-flex flex-xl-grow-1"
-        state_row = html.Div(id="state-row", className=row_css, children=[
-            graph_col
-        ])
+        state_row = html.Div(id="state-row",
+                             className=row_css,
+                             children=[graph_col]
+                             )
 
         # TODO temporal indicator for cumulated load / generator, and generator by types
         # TODO temporal indicator of average flows on lines, with min / max flow
@@ -587,12 +594,13 @@ class VizServer:
         temporal_graphs = html.Div([html.Div([graph_gen_load],
                                              className=graph_css,
                                              style={'display': 'inline-block',
-                                                    'width': '50vh', 'height': '47vh'}),
+                                                    'width': '50%', 'height': '47vh'}),
                                     html.Div([graph_flow_cap],
                                              className=graph_css,
                                              style={'display': 'inline-block',
-                                                    'width': '50vh', 'height': '47vh'})
+                                                    'width': '50%', 'height': '47vh'})
                                     ],
+                                   style={'width': '100%'},
                                    className="row",
                                    id="temporal_graphs")
         # page to click the data
@@ -618,24 +626,13 @@ class VizServer:
         action_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-5 " \
                      "order-first order-sm-first order-md-first order-xl-last"
         action_css = "six columns"
-        action_widget_title = html.Div(id="action_widget_title",
-                                       children=[html.P("Action:  "), which_action_button],
-                                       style={'width': '50vh'},
-                                       )
-        action_col = html.Div(id="action_widget",
-                              className=action_css,
-                              children=[
-                                        current_action
-                              ],
-                              style={'display': 'inline-block'}
-                              )
-
         styles = {
             'pre': {
                 'border': 'thin lightgrey solid',
                 'overflowX': 'scroll'
             }
         }
+        # interactive action panel
         generator_clicked = html.Div([html.P("Generator id", id="gen-id-clicked"),
                                       html.P("Redispatching / curtailment:", id="gen-redisp-curtail"),
                                       dcc.Input(placeholder="redispatch to apply: ",
@@ -699,12 +696,13 @@ class VizServer:
                                 html.P("New Topology:"),
                                 dcc.Graph(id="graph_clicked_sub",
                                           config={
-                                              'displayModeBar': False,
-                                              "responsive": True,
-                                              "autosizable": True
+                                              # 'displayModeBar': False,
+                                              # "responsive": True,
+                                              # "autosizable": False
                                           },
-                                          style={'display': 'inline-block',
-                                                 'width': '50vh', 'height': '47vh'
+                                          style={
+                                                 # 'width': '100%',
+                                                 # 'height': '47vh'
                                                  }
                                           ),
                                 html.P("",
@@ -714,25 +712,45 @@ class VizServer:
                                 ],
                                id="sub_clicked",
                                className="six columns",
-                               style={'display': 'inline-block'}
+                               style={'display': 'inline-block',
+                                      'width': '100%',
+                                      }
                                )
         layout_click = html.Div([generator_clicked,
                                  storage_clicked,
                                  line_clicked,
                                  sub_clicked],
-                                className='six columns')
+                                className='six columns',
+                                style={"width": "60%",
+                                       'display': 'inline-block'})
 
+        # print (str) the action
+        action_widget_title = html.Div(id="action_widget_title",
+                                       children=[html.P("Action:  "),
+                                                 which_action_button],
+                                       style={'width': '100%'},
+                                       )
+        action_col = html.Div(id="action_widget",
+                              className=action_css,
+                              children=[current_action],
+                              style={'display': 'inline-block', 'width': '40%'}
+                              )
+        
+        # combine both
         interaction_and_action = html.Div([html.Br(),
                                            action_widget_title,
-                                           html.Div([layout_click, action_col], className="row")
+                                           html.Div([layout_click,
+                                                     action_col],
+                                                    className="row",
+                                                    style={"width": "100%"},
+                                                    )
                                            ])
 
+        # hidden control button, hack for having same output for multiple callbacks
         interval_object = dcc.Interval(id='interval-component',
                                        interval=self.time_refresh * 1000,  # in milliseconds
                                        n_intervals=0
                                        )
-
-        # hidden control button, hack for having same output for multiple callbacks
         figrt_trigger_temporal_figs = html.Label("",
                                                  id="figrt_trigger_temporal_figs",
                                                  n_clicks=0)
@@ -869,7 +887,8 @@ class VizServer:
                               html.Br(),
                               progress_bar_for_scenario,
                               html.Br(),
-                              state_row,
+                              state_row,  # the two graphs of the grid
+                              html.Div([html.P("")], style={"height": "10uv"}),
                               html.Br(),
                               interaction_and_action,
                               html.Br(),
