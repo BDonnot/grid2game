@@ -7,9 +7,9 @@ Change Log
   and unclick to "do nothing"
 - [???] add a saving method, that save the experiments played currently (using the runner and an agent reading an
   action list, might require to upgrade the runner api to play only certain scenarios)
-- [???] improve layout, especially hard coded figure width and co
 - [???] add possibility to toggle on / off the control button with line unit, line side, etc.
 - [???] hide the "forecast" view in go / gofast and even in step if nothing is being simulated
+- [???] hide the "action" panel in go / go fast mode to show directly the temporal series.
 - [???] add alarm feature : stop the computation if the assistant raises an alarm
 - [???] have everything go through the "env.do_computation()" interface and not "hack" it, like for the assistant
   for example (where `self.env.next_action_is_dn()`, `self.env.next_action_is_assistant()` or
