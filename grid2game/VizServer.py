@@ -8,8 +8,17 @@
 
 import os
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+import time
+try:
+    # newest version of dash
+    from dash import dcc
+except ImportError:
+    import dash_core_components as dcc
+try:
+    # newest version of dash
+    from dash import html
+except ImportError:
+    import dash_html_components as html
 import dash_bootstrap_components as dbc
 from grid2game.plot import PlotGrids
 from grid2game.plot import PlotTemporalSeries
@@ -21,7 +30,7 @@ class VizServer:
     SELF_LOOP_GO = 1
     SELF_LOOP_GOFAST = 2
 
-    def __init__(self, args):
+    def __init__(self, server, args):
         meta_tags = [
             {
                 'name': 'grid2game',
@@ -67,25 +76,28 @@ class VizServer:
         )
 
         # create the dash app
-        self.app = dash.Dash(__name__,
-                             meta_tags=meta_tags,
-                             assets_folder=assets_dir,
-                             external_stylesheets=external_stylesheets,
-                             external_scripts=external_scripts)
+        self.my_app = dash.Dash(__name__,
+                               server=server if server is not None else True,
+                               meta_tags=meta_tags,
+                               assets_folder=assets_dir,
+                               external_stylesheets=external_stylesheets,
+                               external_scripts=external_scripts)
         # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
         self.assistant_path = str(args.assistant_path)
+        self.save_expe_path = ""
         self.env = Env(args.env_name,
                        test=args.is_test,
                        assistant_path=self.assistant_path,
-                       assistant_seed=int(args.assistant_seed))
+                       assistant_seed=int(args.assistant_seed) if args.assistant_seed is not None else None)
         self.plot_grids = PlotGrids(self.env.observation_space)
         self.plot_temporal = PlotTemporalSeries(self.env)
         self.fig_load_gen = self.plot_temporal.fig_load_gen
         self.fig_line_cap = self.plot_temporal.fig_line_cap
 
-        self.env.seed(args.env_seed)
+        if args.env_seed is not None:
+            self.env.seed(args.env_seed)
 
         # internal members
         self.step_clicks = 0
@@ -96,7 +108,10 @@ class VizServer:
         self.reset_clicks = 0
         self.nb_step_gofast = 12  # number of steps made in each frame for the "go_fast" mode
         # TODO implement the to below
-        self.time_refresh = 1  # in seconds (time at which the page will be refreshed)
+        self.time_refresh = 0.1  # in seconds (time at which the page will be refreshed)
+        self.is_previous_click_end = False  # does the previous click on the button is the button
+        # that makes it go until the end of the game ? If so i will need to upgrade, at the end of it, the
+        # state of the grid
 
         # remembering the last step, that are not saved in the observation...
         self._last_step = 0
@@ -118,10 +133,10 @@ class VizServer:
         self.forecast = self.plot_grids.figure_forecat
 
         # initialize the layout
-        self.app.layout = self.setupLayout()
+        self.my_app.layout = self.setupLayout()
 
         # handle the press to one of the button to change the units
-        self.app.callback([dash.dependencies.Output("unit_trigger_rt_graph", "n_clicks"),
+        self.my_app.callback([dash.dependencies.Output("unit_trigger_rt_graph", "n_clicks"),
                            dash.dependencies.Output("unit_trigger_for_graph", "n_clicks"),
                            ],
                            [dash.dependencies.Input("line-info-dropdown", "value"),
@@ -135,7 +150,7 @@ class VizServer:
                           )(self.unit_clicked)
 
         # handle the interaction with the graph
-        self.app.callback([dash.dependencies.Output("do_display_action", "value"),
+        self.my_app.callback([dash.dependencies.Output("do_display_action", "value"),
 
                            dash.dependencies.Output("generator_clicked", "style"),
                            dash.dependencies.Output("gen-redisp-curtail", "children"),
@@ -180,7 +195,7 @@ class VizServer:
                           )(self.display_click_data)
 
         # handle display of the action, if needed
-        self.app.callback([dash.dependencies.Output("current_action", "children"),
+        self.my_app.callback([dash.dependencies.Output("current_action", "children"),
                            ],
                           [dash.dependencies.Input("which_action_button", "value"),
                            dash.dependencies.Input("do_display_action", "value"),
@@ -197,7 +212,7 @@ class VizServer:
 
         # handle the interaction with self.env, that should be done all in one function, otherwise
         # there are concurrency issues
-        self.app.callback([
+        self.my_app.callback([
             # trigger the computation if needed
             dash.dependencies.Output("trigger_computation", "value"),
             # update the button color / shape / etc. if needed
@@ -214,6 +229,7 @@ class VizServer:
                            dash.dependencies.Input("reset-button", "n_clicks"),
                            dash.dependencies.Input("go-button", "n_clicks"),
                            dash.dependencies.Input("gofast-button", "n_clicks"),
+                           dash.dependencies.Input("go_till_game_over-button", "n_clicks"),
                            dash.dependencies.Input("untilgo_butt_call_act_on_env", "value"),
                            dash.dependencies.Input("selfloop_call_act_on_env", "value"),
                            dash.dependencies.Input("timer", "n_intervals")
@@ -223,13 +239,13 @@ class VizServer:
                            dash.dependencies.State("act_on_env_call_selfloop", "value")]
                           )(self.handle_act_on_env)
 
-        self.app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
+        self.my_app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
                            dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
                           [dash.dependencies.Input("trigger_computation", "value")]
                           )(self.computation_wrapper)
 
         # handle triggers: refresh of the figures for real time (graph part)
-        self.app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
+        self.my_app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
                            dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
                            dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
                            dash.dependencies.Output("scenario_progression", "value"),
@@ -241,7 +257,7 @@ class VizServer:
                           )(self.update_rt_fig)
 
         # handle triggers: refresh of the figures for the forecast
-        self.app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
+        self.my_app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
                           [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks"),
                            ],
                           []
@@ -249,7 +265,7 @@ class VizServer:
 
         # final graph display
         # handle triggers: refresh the figures (temporal series part)
-        self.app.callback([
+        self.my_app.callback([
                            dash.dependencies.Output("graph_gen_load", "figure"),
                            dash.dependencies.Output("graph_flow_cap", "figure"),
                            ],
@@ -258,14 +274,14 @@ class VizServer:
                            ],
                           )(self.update_temporal_figs)
 
-        # self.app.callback([dash.dependencies.Output('temporal_graphs', "style"),
+        # self.my_app.callback([dash.dependencies.Output('temporal_graphs', "style"),
         #                    dash.dependencies.Output("showtempo_trigger_rt_graph", "n_clicks")
         #                    ],
         #                   [dash.dependencies.Input('show-temporal-graph', "value")]
         #                   )(self.show_hide_tempo_graph)
 
         # handle final graph of the real time grid
-        self.app.callback([dash.dependencies.Output("real-time-graph", "figure"),
+        self.my_app.callback([dash.dependencies.Output("real-time-graph", "figure"),
                            dash.dependencies.Output("rt_date_time", "children")],
                           [dash.dependencies.Input("figrt_trigger_rt_graph", "n_clicks"),
                            dash.dependencies.Input("unit_trigger_rt_graph", "n_clicks"),
@@ -273,7 +289,7 @@ class VizServer:
                           )(self.update_rt_graph_figs)
 
         # handle final graph for the forecast grid
-        self.app.callback([dash.dependencies.Output("simulated-graph", "figure"),
+        self.my_app.callback([dash.dependencies.Output("simulated-graph", "figure"),
                            dash.dependencies.Output("forecast_date_time", "children")],
                           [dash.dependencies.Input("figrt_trigger_for_graph", "n_clicks"),
                            dash.dependencies.Input("figfor_trigger_for_graph", "n_clicks"),
@@ -282,18 +298,24 @@ class VizServer:
                           )(self.update_for_graph_figs)
 
         # load the assistant
-        self.app.callback([dash.dependencies.Output("current_assistant_path", "children"),
+        self.my_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
                            dash.dependencies.Output("clear_assistant_path", "n_clicks")],
                           [dash.dependencies.Input("load_assistant_button", "n_clicks")],
                           [dash.dependencies.State("select_assistant", "value")]
                           )(self.load_assistant)
 
-        self.app.callback([dash.dependencies.Output("select_assistant", "value")],
+        self.my_app.callback([dash.dependencies.Output("select_assistant", "value")],
                           [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
                           )(self.clear_loading)
 
-    def run(self, debug=False):
-        self.app.run_server(debug=debug)
+        self.my_app.callback([dash.dependencies.Output("current_save_path", "children")],
+                             [dash.dependencies.Input("save_expe_button", "n_clicks")],
+                             [dash.dependencies.State("save_expe", "value")]
+                             )(self.save_expe)
+        print("Viz server initialized")
+
+    def run_server(self, debug=False):
+        self.my_app.run_server(debug=debug)
 
     def setupLayout(self):
         # layout of the app
@@ -327,16 +349,18 @@ class VizServer:
                              id="go-button",
                              n_clicks=0,
                              className="btn btn-primary")
-        go_fast = html.Label("Fast",
+        go_fast = html.Label("+1h",
                              id="gofast-button",
                              n_clicks=0,
                              className="btn btn-primary",
-                             style={'display': 'none'})
+                             # style={'display': 'none'}
+                             )
         go_till_game_over = html.Label("End",
                                        id="go_till_game_over-button",
                                        n_clicks=0,
                                        className="btn btn-primary",
-                                       style={'display': 'none'})
+                                       # style={'display': 'none'}
+                                       )
         # html display
         button_css = "col-6 col-sm-6 col-md-3 col-lg-3 col-xl-1"
         reset_col = html.Div(id="reset-col", className=button_css, children=[reset_button, reset_button_dummy])
@@ -498,11 +522,51 @@ class VizServer:
                                           'margin': '10px'
                                     }
                                     )
+        save_experiment = html.Div(id='save_expe_box',
+                                    children=html.Div([dcc.Input(placeholder='Where do you want to save the current '
+                                                                             'experiment?',
+                                                                 id="save_expe",
+                                                                 type="text",
+                                                                 style={
+                                                                     'width': '70%',
+                                                                     'height': '55px',
+                                                                     'lineHeight': '55px',
+                                                                     'vertical-align': 'middle',
+                                                                     "margin-top": 5,
+                                                                     "margin-left": 20}),
+                                                       html.Label("save",
+                                                                  id="save_expe_button",
+                                                                  n_clicks=0,
+                                                                  className="btn btn-primary",
+                                                                  style={'height': '35px',
+                                                                         "margin-top": 18,
+                                                                         "margin-left": 5}),
+                                                       html.P(self.format_path(self.assistant_path),
+                                                              id="current_save_path",
+                                                              style={'width': '25%',
+                                                                     'textAlign': 'center',
+                                                                     'height': '55px',
+                                                                     'vertical-align': 'middle',
+                                                                     "margin-top": 20}
+                                                              ),
+                                                       ],
+                                                      className="row",
+                                                      style={'height': '65px', 'width': '100%'},
+                                                      ),
+                                    style={
+                                          'borderWidth': '1px',
+                                          'borderStyle': 'dashed',
+                                          'borderRadius': '5px',
+                                          'textAlign': 'center',
+                                          'margin': '10px'
+                                    }
+                                    )
         controls_row = html.Div(id="controls-row",
                                 children=[
                                     reset_col,
                                     controls_row,
                                     select_assistant,
+                                    save_experiment,
                                     change_units
                                 ])
         ### Graph widget
@@ -929,6 +993,7 @@ class VizServer:
                           reset_butt,
                           go_butt,
                           gofast_clicks,
+                          until_game_over,
                           untilgo_butt,
                           self_loop,
                           state_trigger_rt,
@@ -957,37 +1022,39 @@ class VizServer:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
         trigger_heavy_computation_wrapper = 1
+        something_clicked = True
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
             self.env.start_computation()
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = False
+        elif button_id == "go_till_game_over-button":
+            self.env.start_computation()
+            self.env.next_computation = "step_end"
+            self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = True
+            # self._button_shape = "btn btn-secondary"
+            # self._go_button_shape = "btn btn-secondary"
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
             self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = False
         elif button_id == "simulate-button":
             self.env.start_computation()
             self.env.next_computation = "simulate"
             self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = False
         elif button_id == "back-button":
             self.env.start_computation()
             self.env.next_computation = "back"
             self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = False
         elif button_id == "gofast-button":
             # this button is off now !
-            self.gofast_clicks += 1
-            if self.gofast_clicks % 2:
-                # i clicked on gofast an even number of time, i need to stop computation
-                self.env.stop_computation()
-                self._button_shape = "btn btn-primary"
-                self._go_button_shape = "btn btn-primary"
-            else:
-                # i clicked on gofast an even number of time, i need to stop computation
-                self.env.start_computation()
-                self._button_shape = "btn btn-secondary"
-                self._go_button_shape = "btn btn-secondary"
+            self.env.start_computation()
             self.env.next_computation = "step_rec_fast"
             self.env.next_computation_kwargs = {"nb_step_gofast": self.nb_step_gofast}
         elif button_id == "go-button":
@@ -1004,10 +1071,23 @@ class VizServer:
                 self._gofast_button_shape = "btn btn-secondary"
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
+            self.is_previous_click_end = False
+        else:
+            something_clicked = False
 
         if not self.env.needs_compute():
             # don't start the computation if not needed
             trigger_heavy_computation_wrapper = dash.no_update
+
+        if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked:
+            # in this case, this should be the first call to this function after the "operate the grid until the
+            # end" function is called
+            # so i need to force update the figures
+            trigger_heavy_computation_wrapper = 1
+            self.is_previous_click_end = False
+            # I need that to the proper update of the progress bar
+            self._last_step = self.env.obs.current_step
+            self._last_max_step = self.env.obs.max_step
 
         return [trigger_heavy_computation_wrapper,
                 self._button_shape,
@@ -1068,7 +1148,7 @@ class VizServer:
         """the simulate figures need to updated"""
         if env_act is not None and env_act > 0:
             trigger_for_graph = 1
-            self.plot_grids.update_forecat(self.env.sim_obs)
+            self.plot_grids.update_forecat(self.env.sim_obs, self.env)
             self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
         else:
             raise dash.exceptions.PreventUpdate
@@ -1121,9 +1201,9 @@ class VizServer:
 
     # auxiliary functions
     def update_obs_fig(self):
-        self.plot_grids.update_rt(self.env.obs)
+        self.plot_grids.update_rt(self.env.obs, self.env)
         self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
-        self.plot_grids.update_forecat(self.env.sim_obs)
+        self.plot_grids.update_forecat(self.env.sim_obs, self.env)
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
     def display_action(self,
@@ -1300,10 +1380,14 @@ class VizServer:
         if assistant_path is None:
             raise dash.exceptions.PreventUpdate
         self.assistant_path = assistant_path.rstrip().lstrip()
-        properly_loaded = self.env.load_assistant(self.assistant_path)
+        try:
+            properly_loaded = self.env.load_assistant(self.assistant_path)
+        except Exception as exc_:
+            return [f"❌ {exc_}", dash.no_update]
         clear = 0
         if properly_loaded:
             res = self.format_path(os.path.abspath(self.assistant_path))
+            res = f"🤖 {res}"
             clear = 1
         else:
             res = ""
@@ -1314,3 +1398,44 @@ class VizServer:
         if need_clearing == 0:
             raise dash.exceptions.PreventUpdate
         return [""]
+
+    def save_expe(self, button, save_expe_path):
+        """
+        This callback save the experiment using a grid2op runner.
+
+        work in progress
+        """
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            # no click have been made yet
+            raise dash.exceptions.PreventUpdate
+
+        if self.env.is_computing():
+            # cannot save while an experiment is running
+            return ["⌛ environment is still computing"]
+
+        if save_expe_path is None:
+            return ["❌ invalid path (None)"]
+
+        self.env.start_computation()  # prevent other type of computation
+        self.save_expe_path = save_expe_path.rstrip().lstrip()
+        if not os.path.exists(self.save_expe_path):
+            return ["❌ invalid path (does not exists)"]
+        if not os.path.isdir(self.save_expe_path):
+            return ["❌ invalid path (not a directory)"]
+
+        env = self.env.glop_env
+        nb_step = self.env.obs.current_step
+        chro_id = env.chronics_handler.get_id()
+        from grid2op.Runner import Runner
+        runner = Runner(**env.get_params_for_runner(),
+                        # agentClass=... TODO
+                        )
+        runner.run(nb_episode=1,
+                   path_save=self.save_expe_path,
+                   episode_id=[chro_id],
+                   # env_seeds=[self.env.e], TODO
+                   # agent_seeds=[self.], TODO
+                   pbar=True)
+        self.env.stop_computation()  # prevent other type of computation
+        return [f"✅ saved in \"{self.save_expe_path}\""]

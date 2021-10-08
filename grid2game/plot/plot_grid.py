@@ -8,6 +8,7 @@
 
 import cmath
 import warnings
+import time
 import plotly.graph_objects as go
 
 from grid2op.PlotGrid import PlotPlotly
@@ -96,6 +97,14 @@ class PlotGrids(PlotParams):
         self._dist_zoomed_in = 1.5  # as fraction of the _r_sub_zoom
         self.style_bus1 = "dash"
         self.style_bus2 = 'dot'
+
+        # timers
+        self._time_update_rt = 0.
+        self._time_update_for = 0.
+
+        # remember the last plotted observation
+        self._last_rt_step = -1
+        self._last_for_step = -1
 
     def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, fig,
                             pos_obj, pos_in_sub, pos_in_topo_vect,
@@ -427,17 +436,35 @@ class PlotGrids(PlotParams):
         self._set_layout(self.figure_rt)
         self._set_layout(self.figure_forecat)
 
-    def update_rt(self, obs_rt):
+    def update_rt(self, obs_rt, env=None):
         """update real time observation both in the values of the dictionary and in the figure"""
+        if env is not None and not env.do_i_display():
+            # display of the temporal figures should not be updated (for example because i run the episode
+            # until the end)
+            return
+        beg_ = time.time()
+        self._last_rt_time = obs_rt.current_step
         self.obs_rt = obs_rt
         self._update_all_elements(is_forecast=False)
         self._update_all_figures_all_values(forecast_only=False)
+        tmp = time.time() - beg_
+        self._time_update_rt += tmp
+        # print(f'grid (main): {tmp}')
 
-    def update_forecat(self, obs_forecast):
+    def update_forecat(self, obs_forecast, env=None):
         """update forecast observation both in the values of the dictionary and in the figure"""
+        if env is not None and not env.do_i_display():
+            # display of the temporal figures should not be updated (for example because i run the episode
+            # until the end)
+            return
+        beg_ = time.time()
+        self._last_for_step = obs_forecast.current_step
         self.obs_forecast = obs_forecast
         self._update_all_elements(is_forecast=True)
         self._update_all_figures_all_values(forecast_only=True)
+        tmp = time.time() - beg_
+        self._time_update_for += tmp
+        # print(f'grid (forecast): {tmp}')
 
     def _update_all_figures_all_values(self, forecast_only):
         self.update_lines_info(forecast_only)

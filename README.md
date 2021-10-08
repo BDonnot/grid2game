@@ -65,3 +65,10 @@ some operators perform grid "studies" in advance, using forecasts of future stat
 main indicator of performance is "how long can the future grid stay in perfect working condition". In this
 setting, to find the best "strategy" operator can explore different kind of actions at different steps
 and thus it's important to go "backward" if the tested action is not satisfactory.
+
+
+## Some restrictions
+
+* This package is in early development, it might break and the name of its function and / layout can change.
+
+* Once loaded, the environment cannot be changed.

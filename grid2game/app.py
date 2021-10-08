@@ -45,10 +45,15 @@ def cli():
     return parser.parse_args()
 
 
-def start_cli():
+def get_viz_server(server=None):
     args = cli()
-    server = VizServer(args)
-    server.run(args.dev)
+    viz_server = VizServer(args=args, server=server)
+    return args.dev, viz_server
+
+
+def start_cli():
+    debug, viz_server = get_viz_server()
+    viz_server.run_server(debug=debug)
 
 
 if __name__ == '__main__':

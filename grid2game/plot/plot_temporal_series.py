@@ -8,6 +8,7 @@
 
 import plotly.colors as pc
 import plotly.graph_objects as go
+import time
 
 try:
     from grid2op.PlotGrid.config import NUKE_COLOR, THERMAL_COLOR, WIND_COLOR, SOLAR_COLOR, HYDRO_COLOR
@@ -45,6 +46,7 @@ class PlotTemporalSeries(object):
         self.fig_load_gen = None
         self.fig_line_cap = None
         self.init_figures()
+        self._timer_update = 0.
 
     def init_figures(self):
         self.fig_load_gen = go.Figure()
@@ -142,6 +144,10 @@ class PlotTemporalSeries(object):
                                         height=int(self.height))
 
     def update_trace(self):
+        if not self.env.do_i_display():
+            # display of the temporal figures should not be updated (for example because i run the episode until the end)
+            return self.fig_load_gen, self.fig_line_cap
+        beg_ = time.time()
         self.fig_load_gen.update_traces(x=self.env._datetimes,
                                         y=self.env._sum_hydro,
                                         selector=dict(name="Sum Hydro"))
@@ -172,4 +178,6 @@ class PlotTemporalSeries(object):
                                         selector=dict(name="3rd highest line cap."))
         self.fig_line_cap.update_traces(x=(self.env._datetimes[0], self.env._datetimes[-1]),
                                         selector=dict(name="Overflow limit"))
+        self._timer_update += time.time() - beg_
+        # print(f"temporal series: {self._timer_update = }")
         return self.fig_load_gen, self.fig_line_cap

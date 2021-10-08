@@ -60,7 +60,7 @@ class Env(ComputeWrapper):
         self._reward = None
         self._done = None
         self._info = None
-
+        self._should_display = True
         # todo have that in another class
         self._sum_load = None
         self._max_line_flow = None
@@ -93,6 +93,15 @@ class Env(ComputeWrapper):
         self.next_computation = None
         self.next_computation_kwargs = {}
 
+    def prevent_display(self):
+        self._should_display = False
+
+    def authorize_dispay(self):
+        self._should_display = True
+
+    def do_i_display(self):
+        return self._should_display
+
     def load_assistant(self, assistant_path):
         print(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
@@ -110,7 +119,8 @@ class Env(ComputeWrapper):
             # cancel the assistant
             from grid2op.Agent import DoNothingAgent  # TODO do nothing here
             self.assistant = DoNothingAgent(self.glop_env.action_space)
-            self.assistant.seed(int(self._assistant_seed))
+            if self._assistant_seed is not None:
+                self.assistant.seed(int(self._assistant_seed))
 
         if has_been_loaded:
             # TODO do i "change the past" ?
@@ -139,12 +149,24 @@ class Env(ComputeWrapper):
             self.stop_computation()  # this is a "one time" call
             return self.step(**self.next_computation_kwargs)
         elif self.next_computation == "step_rec":
-            return self.step()
+            # beg_ = time.time()
+            res = self.step()
+            # print(f"time for step: {time.time() - beg_}")
+            return res
         elif self.next_computation == "step_rec_fast":
             # currently not used !
             res = None
             for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
                 res = self.step()
+            self.stop_computation()  # this is a "one time" call
+            return res
+        elif self.next_computation == "step_end":
+            res = None
+            self.prevent_display()
+            while not self._done:
+                res = self.step()
+            self.stop_computation()  # this is a "one time" call
+            self.authorize_dispay()
             return res
         elif self.next_computation == "choose_next_action":
             self.stop_computation()  # this is a "one time" call
@@ -220,8 +242,8 @@ class Env(ComputeWrapper):
             self._current_action = action
 
         # to improve deep copy speeds
-        time.sleep(0.1)
-        beg_ = time.time()
+        # time.sleep(0.1)
+        # beg_ = time.time()
         # beg__ = time.time()
         saved_act = copy.deepcopy(self._current_action)
         # end__ = time.time()
@@ -242,15 +264,23 @@ class Env(ComputeWrapper):
                       saved_assistant_act,
                       obs_cpy, self._reward, self._done, self._info,
                       env_cpy)
-        end_ = time.time()
+        # end_ = time.time()
         # print(f"\t\t time to copy the state: {end_-beg_:.3f}s")
 
+        # beg__ = time.time()
         self.past_envs.append(this_state)
+        # end__ = time.time()
+        # print(f"\t\t\t time to save the state: {end__ - beg__:.3f}s")
         self._assistant_action = None
+        # beg__ = time.time()
         self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
+        # end__ = time.time()
+        # print(f"\t\t\t time to do a step the state: {end__ - beg__:.3f}s")
         if self._obs.time_since_last_alarm == 0:
             print("The assistant raised an alarm !")
             self.stop_computation()
+
+        # beg__ = time.time()
         self._fill_info_vect()
         if not self._done:
             self.choose_next_action()
@@ -260,6 +290,8 @@ class Env(ComputeWrapper):
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
+        # end__ = time.time()
+        # print(f"\t\t\t time to do a all the rest: {end__ - beg__:.3f}s")
         # print(f"grid2game env.py: {self._obs.current_step} / {self._obs.max_step}")
         return self.obs, self._reward, self._done, self._info
 

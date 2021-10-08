@@ -14,7 +14,8 @@ pkgs = {
         "plotly",
         "dash",
         "dash_bootstrap_components",
-        "grid2op>=1.5.0"
+        "grid2op>=1.5.0",
+        "orjson"
     ],
     "extras": {}
 }
