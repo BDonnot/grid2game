@@ -64,7 +64,7 @@ class Node(object):
         self._act_to_sons.append(res)
         return res
 
-    def get_actions_to_son(self) -> List[Link]:
+    def get_actions_to_sons(self) -> List[Link]:
         """return the list of all "outgoing" links to this node"""
         return self._act_to_sons
 
@@ -77,3 +77,10 @@ class Node(object):
     def father(self) -> Union[None, "Node"]:
         """return the father of the current node (can return None) if called on the root of the tree"""
         return self._father
+
+    def clear(self) -> None:
+        """clear this node"""
+        self._glop_env.close()
+
+    def get_obs_rewar_done_info(self):
+        return self._obs, self._reward, self._done, self._info

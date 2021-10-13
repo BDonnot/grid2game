@@ -29,6 +29,8 @@ class EnvTree(object):
     def __init__(self):
         self._all_nodes = []
         self._current_node = None
+        self._last_action = None
+        self.__is_init = False
 
     def root(self,
              assistant: Union[BaseAgent, None],
@@ -36,15 +38,21 @@ class EnvTree(object):
              obs: BaseObservation):
         """build the root of the tree"""
         node = Node(id_=0, father=None,
-                    assistant=assistant, glop_env=env, obs=obs,
+                    assistant=assistant,
+                    glop_env=env.copy(),
+                    obs=obs,
                     reward=None, done=False, info=None)
         self._all_nodes.append(node)
         self._current_node = node
+        self.__is_init = True
 
     def make_step(self,
                   assistant: Union[BaseAgent, None],  # TODO have a member with this
                   chosen_action: BaseAction):
         """make a "step" in the tree with the given action"""
+        if not self.__is_init:
+            raise RuntimeError("You are trying to use a non initialized envTree.")
+
         res = self._current_node.son_for_this_action(chosen_action)
         if res is not None:
             # I "already" made this action "in the past"
@@ -95,7 +103,7 @@ class EnvTree(object):
             # run through all the node and connect it to its children, if any
             my_x = Xn[node.id]
             my_y = Yn[node.id]
-            for link in node.get_actions_to_son():
+            for link in node.get_actions_to_sons():
                 if link.son is not None:
                     # This link has a son
                     tmp_x = Xn[link.son.id]
@@ -129,6 +137,37 @@ class EnvTree(object):
                                  opacity=0.8
                                  ))
         return fig
+
+    def clear(self) -> None:
+        """clear all the data stored in the tree"""
+        for node in self._all_nodes:
+            node.clear()
+        del self._all_nodes
+        self._all_nodes = []
+        self._current_node = None
+        self.__is_init = False
+
+    @property
+    def current_node(self) -> "Node":
+        """retrieve the current node, which is displayed by the UI"""
+        return self._current_node
+
+    def get_last_action(self) -> BaseAction:
+        res = self._current_node._glop_env.action_space()
+        if self._current_node.id == 0:
+            # it's the root of the tree, last action does not exist, but i say it's do nothing
+            res = self._current_node._glop_env.action_space()
+        else:
+            father = self._current_node.father
+            for link in father.get_actions_to_sons():
+                if link.son.id == self.current_node.id:
+                    res = link.action.copy()
+        return res
+
+    def back_one_step(self) -> None:
+        """back but only for one step"""
+        father = self._current_node.father
+        self.go_to_node(father)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ except ImportError:
 
 from grid2game.agents import load_assistant
 from grid2game.envs.computeWrapper import ComputeWrapper
+from grid2game.tree import EnvTree
 
 
 class Env(ComputeWrapper):
@@ -49,17 +50,19 @@ class Env(ComputeWrapper):
                                      action_class=PlayableAction,
                                      **kwargs)
 
-        # define variables
-        self._obs = None
-        self.past_envs = []
+        self.env_tree = EnvTree()
+        # self.past_envs = []
         self._current_action = None
         self._sim_obs = None
         self._sim_reward = None
         self._sim_done = None
         self._sim_info = None
-        self._reward = None
-        self._done = None
-        self._info = None
+        # self._obs = None
+        # self._reward = None
+        # self._done = None
+        # self._info = None
+
+        # define variables
         self._should_display = True
         # todo have that in another class
         self._sum_load = None
@@ -123,17 +126,18 @@ class Env(ComputeWrapper):
                 self.assistant.seed(int(self._assistant_seed))
 
         if has_been_loaded:
-            # TODO do i "change the past" ?
-            for step_id in range(len(self.past_envs)):
-                _current_action, \
-                _assistant_action, \
-                _obs, _reward, _done, _info, \
-                glop_env = self.past_envs[step_id]
-                _assistant_action = self.assistant.act(_obs, _reward, _done)
-                self.past_envs[step_id] = (_current_action,
-                                           _assistant_action,
-                                           _obs, _reward, _done, _info,
-                                           glop_env)
+            # # TODO do i "change the past" ?
+            pass
+            # for step_id in range(len(self.past_envs)):
+            #     _current_action, \
+            #     _assistant_action, \
+            #     _obs, _reward, _done, _info, \
+            #     glop_env = self.past_envs[step_id]
+            #     _assistant_action = self.assistant.act(_obs, _reward, _done)
+            #     self.past_envs[step_id] = (_current_action,
+            #                                _assistant_action,
+            #                                _obs, _reward, _done, _info,
+            #                                glop_env)
         print("assistant loaded")
         return has_been_loaded
 
@@ -163,8 +167,10 @@ class Env(ComputeWrapper):
         elif self.next_computation == "step_end":
             res = None
             self.prevent_display()
-            while not self._done:
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            while not done:
                 res = self.step()
+                obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             self.stop_computation()  # this is a "one time" call
             self.authorize_dispay()
             return res
@@ -205,7 +211,8 @@ class Env(ComputeWrapper):
 
     @property
     def obs(self):
-        return self._obs
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        return obs
 
     @property
     def current_action(self):
@@ -217,12 +224,14 @@ class Env(ComputeWrapper):
 
     @property
     def is_done(self):
-        return self._done
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        return done
 
     def take_last_action(self):
         """take the same action as last time"""
-        if self.past_envs:
-            self._current_action = self.past_envs[-1][0]
+        # if self.past_envs:
+        #     self._current_action = self.past_envs[-1][0]
+        self._current_action = self.env_tree.get_last_action()
 
     def seed(self, seed):
         """seed and reset the environment"""
@@ -231,9 +240,11 @@ class Env(ComputeWrapper):
         return seeds
 
     def step(self, action=None):
-        if self._done:
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        if done:
             self.stop_computation()
-            return self.obs, self._reward, self._done, self._info
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            return obs, reward, done, info
 
         if action is None:
             action = self._current_action
@@ -241,65 +252,30 @@ class Env(ComputeWrapper):
             # TODO is this correct ? I never really tested that
             self._current_action = action
 
-        # to improve deep copy speeds
-        # time.sleep(0.1)
-        # beg_ = time.time()
-        # beg__ = time.time()
-        saved_act = copy.deepcopy(self._current_action)
-        # end__ = time.time()
-        # print(f"\t\t\t time to copy the saved_act: {end__ - beg__:.3f}s")
-        # beg__ = time.time()
-        saved_assistant_act = copy.deepcopy(self._assistant_action)
-        # end__ = time.time()
-        # print(f"\t\t\t time to copy the saved_assistant_act: {end__ - beg__:.3f}s")
-        # beg__ = time.time()
-        obs_cpy = self._obs.copy()
-        # end__ = time.time()
-        # print(f"\t\t\t time to copy the obs: {end__ - beg__:.3f}s")
-        # beg__ = time.time()
-        env_cpy = self.glop_env.copy()
-        # end__ = time.time()
-        # print(f"\t\t\t time to copy the glop_env: {end__ - beg__:.3f}s")
-        this_state = (saved_act,
-                      saved_assistant_act,
-                      obs_cpy, self._reward, self._done, self._info,
-                      env_cpy)
-        # end_ = time.time()
-        # print(f"\t\t time to copy the state: {end_-beg_:.3f}s")
+        self.env_tree.make_step(assistant=self.assistant, chosen_action=action)
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
 
-        # beg__ = time.time()
-        self.past_envs.append(this_state)
-        # end__ = time.time()
-        # print(f"\t\t\t time to save the state: {end__ - beg__:.3f}s")
-        self._assistant_action = None
-        # beg__ = time.time()
-        self._obs, self._reward, self._done, self._info = self.glop_env.step(action)
-        # end__ = time.time()
-        # print(f"\t\t\t time to do a step the state: {end__ - beg__:.3f}s")
-        if self._obs.time_since_last_alarm == 0:
+        if obs.time_since_last_alarm == 0:
             print("The assistant raised an alarm !")
             self.stop_computation()
 
         # beg__ = time.time()
         self._fill_info_vect()
-        if not self._done:
+        if not done:
             self.choose_next_action()
-            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self._current_action)
+            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
         else:
             self._sim_done = True
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
-        # end__ = time.time()
-        # print(f"\t\t\t time to do a all the rest: {end__ - beg__:.3f}s")
-        # print(f"grid2game env.py: {self._obs.current_step} / {self._obs.max_step}")
-        return self.obs, self._reward, self._done, self._info
+        return obs, reward, done, info
 
     def choose_next_action(self):
         self._assistant_action = None
         if self.next_action_from == self.ASSISTANT:
-            # self._assistant_action = self.glop_env.action_space.sample()
-            self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            self._assistant_action = self.assistant.act(obs, reward, done)
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS:
             # next action should be like the previous one
@@ -312,36 +288,45 @@ class Env(ComputeWrapper):
     def simulate(self, action=None):
         if action is None:
             action = self._current_action
-        self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(action)
+
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(action)
         return self._sim_obs, self._sim_obs, self._sim_reward, self._sim_done, self._sim_info
 
     def back(self):
-        if len(self.past_envs):
-            is_this_done = self._done
-            self.glop_env.close()
-            *self.past_envs, (self._current_action,
-                              self._assistant_action,
-                              self._obs, self._reward, self._done, self._info,
-                              self.glop_env) = self.past_envs
-            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
-            if not is_this_done:
-                self._pop_vects()
+        # if len(self.past_envs):
+        #     is_this_done = self._done
+        #     self.glop_env.close()
+        #     *self.past_envs, (self._current_action,
+        #                       self._assistant_action,
+        #                       self._obs, self._reward, self._done, self._info,
+        #                       self.glop_env) = self.past_envs
+        #     self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
+        #     if not is_this_done:
+        #         self._pop_vects()
+        self.env_tree.back_one_step()
 
     def reset(self):
-        for *_, glop_env in self.past_envs:
-            glop_env.close()
         self.init_state()
 
     def init_state(self):
-        self.past_envs = []
-        self._obs = self.glop_env.reset()
-        if self.assistant is not None:
-            self.assistant.reset(self._obs)
+        # self.past_envs = []
+        # self._obs = self.glop_env.reset()
+        # if self.assistant is not None:
+        #     self.assistant.reset(self._obs)
+        # self._current_action = self.glop_env.action_space()
+        # self._reward = self.glop_env.reward_range[0]
+        # self._done = False
+        # self._info = {}
+        self.env_tree.clear()
+        obs = self.glop_env.reset()
+        self.env_tree.root(assistant=self.assistant, obs=obs, env=self.glop_env)
+
         self._current_action = self.glop_env.action_space()
-        self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
-        self._reward = self.glop_env.reward_range[0]
-        self._done = False
-        self._info = {}
+        if self.assistant is not None:
+            self.next_action_is_assistant()
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self.current_action)
 
         self._sum_load = []
         self._max_line_flow = []
@@ -357,18 +342,23 @@ class Env(ComputeWrapper):
         self._fill_info_vect()
 
     def _fill_info_vect(self):
-        if self._done:
+        # TODO later in the envTree and in the node !
+        if len(self._datetimes) > 0:
+            return
+
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        if done:
             # don't had data corresponding to the last observation, which is "wrong"
             return
-        self._sum_load.append(np.sum(self._obs.load_p))
-        rhos_ = np.partition(self._obs.rho.flatten(), -3)
+        self._sum_load.append(np.sum(obs.load_p))
+        rhos_ = np.partition(obs.rho.flatten(), -3)
         self._max_line_flow.append(rhos_[-1])
         self._secondmax_line_flow.append(rhos_[-2])
         self._thirdmax_line_flow.append(rhos_[-3])
-        if hasattr(self._obs, "gen_p"):
-            vect_ = self._obs.gen_p
+        if hasattr(obs, "gen_p"):
+            vect_ = obs.gen_p
         else:
-            vect_ = self._obs.prod_p
+            vect_ = obs.prod_p
             import warnings
             warnings.warn("DEPRECATED: please use grid2op >= 1.5 for benefiting from all grid2game feature",
                           DeprecationWarning)
@@ -377,9 +367,11 @@ class Env(ComputeWrapper):
         self._sum_thermal.append(np.sum(vect_[self.glop_env.gen_type == "thermal"]))
         self._sum_hydro.append(np.sum(vect_[self.glop_env.gen_type == "hydro"]))
         self._sum_nuclear.append(np.sum(vect_[self.glop_env.gen_type == "nuclear"]))
-        self._datetimes.append(self._obs.get_time_stamp())
+        self._datetimes.append(obs.get_time_stamp())
 
     def _pop_vects(self):
+        # TODO will be handled in envTree and Node
+        return
         *self._sum_load, _ = self._sum_load
         *self._max_line_flow, _ = self._max_line_flow
         *self._secondmax_line_flow, _ = self._secondmax_line_flow
@@ -404,7 +396,8 @@ class Env(ComputeWrapper):
             return
         self.next_action_from = self.LIKE_PREVIOUS
         if self.past_envs:
-            self._current_action = copy.deepcopy(self.past_envs[-1][0])
+            # self._current_action = copy.deepcopy(self.past_envs[-1][0])
+            self._current_action = self.env_tree.get_last_action()
         else:
             self.next_action_is_dn()
 
@@ -416,6 +409,6 @@ class Env(ComputeWrapper):
         self.next_action_from = self.ASSISTANT
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
-            self._assistant_action = self.assistant.act(self._obs, self._reward, self._done)
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            self._assistant_action = self.assistant.act(obs, reward, done)
         self._current_action = copy.deepcopy(self._assistant_action)
-
