@@ -96,6 +96,7 @@ class VizServer:
         self.plot_temporal = PlotTemporalSeries(self.env)
         self.fig_load_gen = self.plot_temporal.fig_load_gen
         self.fig_line_cap = self.plot_temporal.fig_line_cap
+        self.fig_timeline = self.env.get_timeline_figure()
 
         if args.env_seed is not None:
             self.env.seed(args.env_seed)
@@ -247,15 +248,16 @@ class VizServer:
 
         # handle triggers: refresh of the figures for real time (graph part)
         self.my_app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
-                           dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
-                           dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
-                           dash.dependencies.Output("scenario_progression", "value"),
-                           dash.dependencies.Output("scenario_progression", "children"),
-                           dash.dependencies.Output("scenario_progression", "color")
-                           ],
-                          [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
-                          []
-                          )(self.update_rt_fig)
+                              dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
+                              dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
+                              dash.dependencies.Output("scenario_progression", "value"),
+                              dash.dependencies.Output("scenario_progression", "children"),
+                              dash.dependencies.Output("scenario_progression", "color"),
+                              dash.dependencies.Output("timeline_graph", "figure"),
+                              ],
+                             [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
+                             []
+                             )(self.update_rt_fig)
 
         # handle triggers: refresh of the figures for the forecast
         self.my_app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
@@ -456,12 +458,6 @@ class VizServer:
         # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label,
         # show_temporal_graph])
 
-        # progress in the scenario (progress bar)
-        progress_bar_for_scenario = html.Div(dbc.Progress(id="scenario_progression",
-                                                          value=0.,
-                                                          color="danger",
-                                                          className="mb-3"))
-
         # general layout
         change_units = html.Div(id="change_units",
                                 children=[
@@ -524,44 +520,44 @@ class VizServer:
                                     }
                                     )
         save_experiment = html.Div(id='save_expe_box',
-                                    children=html.Div([dcc.Input(placeholder='Where do you want to save the current '
-                                                                             'experiment?',
-                                                                 id="save_expe",
-                                                                 type="text",
-                                                                 style={
-                                                                     'width': '70%',
-                                                                     'height': '55px',
-                                                                     'lineHeight': '55px',
-                                                                     'vertical-align': 'middle',
-                                                                     "margin-top": 5,
-                                                                     "margin-left": 20}),
-                                                       html.Label("save",
-                                                                  id="save_expe_button",
-                                                                  n_clicks=0,
-                                                                  className="btn btn-primary",
-                                                                  style={'height': '35px',
-                                                                         "margin-top": 18,
-                                                                         "margin-left": 5}),
-                                                       html.P(self.format_path(self.assistant_path),
-                                                              id="current_save_path",
-                                                              style={'width': '25%',
-                                                                     'textAlign': 'center',
-                                                                     'height': '55px',
-                                                                     'vertical-align': 'middle',
-                                                                     "margin-top": 20}
-                                                              ),
-                                                       ],
-                                                      className="row",
-                                                      style={'height': '65px', 'width': '100%'},
-                                                      ),
-                                    style={
-                                          'borderWidth': '1px',
-                                          'borderStyle': 'dashed',
-                                          'borderRadius': '5px',
-                                          'textAlign': 'center',
-                                          'margin': '10px'
-                                    }
-                                    )
+                                   children=html.Div([dcc.Input(placeholder='Where do you want to save the current '
+                                                                           'experiment?',
+                                                                id="save_expe",
+                                                                type="text",
+                                                                style={
+                                                                    'width': '70%',
+                                                                    'height': '55px',
+                                                                    'lineHeight': '55px',
+                                                                    'vertical-align': 'middle',
+                                                                    "margin-top": 5,
+                                                                    "margin-left": 20}),
+                                                      html.Label("save",
+                                                                 id="save_expe_button",
+                                                                 n_clicks=0,
+                                                                 className="btn btn-primary",
+                                                                 style={'height': '35px',
+                                                                        "margin-top": 18,
+                                                                        "margin-left": 5}),
+                                                      html.P(self.format_path(self.assistant_path),
+                                                             id="current_save_path",
+                                                             style={'width': '25%',
+                                                                    'textAlign': 'center',
+                                                                    'height': '55px',
+                                                                    'vertical-align': 'middle',
+                                                                    "margin-top": 20}
+                                                             ),
+                                                      ],
+                                                     className="row",
+                                                     style={'height': '65px', 'width': '100%'},
+                                                     ),
+                                   style={
+                                         'borderWidth': '1px',
+                                         'borderStyle': 'dashed',
+                                         'borderRadius': '5px',
+                                         'textAlign': 'center',
+                                         'margin': '10px'
+                                   }
+                                   )
         controls_row = html.Div(id="controls-row",
                                 children=[
                                     reset_col,
@@ -570,6 +566,29 @@ class VizServer:
                                     save_experiment,
                                     change_units
                                 ])
+
+        # progress in the scenario (progress bar)
+        progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
+                                                                             value=0.,
+                                                                             color="danger"),
+                                                                ),
+                                                       html.Div(dcc.Graph(id="timeline_graph",
+                                                                          config={
+                                                                              # 'displayModeBar': False,
+                                                                              "responsive": True,
+                                                                              # "autosizable": True
+                                                                              },
+                                                                          figure=self.fig_timeline,
+                                                                          style={"height": '10vh'}
+                                                                          ),
+
+                                                                ),
+                                                       html.Br(),
+                                                       ],
+                                             className="six columns",
+                                             # style={'width': '100%', "height": "300px"}
+                                             )
+
         ### Graph widget
         real_time_graph = dcc.Graph(id="real-time-graph",
                                     # className="w-100 h-100",
@@ -620,6 +639,7 @@ class VizServer:
 
         graph_col = html.Div(id="graph-col",
                              children=[
+                                 html.Br(),
                                  rt_graph_div,
                                  sim_graph_div
                              ],
@@ -631,7 +651,7 @@ class VizServer:
         ## Grid state widget
         row_css = "row d-xl-flex flex-xl-grow-1"
         state_row = html.Div(id="state-row",
-                             className=row_css,
+                             # className="row",
                              children=[graph_col]
                              )
 
@@ -952,6 +972,7 @@ class VizServer:
                               html.Br(),
                               progress_bar_for_scenario,
                               html.Br(),
+                              html.Div([html.P("")], className="six columns"),
                               state_row,  # the two graphs of the grid
                               html.Div([html.P("")], style={"height": "10uv"}),
                               html.Br(),
@@ -1140,10 +1161,15 @@ class VizServer:
             progress_label = f"{self._last_step} / {self._last_max_step}"
         else:
             raise dash.exceptions.PreventUpdate
-        return [trigger_temporal_figs, trigger_rt_graph, trigger_for_graph,
+        if trigger_rt_graph == 1:
+            self.fig_timeline = self.env.get_timeline_figure()
+        return [trigger_temporal_figs,
+                trigger_rt_graph,
+                trigger_for_graph,
                 progress_pct,
                 progress_label,
-                progress_color]
+                progress_color,
+                self.fig_timeline]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""

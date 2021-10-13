@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
-from typing import Union, List
+from typing import Union, List, Tuple
 
 from grid2op.Action import BaseAction
 from grid2op.Observation import BaseObservation
@@ -82,5 +82,9 @@ class Node(object):
         """clear this node"""
         self._glop_env.close()
 
-    def get_obs_rewar_done_info(self):
+    def get_obs_rewar_done_info(self) -> Tuple[BaseObservation, float, bool, dict]:
         return self._obs, self._reward, self._done, self._info
+
+    @property
+    def obs(self) -> BaseObservation:
+        return self._obs

@@ -105,6 +105,9 @@ class Env(ComputeWrapper):
     def do_i_display(self):
         return self._should_display
 
+    def get_timeline_figure(self):
+        return self.env_tree.plot_plotly()
+
     def load_assistant(self, assistant_path):
         print(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
@@ -395,11 +398,7 @@ class Env(ComputeWrapper):
         if self.next_action_from == self.LIKE_PREVIOUS:
             return
         self.next_action_from = self.LIKE_PREVIOUS
-        if self.past_envs:
-            # self._current_action = copy.deepcopy(self.past_envs[-1][0])
-            self._current_action = self.env_tree.get_last_action()
-        else:
-            self.next_action_is_dn()
+        self._current_action = self.env_tree.get_last_action()
 
     def next_action_is_assistant(self):
         """the next action is chosen to be given by the assistant"""

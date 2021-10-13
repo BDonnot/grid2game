@@ -7,6 +7,7 @@
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
 import copy
+import re
 from typing import Union
 import numpy as np
 import plotly
@@ -31,6 +32,7 @@ class EnvTree(object):
         self._current_node = None
         self._last_action = None
         self.__is_init = False
+        self.fig_timeline = None
 
     def root(self,
              assistant: Union[BaseAgent, None],
@@ -45,6 +47,76 @@ class EnvTree(object):
         self._all_nodes.append(node)
         self._current_node = node
         self.__is_init = True
+        self.init_plot_timeline()
+
+    def init_plot_timeline(self) -> None:
+        """initialize the plot for the timeline"""
+        self.fig_timeline = go.Figure()
+
+        # plot the edges / link / actions
+        color_links = 'rgb(210,210,210)'
+        col_background = 'rgba(229, 236, 246, 0.1)'
+        col_realtime = 'rgba(255, 140, 0, 1)'
+
+        # the edges / links / action
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='lines',
+                                               name="edges",
+                                               line=dict(color=color_links, width=1),
+                                               hoverinfo='none',
+                                               text=[],
+                                               ))
+
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='edges_center',
+                                               marker=dict(symbol='circle-dot',
+                                                           size=5,
+                                                           color='#6175c1',
+                                                           line=dict(color=color_links, width=1)
+                                                           ),
+                                               text=[""],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
+
+        # plot the vertices / node / observations
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes',
+                                               marker=dict(symbol='circle-dot',
+                                                           size=9,
+                                                           color='#6175c1',    #'#DB4551',
+                                                           line=dict(color='rgb(50,50,50)', width=3)
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
+
+        # real time vertical bar
+        self.fig_timeline.add_trace(go.Scatter(x=[0, 0],
+                                               y=[-10, 10],
+                                               mode='lines',
+                                               name="real_time",
+                                               line=dict(color=col_realtime, dash="dot"),
+                                               hoverinfo='none',
+                                               text=[],
+                                               ))
+
+        self.fig_timeline.update_xaxes(range=[-0.1, self._current_node.obs.max_step], showgrid=False, visible=False)
+        self.fig_timeline.update_yaxes(range=[-2, 2], showgrid=False, visible=False)
+        # vertical line to show current step
+        self.fig_timeline.update_layout({"plot_bgcolor": col_background,
+                                         "paper_bgcolor": col_background,
+                                         # "title": "Timeline"
+                                        })
+        self.fig_timeline.update_layout(margin=dict(l=0, r=0, t=0, b=0),
+                                        # height=int(50),
+                                        showlegend=False)
 
     def make_step(self,
                   assistant: Union[BaseAgent, None],  # TODO have a member with this
@@ -99,6 +171,8 @@ class EnvTree(object):
         Xe = []
         Ye = []
         texts = []
+        Xe_c = []
+        Ye_c = []
         for node in self._all_nodes:
             # run through all the node and connect it to its children, if any
             my_x = Xn[node.id]
@@ -110,33 +184,28 @@ class EnvTree(object):
                     tmp_y = Yn[link.son.id]
                     Xe += [my_x, tmp_x, None]
                     Ye += [my_y, tmp_y, None]
-                    texts.append(f"{link.action}")
+                    Xe_c.append(0.5 * (my_x + tmp_x))
+                    Ye_c.append(0.5 * (my_y + tmp_y))
+                    txt = "do nothing"
+                    if link.action.can_affect_something():
+                        txt = re.sub("\n", "<br>", link.action.__str__())
+                    texts.append(txt)
 
-        fig = go.Figure()
-        # plot the edges / link / actions
-        fig.add_trace(go.Scatter(x=Xe,
-                                 y=Ye,
-                                 mode='lines',
-                                 line=dict(color='rgb(210,210,210)', width=1),
-                                 hoverinfo='text',
-                                 text=texts,
-                                 ))
+        self.fig_timeline.update_traces(x=Xn,
+                                        y=Yn,
+                                        text=[f"{node.id}" for node in self._all_nodes],
+                                        selector=dict(name="nodes"))
+        self.fig_timeline.update_traces(x=Xe,
+                                        y=Ye,
+                                        selector=dict(name="edges"))
+        self.fig_timeline.update_traces(x=Xe_c,
+                                        y=Ye_c,
+                                        text=texts,
+                                        selector=dict(name="edges_center"))
+        self.fig_timeline.update_traces(x=[self.current_node.step, self.current_node.step],
+                                        selector=dict(name="real_time"))
 
-        # plot the vertices / node / observations
-        fig.add_trace(go.Scatter(x=Xn,
-                                 y=Yn,
-                                 mode='markers',
-                                 name='bla',
-                                 marker=dict(symbol='circle-dot',
-                                             size=18,
-                                             color='#6175c1',    #'#DB4551',
-                                             line=dict(color='rgb(50,50,50)', width=1)
-                                             ),
-                                 text=[node.id for node in self._all_nodes],
-                                 hoverinfo='text',
-                                 opacity=0.8
-                                 ))
-        return fig
+        return self.fig_timeline
 
     def clear(self) -> None:
         """clear all the data stored in the tree"""
@@ -153,6 +222,7 @@ class EnvTree(object):
         return self._current_node
 
     def get_last_action(self) -> BaseAction:
+        """retrieve the last action performed on the grid"""
         res = self._current_node._glop_env.action_space()
         if self._current_node.id == 0:
             # it's the root of the tree, last action does not exist, but i say it's do nothing
@@ -161,7 +231,7 @@ class EnvTree(object):
             father = self._current_node.father
             for link in father.get_actions_to_sons():
                 if link.son.id == self.current_node.id:
-                    res = link.action.copy()
+                    res = copy.deepcopy(link.action)
         return res
 
     def back_one_step(self) -> None:
