@@ -9,6 +9,7 @@
 import os
 import dash
 import time
+
 try:
     # newest version of dash
     from dash import dcc
@@ -77,11 +78,11 @@ class VizServer:
 
         # create the dash app
         self.my_app = dash.Dash(__name__,
-                               server=server if server is not None else True,
-                               meta_tags=meta_tags,
-                               assets_folder=assets_dir,
-                               external_stylesheets=external_stylesheets,
-                               external_scripts=external_scripts)
+                                server=server if server is not None else True,
+                                meta_tags=meta_tags,
+                                assets_folder=assets_dir,
+                                external_stylesheets=external_stylesheets,
+                                external_scripts=external_scripts)
         # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
