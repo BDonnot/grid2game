@@ -34,6 +34,11 @@ class EnvTree(object):
         self.__is_init = False
         self.fig_timeline = None
 
+        self.Xn = None
+        self.Yn = None
+
+        self.margin_for_plot = 0.5
+
     def root(self,
              assistant: Union[BaseAgent, None],
              env: BaseEnv,
@@ -48,6 +53,8 @@ class EnvTree(object):
         self._current_node = node
         self.__is_init = True
         self.init_plot_timeline()
+        self.Xn = [0]
+        self.Yn = [0]
 
     def init_plot_timeline(self) -> None:
         """initialize the plot for the timeline"""
@@ -134,8 +141,10 @@ class EnvTree(object):
                                                text=[],
                                                ))
 
-        self.fig_timeline.update_xaxes(range=[-0.1, self._current_node.obs.max_step], showgrid=False, visible=False)
-        self.fig_timeline.update_yaxes(range=[-2, 2], showgrid=False, visible=False)
+        self.fig_timeline.update_xaxes(range=[-self.margin_for_plot,
+                                              self._current_node.obs.max_step + self.margin_for_plot],
+                                       showgrid=False, visible=False)
+        self.fig_timeline.update_yaxes(range=[-self.margin_for_plot, 2], showgrid=False, visible=False)
         # vertical line to show current step
         self.fig_timeline.update_layout({"plot_bgcolor": col_background,
                                          "paper_bgcolor": col_background,
@@ -270,7 +279,7 @@ class EnvTree(object):
                     Ye += [my_y, tmp_y, None]
                     Xe_c.append(0.5 * (my_x + tmp_x))
                     Ye_c.append(0.5 * (my_y + tmp_y))
-                    txt = "do nothing"
+                    txt = "∅"
                     if link.action.can_affect_something():
                         txt = re.sub("\n", "<br>", link.action.__str__())
                     texts.append(txt)
@@ -295,6 +304,8 @@ class EnvTree(object):
             else:
                 node_normal.append(node.id)
 
+        self.Xn = Xn
+        self.Yn = Yn
         # and now plot the figure
         self.fig_timeline.update_traces(x=Xn[node_normal],
                                         y=Yn[node_normal],
@@ -317,7 +328,8 @@ class EnvTree(object):
                                         selector=dict(name="edges_center"))
         self.fig_timeline.update_traces(x=[self.current_node.step, self.current_node.step],
                                         selector=dict(name="real_time"))
-
+        # self.fig_timeline.update_xaxes(range=[-0.1, np.max(Xn) + 0.1], showgrid=False, visible=False)
+        self.fig_timeline.update_yaxes(range=[-self.margin_for_plot, np.max(Yn) + self.margin_for_plot])
         return self.fig_timeline
 
     def clear(self) -> None:
@@ -327,6 +339,8 @@ class EnvTree(object):
         del self._all_nodes
         self._all_nodes = []
         self._current_node = None
+        self.Xn = None
+        self.Yn = None
         self.__is_init = False
 
     @property
@@ -356,6 +370,42 @@ class EnvTree(object):
     def temporal_data(self):
         return self._current_node.temporal_data
 
+    def move_from_click(self, time_line_graph_clcked) -> int:
+        """move the time from a click on the timeline"""
+
+        if 'points' not in time_line_graph_clcked:
+            # nothing has been clicked on
+            return 0
+        if not len(time_line_graph_clcked['points']):
+            # not point have been selected
+            return 0
+
+        pts = time_line_graph_clcked['points'][0]
+        if 'curveNumber' not in pts:
+            # I cannot extract which curve I cliked on
+            return 0
+
+        if "pointIndex" not in pts:
+            # I cannot extract the point number
+            return 0
+
+        if pts["curveNumber"] != 2:
+            # I did not click a node on the graph, but something else
+            return 0
+
+        # retrieve the point I clicked on
+        pt_index = pts["pointIndex"]
+        node = self._all_nodes[int(pt_index)]
+
+        # make sure it's the right coordinates
+        posx = pts["x"]
+        posy = pts["y"]
+        th_x = self.Xn[pt_index]
+        th_y = self.Yn[pt_index]
+        if th_x == posx and th_y == posy:
+            # It's the right coordinates, i move there
+            self.go_to_node(node)
+        return 1
 
 if __name__ == "__main__":
     import grid2op

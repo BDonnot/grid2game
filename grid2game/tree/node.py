@@ -45,7 +45,8 @@ class Node(object):
         self._act_to_sons: List[Link] = []
 
         self._temporal_data = TemporalNodeData(current_obs=obs,
-                                               father_node_data=self._father._temporal_data if self._father is not None else None)
+                                               father_node_data=self._father._temporal_data
+                                                                if self._father is not None else None)
 
     def fill_assistant(self, assistant: Union[BaseAgent, None]) -> None:
         """fill the action the assistant would have done in this node"""

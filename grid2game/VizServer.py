@@ -140,62 +140,61 @@ class VizServer:
 
         # handle the press to one of the button to change the units
         self.my_app.callback([dash.dependencies.Output("unit_trigger_rt_graph", "n_clicks"),
-                           dash.dependencies.Output("unit_trigger_for_graph", "n_clicks"),
-                           ],
-                           [dash.dependencies.Input("line-info-dropdown", "value"),
-                            dash.dependencies.Input("line-side-dropdown", "value"),
-                            dash.dependencies.Input("load-info-dropdown", "value"),
-                            dash.dependencies.Input("gen-info-dropdown", "value"),
-                            dash.dependencies.Input("stor-info-dropdown", "value")
-                           ],
-                          [dash.dependencies.State("unit_trigger_rt_graph", "n_clicks"),
-                           dash.dependencies.State("unit_trigger_for_graph", "n_clicks")]
-                          )(self.unit_clicked)
+                              dash.dependencies.Output("unit_trigger_for_graph", "n_clicks"),
+                              ],
+                             [dash.dependencies.Input("line-info-dropdown", "value"),
+                             dash.dependencies.Input("line-side-dropdown", "value"),
+                             dash.dependencies.Input("load-info-dropdown", "value"),
+                             dash.dependencies.Input("gen-info-dropdown", "value"),
+                             dash.dependencies.Input("stor-info-dropdown", "value")
+                              ],
+                             [dash.dependencies.State("unit_trigger_rt_graph", "n_clicks"),
+                              dash.dependencies.State("unit_trigger_for_graph", "n_clicks")]
+                             )(self.unit_clicked)
 
         # handle the interaction with the graph
         self.my_app.callback([dash.dependencies.Output("do_display_action", "value"),
 
-                           dash.dependencies.Output("generator_clicked", "style"),
-                           dash.dependencies.Output("gen-redisp-curtail", "children"),
-                           dash.dependencies.Output("gen-id-hidden", "children"),
-                           dash.dependencies.Output("gen-id-clicked", "children"),
-                           dash.dependencies.Output("gen-dispatch", "min"),
-                           dash.dependencies.Output("gen-dispatch", "max"),
-                           dash.dependencies.Output("gen-dispatch", "value"),
-                           dash.dependencies.Output("gen_p", "children"),
-                           dash.dependencies.Output("target_disp", "children"),
-                           dash.dependencies.Output("actual_disp", "children"),
+                              dash.dependencies.Output("generator_clicked", "style"),
+                              dash.dependencies.Output("gen-redisp-curtail", "children"),
+                              dash.dependencies.Output("gen-id-hidden", "children"),
+                              dash.dependencies.Output("gen-id-clicked", "children"),
+                              dash.dependencies.Output("gen-dispatch", "min"),
+                              dash.dependencies.Output("gen-dispatch", "max"),
+                              dash.dependencies.Output("gen-dispatch", "value"),
+                              dash.dependencies.Output("gen_p", "children"),
+                              dash.dependencies.Output("target_disp", "children"),
+                              dash.dependencies.Output("actual_disp", "children"),
 
-                           dash.dependencies.Output("storage_clicked", "style"),
-                           dash.dependencies.Output("storage-id-hidden", "children"),
-                           dash.dependencies.Output("stor-id-clicked", "children"),
-                           dash.dependencies.Output("storage-power-input", "min"),
-                           dash.dependencies.Output("storage-power-input", "max"),
-                           dash.dependencies.Output("storage-power-input", "value"),
-                           dash.dependencies.Output("storage_p", "children"),
-                           dash.dependencies.Output("storage_energy", "children"),
+                              dash.dependencies.Output("storage_clicked", "style"),
+                              dash.dependencies.Output("storage-id-hidden", "children"),
+                              dash.dependencies.Output("stor-id-clicked", "children"),
+                              dash.dependencies.Output("storage-power-input", "min"),
+                              dash.dependencies.Output("storage-power-input", "max"),
+                              dash.dependencies.Output("storage-power-input", "value"),
+                              dash.dependencies.Output("storage_p", "children"),
+                              dash.dependencies.Output("storage_energy", "children"),
 
-                           dash.dependencies.Output("line_clicked", "style"),
-                           dash.dependencies.Output("line-id-hidden", "children"),
-                           dash.dependencies.Output("line-id-clicked", "children"),
-                           dash.dependencies.Output("line-status-input", "value"),
-                           dash.dependencies.Output("line_flow", "children"),
+                              dash.dependencies.Output("line_clicked", "style"),
+                              dash.dependencies.Output("line-id-hidden", "children"),
+                              dash.dependencies.Output("line-id-clicked", "children"),
+                              dash.dependencies.Output("line-status-input", "value"),
+                              dash.dependencies.Output("line_flow", "children"),
 
-                           dash.dependencies.Output("sub_clicked", "style"),
-                           dash.dependencies.Output("sub-id-hidden", "children"),
-                           dash.dependencies.Output("sub-id-clicked", "children"),
-                           dash.dependencies.Output("graph_clicked_sub", "figure"),
-
-                           ],
-                          [dash.dependencies.Input('real-time-graph', 'clickData'),
-                           dash.dependencies.Input("back-button", "n_clicks"),
-                           dash.dependencies.Input("step-button", "n_clicks"),
-                           dash.dependencies.Input("simulate-button", "n_clicks"),
-                           dash.dependencies.Input("go-button", "n_clicks"),
-                           dash.dependencies.Input("gofast-button", "n_clicks"),
-                           dash.dependencies.Input("go_till_game_over-button", "n_clicks"),
-                           ]
-                          )(self.display_click_data)
+                              dash.dependencies.Output("sub_clicked", "style"),
+                              dash.dependencies.Output("sub-id-hidden", "children"),
+                              dash.dependencies.Output("sub-id-clicked", "children"),
+                              dash.dependencies.Output("graph_clicked_sub", "figure"),
+                              ],
+                             [dash.dependencies.Input('real-time-graph', 'clickData'),
+                              dash.dependencies.Input("back-button", "n_clicks"),
+                              dash.dependencies.Input("step-button", "n_clicks"),
+                              dash.dependencies.Input("simulate-button", "n_clicks"),
+                              dash.dependencies.Input("go-button", "n_clicks"),
+                              dash.dependencies.Input("gofast-button", "n_clicks"),
+                              dash.dependencies.Input("go_till_game_over-button", "n_clicks"),
+                              ]
+                             )(self.display_click_data)
 
         # handle display of the action, if needed
         self.my_app.callback([dash.dependencies.Output("current_action", "children"),
@@ -243,9 +242,10 @@ class VizServer:
                           )(self.handle_act_on_env)
 
         self.my_app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
-                           dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
-                          [dash.dependencies.Input("trigger_computation", "value")]
-                          )(self.computation_wrapper)
+                              dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
+                             [dash.dependencies.Input("trigger_computation", "value"),
+                              dash.dependencies.Input("recompute_rt_from_timeline", "n_clicks")]
+                             )(self.computation_wrapper)
 
         # handle triggers: refresh of the figures for real time (graph part)
         self.my_app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
@@ -262,10 +262,10 @@ class VizServer:
 
         # handle triggers: refresh of the figures for the forecast
         self.my_app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
-                          [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks"),
-                           ],
-                          []
-                          )(self.update_simulated_fig)
+                             [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks"),
+                              ],
+                             []
+                             )(self.update_simulated_fig)
 
         # final graph display
         # handle triggers: refresh the figures (temporal series part)
@@ -286,36 +286,40 @@ class VizServer:
 
         # handle final graph of the real time grid
         self.my_app.callback([dash.dependencies.Output("real-time-graph", "figure"),
-                           dash.dependencies.Output("rt_date_time", "children")],
-                          [dash.dependencies.Input("figrt_trigger_rt_graph", "n_clicks"),
-                           dash.dependencies.Input("unit_trigger_rt_graph", "n_clicks"),
-                           ]
-                          )(self.update_rt_graph_figs)
+                              dash.dependencies.Output("rt_date_time", "children")],
+                             [dash.dependencies.Input("figrt_trigger_rt_graph", "n_clicks"),
+                              dash.dependencies.Input("unit_trigger_rt_graph", "n_clicks"),
+                              ]
+                             )(self.update_rt_graph_figs)
 
         # handle final graph for the forecast grid
         self.my_app.callback([dash.dependencies.Output("simulated-graph", "figure"),
-                           dash.dependencies.Output("forecast_date_time", "children")],
-                          [dash.dependencies.Input("figrt_trigger_for_graph", "n_clicks"),
-                           dash.dependencies.Input("figfor_trigger_for_graph", "n_clicks"),
-                           dash.dependencies.Input("unit_trigger_for_graph", "n_clicks"),
-                           ]
-                          )(self.update_for_graph_figs)
+                              dash.dependencies.Output("forecast_date_time", "children")],
+                             [dash.dependencies.Input("figrt_trigger_for_graph", "n_clicks"),
+                              dash.dependencies.Input("figfor_trigger_for_graph", "n_clicks"),
+                              dash.dependencies.Input("unit_trigger_for_graph", "n_clicks"),
+                              ]
+                             )(self.update_for_graph_figs)
 
         # load the assistant
         self.my_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
-                           dash.dependencies.Output("clear_assistant_path", "n_clicks")],
-                          [dash.dependencies.Input("load_assistant_button", "n_clicks")],
-                          [dash.dependencies.State("select_assistant", "value")]
-                          )(self.load_assistant)
+                              dash.dependencies.Output("clear_assistant_path", "n_clicks")],
+                             [dash.dependencies.Input("load_assistant_button", "n_clicks")],
+                             [dash.dependencies.State("select_assistant", "value")]
+                             )(self.load_assistant)
 
         self.my_app.callback([dash.dependencies.Output("select_assistant", "value")],
-                          [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
-                          )(self.clear_loading)
+                             [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
+                             )(self.clear_loading)
 
         self.my_app.callback([dash.dependencies.Output("current_save_path", "children")],
                              [dash.dependencies.Input("save_expe_button", "n_clicks")],
                              [dash.dependencies.State("save_expe", "value")]
                              )(self.save_expe)
+
+        # callback for the timeline
+        self.my_app.callback([dash.dependencies.Output("recompute_rt_from_timeline", "n_clicks")],
+                             [dash.dependencies.Input('timeline_graph', 'clickData')])(self.timeline_set_time)
         print("Viz server initialized")
 
     def run_server(self, debug=False):
@@ -940,6 +944,9 @@ class VizServer:
         clear_assistant_path = html.Label("",
                                           id="clear_assistant_path",
                                           n_clicks=0)
+        recompute_rt_from_timeline = html.Label("",
+                                                id="recompute_rt_from_timeline",
+                                                n_clicks=0)
         hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                         unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                         figfor_trigger_for_graph, figrt_trigger_rt_graph,
@@ -952,7 +959,7 @@ class VizServer:
                                         act_on_env_trigger_for, reset_butt_call_act_on_env,
                                         act_on_env_call_selfloop, selfloop_call_act_on_env,
                                         do_display_action, clear_assistant_path,
-                                        trigger_computation
+                                        trigger_computation, recompute_rt_from_timeline
                                         ],
                                        id="hidden_button_for_callbacks",
                                        style={'display': 'none'})
@@ -1120,7 +1127,7 @@ class VizServer:
                 self._go_button_shape,
                 self._gofast_button_shape]
 
-    def computation_wrapper(self, trigger_heavy_computation_wrapper):
+    def computation_wrapper(self, trigger_heavy_computation_wrapper, recompute_rt_from_timeline):
         # simulate a "state" of the application that depends on the computation
         if not self.env.is_computing():
             self.env.heavy_compute()
@@ -1465,3 +1472,16 @@ class VizServer:
                    pbar=True)
         self.env.stop_computation()  # prevent other type of computation
         return [f"✅ saved in \"{self.save_expe_path}\""]
+
+    def timeline_set_time(self, time_line_graph_clicked):
+        if self.env.is_computing():
+            # nothing is updated if i am doing a computation
+            raise dash.exceptions.PreventUpdate
+
+        if time_line_graph_clicked is None:
+            # I did no click on anything
+            raise dash.exceptions.PreventUpdate
+
+        res = self.env.handle_click_timeline(time_line_graph_clicked)
+        self.is_previous_click_end = True  # hack to have the progress bar properly recomputed
+        return [res]

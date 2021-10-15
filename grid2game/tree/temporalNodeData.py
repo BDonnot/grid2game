@@ -45,6 +45,7 @@ class TemporalNodeData(object):
             self._sum_hydro = []
             self._sum_nuclear = []
             self._datetimes = []
+            
         self._fill_info_vect(current_obs)
 
     def _fill_info_vect(self, current_obs):

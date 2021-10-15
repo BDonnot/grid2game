@@ -52,30 +52,14 @@ class Env(ComputeWrapper):
                                      **kwargs)
 
         self.env_tree = EnvTree()
-        # self.past_envs = []
         self._current_action = None
         self._sim_obs = None
         self._sim_reward = None
         self._sim_done = None
         self._sim_info = None
-        # self._obs = None
-        # self._reward = None
-        # self._done = None
-        # self._info = None
 
         # define variables
         self._should_display = True
-        # todo have that in another class
-        self._sum_load = None
-        self._max_line_flow = None
-        self._secondmax_line_flow = None
-        self._thirdmax_line_flow = None
-        self._sum_solar = None
-        self._sum_wind = None
-        self._sum_thermal = None
-        self._sum_hydro = None
-        self._sum_nuclear = None
-        self._datetimes = None
 
         # assistant part
         self.assistant_path = assistant_path
@@ -87,11 +71,6 @@ class Env(ComputeWrapper):
         self.load_assistant(assistant_path)
 
         self.init_state()
-        # self._current_action = self.glop_env.action_space()
-        # self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
-        # self._reward = self.glop_env.reward_range[0]
-        # self._done = False
-        # self._info = {}
 
         # to control which action will be done when
         self.next_computation = None
@@ -263,8 +242,6 @@ class Env(ComputeWrapper):
             print("The assistant raised an alarm !")
             self.stop_computation()
 
-        # beg__ = time.time()
-        self._fill_info_vect()
         if not done:
             self.choose_next_action()
             self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
@@ -298,30 +275,12 @@ class Env(ComputeWrapper):
         return self._sim_obs, self._sim_obs, self._sim_reward, self._sim_done, self._sim_info
 
     def back(self):
-        # if len(self.past_envs):
-        #     is_this_done = self._done
-        #     self.glop_env.close()
-        #     *self.past_envs, (self._current_action,
-        #                       self._assistant_action,
-        #                       self._obs, self._reward, self._done, self._info,
-        #                       self.glop_env) = self.past_envs
-        #     self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = self._obs.simulate(self.current_action)
-        #     if not is_this_done:
-        #         self._pop_vects()
         self.env_tree.back_one_step()
 
     def reset(self):
         self.init_state()
 
     def init_state(self):
-        # self.past_envs = []
-        # self._obs = self.glop_env.reset()
-        # if self.assistant is not None:
-        #     self.assistant.reset(self._obs)
-        # self._current_action = self.glop_env.action_space()
-        # self._reward = self.glop_env.reward_range[0]
-        # self._done = False
-        # self._info = {}
         self.env_tree.clear()
         obs = self.glop_env.reset()
         self.env_tree.root(assistant=self.assistant, obs=obs, env=self.glop_env)
@@ -331,61 +290,6 @@ class Env(ComputeWrapper):
             self.next_action_is_assistant()
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self.current_action)
-
-        self._sum_load = []
-        self._max_line_flow = []
-        self._secondmax_line_flow = []
-        self._thirdmax_line_flow = []
-        self._sum_solar = []
-        self._sum_wind = []
-        self._sum_thermal = []
-        self._sum_hydro = []
-        self._sum_nuclear = []
-        self._datetimes = []
-
-        self._fill_info_vect()
-
-    def _fill_info_vect(self):
-        # TODO later in the envTree and in the node !
-        if len(self._datetimes) > 0:
-            return
-
-        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-        if done:
-            # don't had data corresponding to the last observation, which is "wrong"
-            return
-        self._sum_load.append(np.sum(obs.load_p))
-        rhos_ = np.partition(obs.rho.flatten(), -3)
-        self._max_line_flow.append(rhos_[-1])
-        self._secondmax_line_flow.append(rhos_[-2])
-        self._thirdmax_line_flow.append(rhos_[-3])
-        if hasattr(obs, "gen_p"):
-            vect_ = obs.gen_p
-        else:
-            vect_ = obs.prod_p
-            import warnings
-            warnings.warn("DEPRECATED: please use grid2op >= 1.5 for benefiting from all grid2game feature",
-                          DeprecationWarning)
-        self._sum_solar.append(np.sum(vect_[self.glop_env.gen_type == "solar"]))
-        self._sum_wind.append(np.sum(vect_[self.glop_env.gen_type == "wind"]))
-        self._sum_thermal.append(np.sum(vect_[self.glop_env.gen_type == "thermal"]))
-        self._sum_hydro.append(np.sum(vect_[self.glop_env.gen_type == "hydro"]))
-        self._sum_nuclear.append(np.sum(vect_[self.glop_env.gen_type == "nuclear"]))
-        self._datetimes.append(obs.get_time_stamp())
-
-    def _pop_vects(self):
-        # TODO will be handled in envTree and Node
-        return
-        *self._sum_load, _ = self._sum_load
-        *self._max_line_flow, _ = self._max_line_flow
-        *self._secondmax_line_flow, _ = self._secondmax_line_flow
-        *self._thirdmax_line_flow, _ = self._thirdmax_line_flow
-        *self._sum_solar, _ = self._sum_solar
-        *self._sum_wind, _ = self._sum_wind
-        *self._sum_thermal, _ = self._sum_thermal
-        *self._sum_hydro, _ = self._sum_hydro
-        *self._sum_nuclear, _ = self._sum_nuclear
-        *self._datetimes, _ = self._datetimes
 
     def next_action_is_dn(self):
         """or do nothing if first step"""
@@ -419,3 +323,12 @@ class Env(ComputeWrapper):
             return
         self.next_action_from = self.MANUAL
         self._current_action = copy.deepcopy(self._current_action)
+
+    def handle_click_timeline(self, time_line_graph_clcked) -> int:
+        """handles the interaction from the timeline"""
+        if "points" not in time_line_graph_clcked:
+            return 0
+        self.is_computing()
+        res = self.env_tree.move_from_click(time_line_graph_clcked)
+        self.stop_computation()  # this is a "one time" call
+        return res
