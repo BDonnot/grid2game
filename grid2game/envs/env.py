@@ -36,6 +36,7 @@ class Env(ComputeWrapper):
     ASSISTANT = 0
     DO_NOTHING = 1
     LIKE_PREVIOUS = 2
+    MANUAL = 3
 
     def __init__(self,
                  env_name,
@@ -280,9 +281,9 @@ class Env(ComputeWrapper):
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             self._assistant_action = self.assistant.act(obs, reward, done)
             self._current_action = copy.deepcopy(self._assistant_action)
-        elif self.next_action_from == self.LIKE_PREVIOUS:
-            # next action should be like the previous one
-            pass
+        elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
+            # next action should be like the previous one or manually set
+            self._current_action = copy.deepcopy(self._current_action)
         elif self.next_action_from == self.DO_NOTHING:
             self._current_action = self.glop_env.action_space()
         else:
@@ -411,3 +412,10 @@ class Env(ComputeWrapper):
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             self._assistant_action = self.assistant.act(obs, reward, done)
         self._current_action = copy.deepcopy(self._assistant_action)
+
+    def next_action_is_manual(self):
+        """the next action is manually selected"""
+        if self.next_action_from == self.MANUAL:
+            return
+        self.next_action_from = self.MANUAL
+        self._current_action = copy.deepcopy(self._current_action)

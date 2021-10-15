@@ -83,6 +83,7 @@ class EnvTree(object):
                                                ))
 
         # plot the vertices / node / observations
+        # regular vertices
         self.fig_timeline.add_trace(go.Scatter(x=[],
                                                y=[],
                                                mode='markers',
@@ -96,7 +97,33 @@ class EnvTree(object):
                                                hoverinfo='text',
                                                opacity=0.8
                                                ))
+        # game over vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_game_over',
+                                               marker=dict(symbol='x',
+                                                           size=15,
+                                                           color='crimson'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
 
+        # game over vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_success',
+                                               marker=dict(symbol='star',
+                                                           size=15,
+                                                           color='darkgreen'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
         # real time vertical bar
         self.fig_timeline.add_trace(go.Scatter(x=[0, 0],
                                                y=[-10, 10],
@@ -150,22 +177,78 @@ class EnvTree(object):
         # TODO check that the node exist ! (using the id)
         self._current_node = node
 
-    def plot_plotly(self) -> plotly.graph_objects.Figure:
-        # see https://plotly.com/python/tree-plots/
+    def layout_igraph(self):
+        """bad layout, not really working"""
+        import igraph
+        graph = igraph.Graph()
+        # add the node
+        graph.add_vertices(len(self._all_nodes))
+
+        # add the edges
+        for node in self._all_nodes:
+            for link in node.get_actions_to_sons():
+                if link.son is not None:
+                    graph.add_edge(node.id, link.son.id)
+        lay = graph.layout('rt')
+
+        # position of nodes
+        Xn = [lay[i][1] for i in range(len(self._all_nodes))]
+        Yn = [lay[i][0] for i in range(len(self._all_nodes))]
+
+        # position of edges
+        Xe = []
+        Ye = []
+        # center of edges
+        Xe_c = []
+        Ye_c = []
+        for node in self._all_nodes:
+            for link in node.get_actions_to_sons():
+                if link.son is not None:
+                    Xe += [Xn[node.id], Xn[link.son.id], None]
+                    Ye += [Yn[node.id], Yn[link.son.id], None]
+                    Xe_c.append(0.5 * (Xn[node.id] + Xn[link.son.id]))
+                    Ye_c.append(0.5 * (Yn[node.id] + Yn[link.son.id]))
+
+        # add the text on the action / link / edges
+        texts = []
+        for node in self._all_nodes:
+            # run through all the node and connect it to its children, if any
+            for link in node.get_actions_to_sons():
+                    txt = ""
+                    if link.action.can_affect_something():
+                        txt = re.sub("\n", "<br>", link.action.__str__())
+                    texts.append(txt)
+        return Xn, Yn, Xe, Ye, Xe_c, Ye_c, texts
+
+    def layout_manual(self):
+        """
+        this layout make sure nothing can be aligned if it does not come from the same root
+
+        For now, its main drawback is that it always add nodes "on top" of the others, instead of trying to center
+        them.
+        """
         Xn = [node.step for node in self._all_nodes]
         Yn = [0.]
-        nb_ts = max(Xn)
-        encounter = np.zeros(nb_ts + 1)
+
+        # compute the maximum width of the stuff
+        width = [0 for _ in self._all_nodes]
+        for node in self._all_nodes[::-1]:
+            if len(node.get_actions_to_sons()) == 0:
+                width[node.id] = 1
+            for link in node.get_actions_to_sons():
+                # this is not a terminal node, the width is defined as the sum(width_children)
+                width[node.id] += width[link.son.id]
+
+        son_id = np.zeros(len(Xn))
         for node in self._all_nodes[1:]:
             # for all non root node: assign the position in the Y axis,
             # that depends on the number of bother
-            nb_siblings = len(node.father._act_to_sons)
             pos_y = Yn[node.father.id]
-            if nb_siblings > 1:
-                # TODO this should changed based on the number of children of my siblings too !
-                pos_y += (-1)**encounter[node.step] * (encounter[node.step] // 2 + 1)
-
-            encounter[node.step] += 1
+            # if node.id >= 1:
+            #     pdb.set_trace()
+            if width[node.father.id] != width[node.id]:
+                pos_y += son_id[node.father.id]
+                son_id[node.father.id] += width[node.id]
             Yn.append(pos_y)
 
         Xe = []
@@ -190,11 +273,40 @@ class EnvTree(object):
                     if link.action.can_affect_something():
                         txt = re.sub("\n", "<br>", link.action.__str__())
                     texts.append(txt)
+        return np.array(Xn), np.array(Yn), Xe, Ye, Xe_c, Ye_c, texts
 
-        self.fig_timeline.update_traces(x=Xn,
-                                        y=Yn,
-                                        text=[f"{node.id}" for node in self._all_nodes],
+    def plot_plotly(self) -> plotly.graph_objects.Figure:
+        # see https://plotly.com/python/tree-plots/
+
+        # retrieve the layout
+        Xn, Yn, Xe, Ye, Xe_c, Ye_c, texts = self.layout_manual()
+
+        # now filter them based on game over or not
+        node_normal = []
+        node_game_over = []
+        node_sucess = []
+        for node in self._all_nodes:
+            if node.done:
+                if node.step != self._current_node.obs.max_step:
+                    node_game_over.append(node.id)
+                else:
+                    node_sucess.append(node.id)
+            else:
+                node_normal.append(node.id)
+
+        # and now plot the figure
+        self.fig_timeline.update_traces(x=Xn[node_normal],
+                                        y=Yn[node_normal],
+                                        text=[f"{id_}" for id_ in node_normal],
                                         selector=dict(name="nodes"))
+        self.fig_timeline.update_traces(x=Xn[node_game_over],
+                                        y=Yn[node_game_over],
+                                        text=[f"{id_}" for id_ in node_game_over],
+                                        selector=dict(name="nodes_game_over"))
+        self.fig_timeline.update_traces(x=Xn[node_sucess],
+                                        y=Yn[node_sucess],
+                                        text=[f"{id_}" for id_ in node_sucess],
+                                        selector=dict(name="nodes_success"))
         self.fig_timeline.update_traces(x=Xe,
                                         y=Ye,
                                         selector=dict(name="edges"))
@@ -275,9 +387,30 @@ if __name__ == "__main__":
     assert len(tree._all_nodes) == 4
     assert tree._current_node.step == 1
 
+    act = env.action_space()
     tree.make_step(assistant=assistant, chosen_action=act)
     assert len(tree._all_nodes) == 5
     assert tree._current_node.step == 2
+
+    tree.make_step(assistant=assistant, chosen_action=act)
+    assert len(tree._all_nodes) == 6
+    assert tree._current_node.step == 3
+
+    tree.make_step(assistant=assistant, chosen_action=act)
+    assert len(tree._all_nodes) == 7
+    assert tree._current_node.step == 4
+
+    tree.go_to_node(tree._all_nodes[5])
+    act = env.action_space({"set_line_status": [(1, -1)]})
+    tree.make_step(assistant=assistant, chosen_action=act)
+    assert len(tree._all_nodes) == 8
+    assert tree._current_node.step == 4
+
+    tree.go_to_node(tree._all_nodes[0])
+    act = env.action_space({"set_line_status": [(2, -1)]})
+    tree.make_step(assistant=assistant, chosen_action=act)
+    assert len(tree._all_nodes) == 9
+    assert tree._current_node.step == 1
 
     fig = tree.plot_plotly()
     fig.show()

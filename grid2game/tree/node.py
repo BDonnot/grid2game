@@ -88,3 +88,7 @@ class Node(object):
     @property
     def obs(self) -> BaseObservation:
         return self._obs
+
+    @property
+    def done(self) -> bool:
+        return self._done

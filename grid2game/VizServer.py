@@ -198,19 +198,19 @@ class VizServer:
 
         # handle display of the action, if needed
         self.my_app.callback([dash.dependencies.Output("current_action", "children"),
-                           ],
-                          [dash.dependencies.Input("which_action_button", "value"),
-                           dash.dependencies.Input("do_display_action", "value"),
-                           dash.dependencies.Input("gen-redisp-curtail", "children"),
-                           dash.dependencies.Input("gen-id-hidden", "children"),
-                           dash.dependencies.Input('gen-dispatch', "value"),
-                           dash.dependencies.Input("storage-id-hidden", "children"),
-                           dash.dependencies.Input('storage-power-input', "value"),
-                           dash.dependencies.Input("line-id-hidden", "children"),
-                           dash.dependencies.Input('line-status-input', "value"),
-                           dash.dependencies.Input('sub-id-hidden', "children"),
-                           dash.dependencies.Input("graph_clicked_sub", "clickData")
-                          ])(self.display_action)
+                              ],
+                             [dash.dependencies.Input("which_action_button", "value"),
+                              dash.dependencies.Input("do_display_action", "value"),
+                              dash.dependencies.Input("gen-redisp-curtail", "children"),
+                              dash.dependencies.Input("gen-id-hidden", "children"),
+                              dash.dependencies.Input('gen-dispatch', "value"),
+                              dash.dependencies.Input("storage-id-hidden", "children"),
+                              dash.dependencies.Input('storage-power-input', "value"),
+                              dash.dependencies.Input("line-id-hidden", "children"),
+                              dash.dependencies.Input('line-status-input', "value"),
+                              dash.dependencies.Input('sub-id-hidden', "children"),
+                              dash.dependencies.Input("graph_clicked_sub", "clickData")
+                              ])(self.display_action_fun)
 
         # handle the interaction with self.env, that should be done all in one function, otherwise
         # there are concurrency issues
@@ -567,7 +567,7 @@ class VizServer:
                                     change_units
                                 ])
 
-        # progress in the scenario (progress bar)
+        # progress in the scenario (progress bar and timeline)
         progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
                                                                              value=0.,
                                                                              color="danger"),
@@ -1233,13 +1233,15 @@ class VizServer:
         self.plot_grids.update_forecat(self.env.sim_obs, self.env)
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
-    def display_action(self,
-                       which_action_button,
-                       do_display,
-                       gen_redisp_curtail, gen_id, redisp,
-                       stor_id, storage_p,
-                       line_id, line_status,
-                       sub_id, clicked_sub_fig):
+    def display_action_fun(self,
+                           which_action_button,
+                           do_display,
+                           gen_redisp_curtail,
+                           gen_id,
+                           redisp,
+                           stor_id, storage_p,
+                           line_id, line_status,
+                           sub_id, clicked_sub_fig):
         """
         modify the action taken based on the inputs,
         then displays the action (as text)
@@ -1253,6 +1255,7 @@ class VizServer:
             return [f"{self.env.current_action}"]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
         if button_id == "which_action_button":
             # the "base action" has been modified, so i need to change it here
             if which_action_button == "dn":
@@ -1271,6 +1274,7 @@ class VizServer:
             res = [f"{self.env.current_action}"]
         else:
             # i need to display the action
+            self.env.next_action_is_manual()
             is_modif = False
             if gen_id != "":
                 try:
@@ -1301,9 +1305,9 @@ class VizServer:
 
             if not is_modif:
                 raise dash.exceptions.PreventUpdate
-            else:
-                # i force the env to do the "current_action" in the next step
-                self.env.next_action_from = self.env.LIKE_PREVIOUS
+            # else:
+            #     # i force the env to do the "current_action" in the next step
+            #     self.env.next_action_from = self.env.LIKE_PREVIOUS
 
             # TODO optim here to save that if not needed because nothing has changed
             res = [f"{self.env.current_action}"]
