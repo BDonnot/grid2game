@@ -93,10 +93,11 @@ class VizServer:
                        assistant_path=self.assistant_path,
                        assistant_seed=int(args.assistant_seed) if args.assistant_seed is not None else None)
         self.plot_grids = PlotGrids(self.env.observation_space)
-        self.plot_temporal = PlotTemporalSeries(self.env)
+        self.fig_timeline = self.env.get_timeline_figure()
+
+        self.plot_temporal = PlotTemporalSeries(self.env.env_tree)
         self.fig_load_gen = self.plot_temporal.fig_load_gen
         self.fig_line_cap = self.plot_temporal.fig_line_cap
-        self.fig_timeline = self.env.get_timeline_figure()
 
         if args.env_seed is not None:
             self.env.seed(args.env_seed)
@@ -1202,13 +1203,7 @@ class VizServer:
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (showhide_trigger is None or showhide_trigger == 0):
             raise dash.exceptions.PreventUpdate
-        self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace()
-        # print("Ok i update the figures")
-        # print(f"self.fig_load_gen: {self.fig_load_gen}")
-
-        # print(f"update_temporal_figs: ok i updated it (display_mode: {display_mode})")
-        # print(f"update_temporal_figs: ok i updated it (collapsetemp_trigger: {collapsetemp_trigger})")
-        # print(f"update_temporal_figs: ok i updated it (graph_state: {graph_state})")
+        self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace(self.env, self.env.env_tree)
         return [self.fig_load_gen, self.fig_line_cap]
 
     def update_rt_graph_figs(self, figrt_trigger, unit_trigger):

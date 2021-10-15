@@ -152,6 +152,7 @@ class EnvTree(object):
         if not self.__is_init:
             raise RuntimeError("You are trying to use a non initialized envTree.")
 
+        chosen_action = copy.deepcopy(chosen_action)
         res = self._current_node.son_for_this_action(chosen_action)
         if res is not None:
             # I "already" made this action "in the past"
@@ -351,6 +352,10 @@ class EnvTree(object):
         father = self._current_node.father
         self.go_to_node(father)
 
+    @property
+    def temporal_data(self):
+        return self._current_node.temporal_data
+
 
 if __name__ == "__main__":
     import grid2op
@@ -414,6 +419,7 @@ if __name__ == "__main__":
 
     fig = tree.plot_plotly()
     fig.show()
+
 
 
 

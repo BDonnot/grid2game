@@ -14,6 +14,7 @@ from grid2op.Agent import BaseAgent
 from grid2op.Environment import BaseEnv
 
 from grid2game.tree.link import Link
+from grid2game.tree.temporalNodeData import TemporalNodeData
 
 
 class Node(object):
@@ -42,6 +43,9 @@ class Node(object):
 
         # links to my "sons"
         self._act_to_sons: List[Link] = []
+
+        self._temporal_data = TemporalNodeData(current_obs=obs,
+                                               father_node_data=self._father._temporal_data if self._father is not None else None)
 
     def fill_assistant(self, assistant: Union[BaseAgent, None]) -> None:
         """fill the action the assistant would have done in this node"""
@@ -92,3 +96,7 @@ class Node(object):
     @property
     def done(self) -> bool:
         return self._done
+
+    @property
+    def temporal_data(self):
+        return self._temporal_data

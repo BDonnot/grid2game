@@ -27,7 +27,7 @@ from grid2game.plot.plot_param import PlotParams
 
 
 class PlotTemporalSeries(object):
-    def __init__(self, env):
+    def __init__(self, tree):
         # super().__init__()
 
         # maybe in the parameters
@@ -41,48 +41,45 @@ class PlotTemporalSeries(object):
         # height
         self.height = 500
 
-        self.env = env
-
         self.fig_load_gen = None
         self.fig_line_cap = None
-        self.init_figures()
+        self.init_figures(tree)
         self._timer_update = 0.
 
-    def init_figures(self):
+    def init_figures(self, tree):
         self.fig_load_gen = go.Figure()
         self.fig_line_cap = go.Figure()
 
-        self.init_traces()
-        # self.fig_load_gen.update_layout(clickmode='event+select')
-        # self.fig_line_cap.update_layout(clickmode='event+select')
+        self.init_traces(tree)
 
     def update_layout_height(self):
         self.fig_line_cap.update_layout(height=int(self.height))
         self.fig_load_gen.update_layout(height=int(self.height))
 
-    def init_traces(self):
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._max_line_flow,
+    def init_traces(self, tree):
+        data = tree.temporal_data
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._max_line_flow,
                           mode="lines",
                           name="Highest line capacity",
                           line=dict(color="red"),
                           showlegend=True)
         self.fig_line_cap.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._secondmax_line_flow,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._secondmax_line_flow,
                           mode="lines",
                           name="2nd highest line cap.",
                           line=dict(color="crimson"),
                           showlegend=True)
         self.fig_line_cap.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._thirdmax_line_flow,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._thirdmax_line_flow,
                           mode="lines",
                           name="3rd highest line cap.",
                           line=dict(color="coral"),
                           showlegend=True)
         self.fig_line_cap.add_trace(tmp_)
-        tmp_ = go.Scatter(x=(self.env._datetimes[0],self.env._datetimes[-1]),
+        tmp_ = go.Scatter(x=(data._datetimes[0], data._datetimes[-1]),
                           y=(1., 1.),
                           mode="lines",
                           name="Overflow limit",
@@ -95,44 +92,44 @@ class PlotTemporalSeries(object):
                                         yaxis_title="Capacity (%)",
                                         height=int(self.height))
 
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_hydro,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_hydro,
                           mode="lines",
                           name="Sum Hydro",
                           showlegend=True,
                           line=dict(color=self.color_hydro))
         self.fig_load_gen.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_wind,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_wind,
                           mode="lines",
                           name="Sum Wind",
                           showlegend=True,
                           line=dict(color=self.color_wind))
         self.fig_load_gen.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_solar,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_solar,
                           mode="lines",
                           name="Sum Solar",
                           showlegend=True,
                           line=dict(color=self.color_solar))
         self.fig_load_gen.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_nuclear,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_nuclear,
                           mode="lines",
                           name="Sum Nuclear",
                           showlegend=True,
                           line=dict(color=self.color_nuclear))
         self.fig_load_gen.add_trace(tmp_)
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_thermal,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_thermal,
                           mode="lines",
                           name="Sum Thermal",
                           showlegend=True,
                           line=dict(color=self.color_thermal))
         self.fig_load_gen.add_trace(tmp_)
 
-        tmp_ = go.Scatter(x=self.env._datetimes,
-                          y=self.env._sum_load,
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_load,
                           mode="lines",
                           name="Sum Load",
                           showlegend=True,
@@ -143,40 +140,42 @@ class PlotTemporalSeries(object):
                                         yaxis_title="Power (MW)",
                                         height=int(self.height))
 
-    def update_trace(self):
-        if not self.env.do_i_display():
+    def update_trace(self, env, tree):
+        if not env.do_i_display():
             # display of the temporal figures should not be updated (for example because i run the episode until the end)
             return self.fig_load_gen, self.fig_line_cap
+
+        data = tree.temporal_data
         beg_ = time.time()
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_hydro,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_hydro,
                                         selector=dict(name="Sum Hydro"))
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_wind,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_wind,
                                         selector=dict(name="Sum Wind"))
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_solar,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_solar,
                                         selector=dict(name="Sum Solar"))
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_nuclear,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_nuclear,
                                         selector=dict(name="Sum Nuclear"))
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_load,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_load,
                                         selector=dict(name="Sum Load"))
-        self.fig_load_gen.update_traces(x=self.env._datetimes,
-                                        y=self.env._sum_thermal,
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_thermal,
                                         selector=dict(name="Sum Thermal"))
 
-        self.fig_line_cap.update_traces(x=self.env._datetimes,
-                                        y=self.env._max_line_flow,
+        self.fig_line_cap.update_traces(x=data._datetimes,
+                                        y=data._max_line_flow,
                                         selector=dict(name="Highest line capacity"))
-        self.fig_line_cap.update_traces(x=self.env._datetimes,
-                                        y=self.env._secondmax_line_flow,
+        self.fig_line_cap.update_traces(x=data._datetimes,
+                                        y=data._secondmax_line_flow,
                                         selector=dict(name="2nd highest line cap."))
-        self.fig_line_cap.update_traces(x=self.env._datetimes,
-                                        y=self.env._thirdmax_line_flow,
+        self.fig_line_cap.update_traces(x=data._datetimes,
+                                        y=data._thirdmax_line_flow,
                                         selector=dict(name="3rd highest line cap."))
-        self.fig_line_cap.update_traces(x=(self.env._datetimes[0], self.env._datetimes[-1]),
+        self.fig_line_cap.update_traces(x=(data._datetimes[0], data._datetimes[-1]),
                                         selector=dict(name="Overflow limit"))
         self._timer_update += time.time() - beg_
         # print(f"temporal series: {self._timer_update = }")
