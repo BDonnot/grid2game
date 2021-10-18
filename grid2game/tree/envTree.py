@@ -394,18 +394,17 @@ class EnvTree(object):
             return 0
 
         # retrieve the point I clicked on
-        pt_index = pts["pointIndex"]
-        node = self._all_nodes[int(pt_index)]
-
-        # make sure it's the right coordinates
+        # and make sure it's the right coordinates
         posx = pts["x"]
         posy = pts["y"]
-        th_x = self.Xn[pt_index]
-        th_y = self.Yn[pt_index]
-        if th_x == posx and th_y == posy:
-            # It's the right coordinates, i move there
-            self.go_to_node(node)
+        for pt_index, node in enumerate(self._all_nodes):
+            th_x = self.Xn[pt_index]
+            th_y = self.Yn[pt_index]
+            if th_x == posx and th_y == posy:
+                # It's the right coordinates, i move there
+                self.go_to_node(node)
         return 1
+
 
 if __name__ == "__main__":
     import grid2op
