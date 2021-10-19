@@ -405,6 +405,22 @@ class EnvTree(object):
                 self.go_to_node(node)
         return 1
 
+    def get_current_action_list(self):
+        """return the list of actions from the current point in the tree up to the root"""
+        res = []
+        # retrieve the list of actions from me to the root
+        node = self._current_node
+        while True:
+            if node.father is None:
+                # I arrived at the root of the tree
+                break
+            father = node.father
+            link_from_father_to_node = father.get_actions_to_sons()[node.father_id]
+            res.append(link_from_father_to_node.action)
+            node = father
+        # I return the list, but going from root to end, and not the opposite
+        return res[::-1]
+
 
 if __name__ == "__main__":
     import grid2op

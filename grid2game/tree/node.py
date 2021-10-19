@@ -29,6 +29,9 @@ class Node(object):
                  done: Union[bool, None],
                  info: Union[dict, None]):
         self._id: int = id_
+        self._father_id: Union[None, int] = None  # None if its the root
+        # we should get: self.father._act_to_sons[self._father_id].son is self
+
         self._father: Union["Node", None] = father
         self.step: int = obs.current_step  # unique identifier of the node ID
 
@@ -62,9 +65,16 @@ class Node(object):
                 break
         return res
 
+    def set_father_id(self, id_):
+        """set the self._father_id member
+        This ensures that: self.father._act_to_sons[self._father_id].son is self
+        """
+        self._father_id = id_
+
     def add_son(self, action: BaseAction, son: "Node") -> Link:
         """add a son to this node"""
         res = Link(action=action, father=self)
+        son.set_father_id(len(self._act_to_sons))
         res.add_son(son=son)
         self._act_to_sons.append(res)
         return res
@@ -82,6 +92,17 @@ class Node(object):
     def father(self) -> Union[None, "Node"]:
         """return the father of the current node (can return None) if called on the root of the tree"""
         return self._father
+
+    @property
+    def father_id(self) -> Union[None, "Node"]:
+        """return the father_id of this node.
+
+        Notes
+        -----
+        we should get: self.father.act_to_sons[self.father_id].son is self
+
+        """
+        return self._father_id
 
     def clear(self) -> None:
         """clear this node"""

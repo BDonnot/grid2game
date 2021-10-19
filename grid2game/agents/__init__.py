@@ -15,7 +15,7 @@ def load_assistant(assistant_path, assistant_seed, env):
     """utility to load the agent"""
     # lazy loading
     res = None
-    print("Loading an assistant with \"load_assistant\"")
+    print(f"Loading an assistant with \"load_assistant\": {assistant_path = }")
     if assistant_path is not None:
         abs_assistant_path = os.path.abspath(assistant_path)
         if not os.path.exists(assistant_path):

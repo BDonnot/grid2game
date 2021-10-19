@@ -1428,6 +1428,7 @@ class VizServer:
         try:
             properly_loaded = self.env.load_assistant(self.assistant_path)
         except Exception as exc_:
+            print(f"Cannot load assistant with error: {exc_}")
             return [f"❌ {exc_}", dash.no_update]
         clear = 0
         if properly_loaded:
@@ -1448,7 +1449,9 @@ class VizServer:
         """
         This callback save the experiment using a grid2op runner.
 
-        work in progress
+        work in progress !
+
+        TODO: reuse the computation of the environment instead of creating a runner for such purpose !
         """
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -1462,28 +1465,38 @@ class VizServer:
         if save_expe_path is None:
             return ["❌ invalid path (None)"]
 
-        self.env.start_computation()  # prevent other type of computation
         self.save_expe_path = save_expe_path.rstrip().lstrip()
         if not os.path.exists(self.save_expe_path):
             return ["❌ invalid path (does not exists)"]
         if not os.path.isdir(self.save_expe_path):
             return ["❌ invalid path (not a directory)"]
-
-        env = self.env.glop_env
-        nb_step = self.env.obs.current_step
-        chro_id = env.chronics_handler.get_id()
-        from grid2op.Runner import Runner
-        runner = Runner(**env.get_params_for_runner(),
-                        # agentClass=... TODO
-                        )
-        runner.run(nb_episode=1,
-                   path_save=self.save_expe_path,
-                   episode_id=[chro_id],
-                   # env_seeds=[self.env.e], TODO
-                   # agent_seeds=[self.], TODO
-                   pbar=True)
-        self.env.stop_computation()  # prevent other type of computation
-        return [f"✅ saved in \"{self.save_expe_path}\""]
+        self.env.start_computation()  # prevent other type of computation
+        try:
+            env = self.env.glop_env.copy()
+            nb_step = self.env.obs.current_step
+            chro_id = env.chronics_handler.get_id()
+            from grid2op.Runner import Runner
+            from grid2op.Agent import FromActionsListAgent
+            list_action = self.env.get_current_action_list()
+            agent = FromActionsListAgent(env.action_space, list_action)
+            runner = Runner(**env.get_params_for_runner(),
+                            agentClass=None,
+                            agentInstance=agent
+                            )
+            runner.run(nb_episode=1,
+                       path_save=self.save_expe_path,
+                       episode_id=[chro_id],
+                       max_iter=nb_step + 1,
+                       # env_seeds=[self.env.e], TODO
+                       # agent_seeds=[self.], TODO
+                       pbar=True)
+            res = f"✅ saved in \"{self.save_expe_path}\""
+        except Exception as exc_:
+            res = f"❌ Something went wrong during the saving of the experiment. Error: {exc_}"
+        finally:
+            # ensure I stop the computation that i fake to start here
+            self.env.stop_computation()  # prevent other type of computation
+        return [res]
 
     def timeline_set_time(self, time_line_graph_clicked):
         if self.env.is_computing():

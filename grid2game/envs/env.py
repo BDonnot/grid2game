@@ -332,3 +332,7 @@ class Env(ComputeWrapper):
         res = self.env_tree.move_from_click(time_line_graph_clcked)
         self.stop_computation()  # this is a "one time" call
         return res
+
+    def get_current_action_list(self):
+        """return the list of actions from the current point in the tree up to the root"""
+        return self.env_tree.get_current_action_list()
