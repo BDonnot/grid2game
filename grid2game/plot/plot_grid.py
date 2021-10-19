@@ -1145,7 +1145,7 @@ class PlotGrids(PlotParams):
         elif self.line_info == "name":
             text = name
         elif self.line_info == "th_lim":
-            text = f" {obs._thermal_limit[id_]}A"
+            text = f" {obs._thermal_limit[id_]:.0f}A"
         elif self.line_info == "cooldown":
             text = f" {obs.time_before_cooldown_line[id_]} "
         elif self.line_info == "timestep_overflow":
@@ -1161,9 +1161,9 @@ class PlotGrids(PlotParams):
             if self.line_info == "p":
                 text_or = f" {obs.p_or[id_]:.2f}MW"
             elif self.line_info == "v":
-                text_or = f" {obs.q_or[id_]:.2f}kV"
+                text_or = f" {obs.v_or[id_]:.2f}kV"
             elif self.line_info == "q":
-                text_or = f" {obs.v_or[id_]:.2f}MVAr"
+                text_or = f" {obs.q_or[id_]:.2f}MVAr"
             elif self.line_info == "a":
                 text_or = f" {obs.a_or[id_]:.2f}A"
             elif self.line_info == "none":
@@ -1179,9 +1179,9 @@ class PlotGrids(PlotParams):
             # find which text is displayed
             if self.line_info == "p":
                 text_ex = f" {obs.p_ex[id_]:.2f}MW"
-            elif self.line_info == "v":
-                text_ex = f" {obs.q_ex[id_]:.2f}MVAr"
             elif self.line_info == "q":
+                text_ex = f" {obs.q_ex[id_]:.2f}MVAr"
+            elif self.line_info == "v":
                 text_ex = f" {obs.v_ex[id_]:.2f}kV"
             elif self.line_info == "a":
                 text_ex = f" {obs.a_ex[id_]:.2f}A"
