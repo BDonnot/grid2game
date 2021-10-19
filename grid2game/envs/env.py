@@ -50,6 +50,8 @@ class Env(ComputeWrapper):
                                      backend=bkClass(),
                                      action_class=PlayableAction,
                                      **kwargs)
+        self.do_stop_if_alarm = True  # I stop if an alarm is raised by the assistant, by default
+        # TODO have a way to change self.do_stop_if_alarm easily from the UI
 
         self.env_tree = EnvTree()
         self._current_action = None
@@ -138,6 +140,11 @@ class Env(ComputeWrapper):
         elif self.next_computation == "step_rec":
             # beg_ = time.time()
             res = self.step()
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            if self._stop_if_alarm(obs):
+                # I stop the computation if the agent sends an alarm
+                print("step_rec: An alarm is raised, I stop")
+                self.stop_computation()
             # print(f"time for step: {time.time() - beg_}")
             return res
         elif self.next_computation == "step_rec_fast":
@@ -145,6 +152,10 @@ class Env(ComputeWrapper):
             res = None
             for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
                 res = self.step()
+                obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+                if self._stop_if_alarm(obs):
+                    print("step_rec_fast: An alarm is raised, I stop")
+                    break
             self.stop_computation()  # this is a "one time" call
             return res
         elif self.next_computation == "step_end":
@@ -154,6 +165,9 @@ class Env(ComputeWrapper):
             while not done:
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+                if self._stop_if_alarm(obs):
+                    print("step_end: An alarm is raised, I stop")
+                    break
             self.stop_computation()  # this is a "one time" call
             self.authorize_dispay()
             return res
@@ -183,6 +197,12 @@ class Env(ComputeWrapper):
         # elif self.next_computation == "take_last_action":  # TODO is this really public api ?
         #     self.stop_computation()  # this is a "one time" call
         #     return self.take_last_action()
+
+    def _stop_if_alarm(self, obs):
+        if self.do_stop_if_alarm:
+            if np.any(obs.time_since_last_alarm == 0):
+                return True
+        return False
 
     @property
     def action_space(self):
