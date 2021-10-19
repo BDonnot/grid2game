@@ -1170,7 +1170,7 @@ class PlotGrids(PlotParams):
                 pass
             # TODO handle some "diff" here based on previous time stamps
             else:
-                raise RuntimeError(f"Unsupported line value for or side: {self.line_info}")
+                raise RuntimeError(f"Unsupported line value for or side info : {self.line_info}")
         dict_traces[name+"_value_or"] = {"text": [text_or]}
 
         # text extremity side
@@ -1189,5 +1189,5 @@ class PlotGrids(PlotParams):
                 pass
             # TODO handle some "diff" here based on previous time stamps
             else:
-                raise RuntimeError(f"Unsupported line value for ex side: {self.line_info}")
+                raise RuntimeError(f"Unsupported line value for ex side info : {self.line_info}")
         dict_traces[name+"_value_ex"] = {"text": [text_ex]}

@@ -997,22 +997,34 @@ class VizServer:
     def unit_clicked(self, line_unit, line_side, load_unit, gen_unit, stor_unit,
                      trigger_rt_graph, trigger_for_graph):
         """handle the click to all button to change the units"""
+        trigger_rt_graph = 0
+        trigger_for_graph = 0
         # controls the panels of the main graph of the grid
         if line_unit != self.plot_grids.line_info:
             self.plot_grids.line_info = line_unit
             self.plot_grids.update_lines_info()
+            trigger_rt_graph = 1
+            trigger_for_graph = 1
         if line_side != self.plot_grids.line_side:
             self.plot_grids.line_side = line_side
             self.plot_grids.update_lines_side()
+            trigger_rt_graph = 1
+            trigger_for_graph = 1
         if load_unit != self.plot_grids.load_info:
             self.plot_grids.load_info = load_unit
             self.plot_grids.update_loads_info()
+            trigger_rt_graph = 1
+            trigger_for_graph = 1
         if gen_unit != self.plot_grids.gen_info:
             self.plot_grids.gen_info = gen_unit
             self.plot_grids.update_gens_info()
+            trigger_rt_graph = 1
+            trigger_for_graph = 1
         if stor_unit != self.plot_grids.storage_info:
             self.plot_grids.storage_info = stor_unit
             self.plot_grids.update_storages_info()
+            trigger_rt_graph = 1
+            trigger_for_graph = 1
         return [trigger_rt_graph, trigger_for_graph]
 
     # handle the interaction with the grid2op environment
