@@ -118,7 +118,7 @@ class EnvTree(object):
                                                opacity=0.8
                                                ))
 
-        # game over vertices
+        #  success vertices
         self.fig_timeline.add_trace(go.Scatter(x=[],
                                                y=[],
                                                mode='markers',
@@ -126,6 +126,20 @@ class EnvTree(object):
                                                marker=dict(symbol='star',
                                                            size=15,
                                                            color='darkgreen'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
+
+        # alert vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_alert',
+                                               marker=dict(symbol='triangle-down-dot',
+                                                           size=16,
+                                                           color='darkorange'
                                                            ),
                                                text=[],
                                                hoverinfo='text',
@@ -295,12 +309,15 @@ class EnvTree(object):
         node_normal = []
         node_game_over = []
         node_sucess = []
+        node_alert = []
         for node in self._all_nodes:
             if node.done:
                 if node.step != self._current_node.obs.max_step:
                     node_game_over.append(node.id)
                 else:
                     node_sucess.append(node.id)
+            elif np.any(node.obs.time_since_last_alarm == 0):
+                node_alert.append(node.id)
             else:
                 node_normal.append(node.id)
 
@@ -319,6 +336,10 @@ class EnvTree(object):
                                         y=Yn[node_sucess],
                                         text=[f"{id_}" for id_ in node_sucess],
                                         selector=dict(name="nodes_success"))
+        self.fig_timeline.update_traces(x=Xn[node_alert],
+                                        y=Yn[node_alert],
+                                        text=[f"{id_}" for id_ in node_alert],
+                                        selector=dict(name="nodes_alert"))
         self.fig_timeline.update_traces(x=Xe,
                                         y=Ye,
                                         selector=dict(name="edges"))
