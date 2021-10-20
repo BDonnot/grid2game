@@ -42,14 +42,23 @@ class Env(ComputeWrapper):
                  env_name,
                  assistant_path=None,
                  assistant_seed=0,
+                 logger=None,
                  **kwargs):
         ComputeWrapper.__init__(self)
+
+        if logger is None:
+            import logging
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger.getChild("Env")
 
         # TODO some configuration here
         self.glop_env = grid2op.make(env_name,
                                      backend=bkClass(),
                                      action_class=PlayableAction,
+                                     logger=self.logger,
                                      **kwargs)
+        self.logger.info("Grid2op environment initialized")
         self.do_stop_if_alarm = True  # I stop if an alarm is raised by the assistant, by default
         # TODO have a way to change self.do_stop_if_alarm easily from the UI
 
@@ -91,11 +100,11 @@ class Env(ComputeWrapper):
         return self.env_tree.plot_plotly()
 
     def load_assistant(self, assistant_path):
-        print(f"attempt to load assistant with path : \"{assistant_path}\"")
+        self.logger.info(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
-        if assistant_path != "" and not assistant_path in {"unload", "\"", "\"\""}:
+        if assistant_path != "" and assistant_path not in {"unload", "\"", "\"\""}:
             # a real path has been set up
-            tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env.copy())
+            tmp = load_assistant(assistant_path, self._assistant_seed, self.glop_env.copy(), logger=self.logger)
             if tmp is not None:
                 # it means the agent has been loaded
                 self.assistant = tmp
@@ -123,11 +132,13 @@ class Env(ComputeWrapper):
             #                                _assistant_action,
             #                                _obs, _reward, _done, _info,
             #                                glop_env)
-        print("assistant loaded")
+        self.logger.info(f"assistant loaded with class {type(self.assistant)}")
         return has_been_loaded
 
     def do_computation(self):
-        # print(f"do_computation: {self.next_computation = }")
+        if self.next_computation is None:
+            return
+
         if self.next_computation == "load_assistant":
             self.stop_computation()  # this is a "one time" call
             return self.load_assistant(**self.next_computation_kwargs)
@@ -138,14 +149,12 @@ class Env(ComputeWrapper):
             self.stop_computation()  # this is a "one time" call
             return self.step(**self.next_computation_kwargs)
         elif self.next_computation == "step_rec":
-            # beg_ = time.time()
             res = self.step()
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             if self._stop_if_alarm(obs):
                 # I stop the computation if the agent sends an alarm
-                print("step_rec: An alarm is raised, I stop")
+                self.logger.info("step_rec: An alarm is raised, I stop")
                 self.stop_computation()
-            # print(f"time for step: {time.time() - beg_}")
             return res
         elif self.next_computation == "step_rec_fast":
             # currently not used !
@@ -154,7 +163,7 @@ class Env(ComputeWrapper):
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
                 if self._stop_if_alarm(obs):
-                    print("step_rec_fast: An alarm is raised, I stop")
+                    self.logger.info("step_rec_fast: An alarm is raised, I stop")
                     break
             self.stop_computation()  # this is a "one time" call
             return res
@@ -166,7 +175,7 @@ class Env(ComputeWrapper):
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
                 if self._stop_if_alarm(obs):
-                    print("step_end: An alarm is raised, I stop")
+                    self.logger.info("step_end: An alarm is raised, I stop")
                     break
             self.stop_computation()  # this is a "one time" call
             self.authorize_dispay()
@@ -184,7 +193,9 @@ class Env(ComputeWrapper):
             self.stop_computation()  # this is a "one time" call
             return self.reset()
         else:
-            raise RuntimeError(f"Unknown method to call: {self.next_computation = }")
+            msg_ = f"Unknown method to call: {self.next_computation = }"
+            self.logger.error(msg_)
+            raise RuntimeError(msg_)
         # elif self.next_computation == "next_action_is_dn":  # TODO is this really public api ?
         #     self.stop_computation()  # this is a "one time" call
         #     return self.next_action_is_dn()
@@ -259,7 +270,7 @@ class Env(ComputeWrapper):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
 
         if obs.time_since_last_alarm == 0:
-            print("The assistant raised an alarm !")
+            self.logger.info("The assistant raised an alarm !")
             self.stop_computation()
 
         if not done:

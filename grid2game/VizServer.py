@@ -31,7 +31,12 @@ class VizServer:
     SELF_LOOP_GO = 1
     SELF_LOOP_GOFAST = 2
 
-    def __init__(self, server, args):
+    def __init__(self,
+                 server,
+                 args,
+                 logger=None,
+                 logging_level=None  # only used if logger is None
+                 ):
         meta_tags = [
             {
                 'name': 'grid2game',
@@ -76,6 +81,23 @@ class VizServer:
             os.path.join(os.path.dirname(__file__), "assets")
         )
 
+        if logger is None:
+            import logging
+            self.logger = logging.getLogger(__name__)
+            formatter = logging.Formatter('%(asctime)s - %(name)s %(filename)s.%(lineno)d | '
+                                          '%(levelname)s:: %(message)s')
+            fh = logging.FileHandler(f'{__name__}.log')
+            fh.setFormatter(formatter)
+            ch = logging.StreamHandler()
+            ch.setFormatter(formatter)
+            if logging_level is not None:
+                fh.setLevel(logging_level)
+                ch.setLevel(logging_level)
+            self.logger.addHandler(fh)
+            self.logger.addHandler(ch)
+        else:
+            self.logger = logger.getChild("VizServer")
+
         # create the dash app
         self.my_app = dash.Dash(__name__,
                                 server=server if server is not None else True,
@@ -83,6 +105,7 @@ class VizServer:
                                 assets_folder=assets_dir,
                                 external_stylesheets=external_stylesheets,
                                 external_scripts=external_scripts)
+        self.logger.info("Dash app initialized")
         # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
@@ -91,7 +114,9 @@ class VizServer:
         self.env = Env(args.env_name,
                        test=args.is_test,
                        assistant_path=self.assistant_path,
-                       assistant_seed=int(args.assistant_seed) if args.assistant_seed is not None else None)
+                       assistant_seed=int(args.assistant_seed) if args.assistant_seed is not None else None,
+                       logger=self.logger)
+        self.logger.info("Environment initialized")
         self.plot_grids = PlotGrids(self.env.observation_space)
         self.fig_timeline = self.env.get_timeline_figure()
 
@@ -320,7 +345,7 @@ class VizServer:
         # callback for the timeline
         self.my_app.callback([dash.dependencies.Output("recompute_rt_from_timeline", "n_clicks")],
                              [dash.dependencies.Input('timeline_graph', 'clickData')])(self.timeline_set_time)
-        print("Viz server initialized")
+        self.logger.info("Viz server initialized")
 
     def run_server(self, debug=False):
         self.my_app.run_server(debug=debug)
@@ -1218,7 +1243,6 @@ class VizServer:
 
     # end point of the trigger stuff: what is displayed on the page !
     def update_temporal_figs(self, figrt_trigger, showhide_trigger):
-        # print("I enter update_temporal_figs")
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (showhide_trigger is None or showhide_trigger == 0):
             raise dash.exceptions.PreventUpdate
@@ -1301,7 +1325,7 @@ class VizServer:
                     is_modif = True
                 except Exception as exc_:
                     # either initialization of something else
-                    print(exc_)
+                    self.logger.error(f"Error in display_action_fun: {exc_}")
                     pass
             if stor_id != "":
                 self.env._current_action.storage_p = [(int(stor_id), float(storage_p))]
@@ -1428,7 +1452,7 @@ class VizServer:
         try:
             properly_loaded = self.env.load_assistant(self.assistant_path)
         except Exception as exc_:
-            print(f"Cannot load assistant with error: {exc_}")
+            self.logger.error(f"Error in load_assistant: {exc_}")
             return [f"❌ {exc_}", dash.no_update]
         clear = 0
         if properly_loaded:
@@ -1460,16 +1484,25 @@ class VizServer:
 
         if self.env.is_computing():
             # cannot save while an experiment is running
-            return ["⌛ environment is still computing"]
+            msg_ = "environment is still computing"
+            self.logger.info(f"save_expe: {msg_}")
+            return [f"⌛ {msg_}"]
 
         if save_expe_path is None:
-            return ["❌ invalid path (None)"]
+            msg_ = "invalid path (None)"
+            self.logger.info(f"save_expe: {msg_}")
+            return [f"❌ {msg_}"]
 
         self.save_expe_path = save_expe_path.rstrip().lstrip()
         if not os.path.exists(self.save_expe_path):
-            return ["❌ invalid path (does not exists)"]
+            msg_ = "invalid path (does not exists)"
+            self.logger.info(f"save_expe: {msg_}")
+            return [f"❌ {msg_}"]
         if not os.path.isdir(self.save_expe_path):
-            return ["❌ invalid path (not a directory)"]
+            msg_ = "invalid path (not a directory)"
+            self.logger.info(f"save_expe: {msg_}")
+            return [f"❌ {msg_}"]
+        self.logger.info(f"saving experiment in {self.save_expe_path}")
         self.env.start_computation()  # prevent other type of computation
         try:
             env = self.env.glop_env.copy()
@@ -1479,19 +1512,25 @@ class VizServer:
             from grid2op.Agent import FromActionsListAgent
             list_action = self.env.get_current_action_list()
             agent = FromActionsListAgent(env.action_space, list_action)
-            runner = Runner(**env.get_params_for_runner(),
+            dict_ = env.get_params_for_runner()
+            if "logger" in dict_:
+                # don't use the logger of the grid2op environment
+                del dict_["logger"]
+            runner = Runner(**dict_,
                             agentClass=None,
-                            agentInstance=agent
+                            agentInstance=agent,
+                            logger=self.logger,
                             )
             runner.run(nb_episode=1,
                        path_save=self.save_expe_path,
                        episode_id=[chro_id],
-                       max_iter=nb_step + 1,
-                       # env_seeds=[self.env.e], TODO
-                       # agent_seeds=[self.], TODO
+                       max_iter=max(nb_step + 1, 2),
+                       env_seeds=[self.env.glop_env.seed_used],  # TODO. in case of "reset" this might not work
+                       # agent_seeds=[self.], TODO... This might require deep rework of this function !
                        pbar=True)
             res = f"✅ saved in \"{self.save_expe_path}\""
         except Exception as exc_:
+            self.logger.error(f"save_expe exception while trying to save the experiment: {exc_}")
             res = f"❌ Something went wrong during the saving of the experiment. Error: {exc_}"
         finally:
             # ensure I stop the computation that i fake to start here
