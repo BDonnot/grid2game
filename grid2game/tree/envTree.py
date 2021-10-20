@@ -389,9 +389,10 @@ class EnvTree(object):
             # I cannot extract the point number
             return 0
 
-        if pts["curveNumber"] != 2:
-            # I did not click a node on the graph, but something else
-            return 0
+        # It does not work because of the "end" part, see https://github.com/BDonnot/grid2game/issues/17
+        # if pts["curveNumber"] != 2:
+        #     # I did not click a node on the graph, but something else
+        #     return 0
 
         # retrieve the point I clicked on
         # and make sure it's the right coordinates
