@@ -516,7 +516,7 @@ class VizServer:
                                                                  id="select_assistant",
                                                                  type="text",
                                                                  style={
-                                                                     'width': '70%',
+                                                                     'width': '68%',
                                                                      'height': '55px',
                                                                      'lineHeight': '55px',
                                                                      'vertical-align': 'middle',
@@ -531,7 +531,7 @@ class VizServer:
                                                                          "margin-left": 5}),
                                                        html.P(self.format_path(self.assistant_path),
                                                               id="current_assistant_path",
-                                                              style={'width': '25%',
+                                                              style={'width': '24%',
                                                                      'textAlign': 'center',
                                                                      'height': '55px',
                                                                      'vertical-align': 'middle',
@@ -551,11 +551,11 @@ class VizServer:
                                     )
         save_experiment = html.Div(id='save_expe_box',
                                    children=html.Div([dcc.Input(placeholder='Where do you want to save the current '
-                                                                           'experiment?',
+                                                                            'experiment?',
                                                                 id="save_expe",
                                                                 type="text",
                                                                 style={
-                                                                    'width': '70%',
+                                                                    'width': '68%',
                                                                     'height': '55px',
                                                                     'lineHeight': '55px',
                                                                     'vertical-align': 'middle',
@@ -570,7 +570,7 @@ class VizServer:
                                                                         "margin-left": 5}),
                                                       html.P(self.format_path(self.assistant_path),
                                                              id="current_save_path",
-                                                             style={'width': '25%',
+                                                             style={'width': '24%',
                                                                     'textAlign': 'center',
                                                                     'height': '55px',
                                                                     'vertical-align': 'middle',
