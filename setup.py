@@ -14,7 +14,7 @@ pkgs = {
         "plotly",
         "dash",
         "dash_bootstrap_components",
-        "grid2op>=1.6.3",
+        "grid2op>=1.6.4",
         "orjson",
         # "igraph"
         # "graphviz",
@@ -24,12 +24,12 @@ pkgs = {
 }
 
 setup(name='grid2game',
-      version='0.0.0a',
+      version='0.0.1a',
       description='A gamification of the "powergrid problem" using grid2op and dash',
       classifiers=[
           'Development Status :: 2 - Pre-Alpha',
           'Programming Language :: Python :: 3.7',
-          'License :: OSI Approved :: MIT License',
+          "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
           "Intended Audience :: Developers",
           "Intended Audience :: Education",
           "Intended Audience :: Science/Research",
@@ -41,7 +41,7 @@ setup(name='grid2game',
       author='Benjamin DONNOT',
       author_email='benjamin.donnot@rte-france.com',
       url="https://github.com/BDonnot/grid2game",
-      license='MIT',
+      license='MPL',
       packages=setuptools.find_packages(),
       include_package_data=True,
       install_requires=pkgs["required"],
