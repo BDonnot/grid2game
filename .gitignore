@@ -139,3 +139,5 @@ test_circular_dep.py
 bug_chronix2grid.py
 test_deepcopy_env.py
 .vscode/
+g2op_env_customization.py
+g2op_params.json

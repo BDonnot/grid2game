@@ -37,6 +37,7 @@ class PlotTemporalSeries(object):
         self.color_solar = SOLAR_COLOR
         self.color_hydro = HYDRO_COLOR
         self.color_load = "black"
+        self.color_import_export = "gray"
 
         # height
         self.height = 500
@@ -131,9 +132,17 @@ class PlotTemporalSeries(object):
         tmp_ = go.Scatter(x=data._datetimes,
                           y=data._sum_load,
                           mode="lines",
-                          name="Sum Load",
+                          name="Total Load",
                           showlegend=True,
                           line=dict(color=self.color_load))
+        self.fig_load_gen.add_trace(tmp_)
+
+        tmp_ = go.Scatter(x=data._datetimes,
+                          y=data._sum_import_export,
+                          mode="lines",
+                          name="Import / export",
+                          showlegend=True,
+                          line=dict(color=self.color_import_export))
         self.fig_load_gen.add_trace(tmp_)
         self.fig_load_gen.update_layout(title={'text': "Power production and consumption"},
                                         xaxis_title='date and time',
@@ -161,7 +170,10 @@ class PlotTemporalSeries(object):
                                         selector=dict(name="Sum Nuclear"))
         self.fig_load_gen.update_traces(x=data._datetimes,
                                         y=data._sum_load,
-                                        selector=dict(name="Sum Load"))
+                                        selector=dict(name="Total Load"))
+        self.fig_load_gen.update_traces(x=data._datetimes,
+                                        y=data._sum_import_export,
+                                        selector=dict(name="Import / export"))
         self.fig_load_gen.update_traces(x=data._datetimes,
                                         y=data._sum_thermal,
                                         selector=dict(name="Sum Thermal"))

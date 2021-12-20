@@ -38,6 +38,14 @@ def cli():
                         default="", type=str,
                         help="path where the \"make_agent\" function is defined")
 
+    # TODO better parameters
+    parser.add_argument("--g2op_param", required=False,
+                    default="", type=str,
+                    help="path to look for grid2op environment parameters (used in env.change_parameters(g2op_param)).")
+    parser.add_argument("--g2op_config", required=False,
+                    default="", type=str,
+                    help="path to look for grid2op config parameters (used in env.make(..., **g2op_config)).")
+
     # TODO for backend too
 
     # TODO add an option to change the parameters of the environment
@@ -47,7 +55,7 @@ def cli():
 
 def get_viz_server(server=None):
     args = cli()
-    viz_server = VizServer(args=args, server=server)
+    viz_server = VizServer(build_args=args, server=server)
     return args.dev, viz_server
 
 

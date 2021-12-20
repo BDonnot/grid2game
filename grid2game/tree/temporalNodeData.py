@@ -9,6 +9,7 @@
 import copy
 import numpy as np
 from typing import Union
+import re
 
 from grid2op.Observation import BaseObservation
 
@@ -24,6 +25,7 @@ class TemporalNodeData(object):
         if father_node_data is not None:
             # I am not the root of the tree
             self._sum_load = copy.deepcopy(father_node_data._sum_load)
+            self._sum_import_export = copy.deepcopy(father_node_data._sum_import_export)
             self._max_line_flow = copy.deepcopy(father_node_data._max_line_flow)
             self._secondmax_line_flow = copy.deepcopy(father_node_data._secondmax_line_flow)
             self._thirdmax_line_flow = copy.deepcopy(father_node_data._thirdmax_line_flow)
@@ -36,6 +38,7 @@ class TemporalNodeData(object):
         else:
             # I am data at the root of the tree
             self._sum_load = []
+            self._sum_import_export = []
             self._max_line_flow = []
             self._secondmax_line_flow = []
             self._thirdmax_line_flow = []
@@ -49,7 +52,10 @@ class TemporalNodeData(object):
         self._fill_info_vect(current_obs)
 
     def _fill_info_vect(self, current_obs):
-        self._sum_load.append(np.sum(current_obs.load_p))
+        mask_load = np.array([re.match("^load_.*$", el) is not None for el in current_obs.name_load])
+        self._sum_load.append(np.sum(current_obs.load_p[mask_load]))
+        self._sum_import_export.append(np.sum(current_obs.load_p[~mask_load]))
+
         rhos_ = np.partition(current_obs.rho.flatten(), -3)
         self._max_line_flow.append(rhos_[-1])
         self._secondmax_line_flow.append(rhos_[-2])
