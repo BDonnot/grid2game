@@ -8,4 +8,4 @@
 __all__ = ["setupLayout", "add_callbacks"]
 
 from ._viz_server_layout import setupLayout
-from ._viz_server_callbacks import dash_app
+from ._viz_server_callbacks import add_callbacks

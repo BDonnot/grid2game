@@ -112,7 +112,7 @@ class VizServer:
                        assistant_seed=int(build_args.assistant_seed) if build_args.assistant_seed is not None else None,
                        logger=self.logger,
                        config_dict=g2op_config)
-                       
+
         if build_args.g2op_param is not None and build_args.g2op_param != "":
             self.env.set_params(build_args.g2op_param, reset=False)
 
@@ -162,7 +162,7 @@ class VizServer:
 
         # initialize the layout
         self.my_app.layout = setupLayout(self)
-        add_callbacks(self.my_app)
+        add_callbacks(self.my_app, self)
         self.logger.info("Viz server initialized")
 
     def _make_glop_env_config(self, build_args):
@@ -276,6 +276,8 @@ class VizServer:
         trigger_heavy_computation_wrapper = 1
         something_clicked = True
 
+        loading_state = {'display': 'block'}
+
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
             self.env.start_computation()
@@ -330,6 +332,7 @@ class VizServer:
         if not self.env.needs_compute():
             # don't start the computation if not needed
             trigger_heavy_computation_wrapper = dash.no_update
+            loading_state = {'display': 'none'}  # activate the loading button
 
         if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked:
             # in this case, this should be the first call to this function after the "operate the grid until the
@@ -340,14 +343,16 @@ class VizServer:
             # I need that to the proper update of the progress bar
             self._last_step = self.env.obs.current_step
             self._last_max_step = self.env.obs.max_step
-
+            loading_state = {'display': 'none'}  # activate the loading button
+        print(loading_state)
         return [trigger_heavy_computation_wrapper,
                 self._button_shape,
                 self._button_shape,
                 self._button_shape,
                 self._button_shape,
                 self._go_button_shape,
-                self._gofast_button_shape]
+                self._gofast_button_shape,
+                loading_state]
 
     def computation_wrapper(self, trigger_heavy_computation_wrapper, recompute_rt_from_timeline):
         # simulate a "state" of the application that depends on the computation

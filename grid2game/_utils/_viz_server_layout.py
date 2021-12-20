@@ -81,6 +81,12 @@ def setupLayout(viz_server):
                                         className=button_css,
                                         children=[go_till_game_over])
 
+    # see https://dash.plotly.com/dash-core-components/loading
+    # [dcc.Loading(id="loading_go_fast_", type="circle", children=html.Div(id="loading_go_fast_output"))]
+    loading_go_fast = html.Div(children=[html.P("Is computing", style={'color': 'red'})],
+                               id="loading_go_fast",
+                               style={'display': 'none'})
+
     # Units displayed control
     # TODO add a button "trust assistant up to" that will play the actions suggested by the
     # TODO assistant
@@ -185,7 +191,8 @@ def setupLayout(viz_server):
                                 go_col,
                                 nb_step_go_fast_col,
                                 go_fast_col,
-                                go_till_game_over_col
+                                go_till_game_over_col,
+                                loading_go_fast
                             ])
     select_assistant = html.Div(id='select_assistant_box',
                                 children=html.Div([dcc.Input(placeholder='Copy paste assistant location',

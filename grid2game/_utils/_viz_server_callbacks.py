@@ -82,15 +82,16 @@ def add_callbacks(dash_app, viz_server):
     # handle the interaction with self.env, that should be done all in one function, otherwise
     # there are concurrency issues
     dash_app.callback([
-        # trigger the computation if needed
-        dash.dependencies.Output("trigger_computation", "value"),
-        # update the button color / shape / etc. if needed
-        dash.dependencies.Output("step-button", "className"),
-        dash.dependencies.Output("simulate-button", "className"),
-        dash.dependencies.Output("back-button", "className"),
-        dash.dependencies.Output("reset-button", "className"),
-        dash.dependencies.Output("go-button", "className"),
-        dash.dependencies.Output("gofast-button", "className"),
+                      # trigger the computation if needed
+                       dash.dependencies.Output("trigger_computation", "value"),
+                       # update the button color / shape / etc. if needed
+                       dash.dependencies.Output("step-button", "className"),
+                       dash.dependencies.Output("simulate-button", "className"),
+                       dash.dependencies.Output("back-button", "className"),
+                       dash.dependencies.Output("reset-button", "className"),
+                       dash.dependencies.Output("go-button", "className"),
+                       dash.dependencies.Output("gofast-button", "className"),
+                       dash.dependencies.Output("loading_go_fast", "style"),
                         ],
                         [dash.dependencies.Input("step-button", "n_clicks"),
                         dash.dependencies.Input("simulate-button", "n_clicks"),
@@ -109,7 +110,8 @@ def add_callbacks(dash_app, viz_server):
                         )(viz_server.handle_act_on_env)
 
     dash_app.callback([dash.dependencies.Output("act_on_env_trigger_rt", "n_clicks"),
-                            dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")],
+                       dash.dependencies.Output("act_on_env_trigger_for", "n_clicks")
+                      ],
                             [dash.dependencies.Input("trigger_computation", "value"),
                             dash.dependencies.Input("recompute_rt_from_timeline", "n_clicks")]
                             )(viz_server.computation_wrapper)

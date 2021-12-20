@@ -13,6 +13,7 @@ import time
 import grid2op
 from grid2op.Action import PlayableAction
 from grid2op.Backend import PandaPowerBackend
+from grid2op.Exceptions import NoForecastAvailable
 
 try:
     from lightsim2grid import LightSimBackend
@@ -297,12 +298,17 @@ class Env(ComputeWrapper):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
 
         if obs.time_since_last_alarm == 0:
-            self.logger.info("The assistant raised an alarm !")
+            self.logger.info("step: The assistant raised an alarm !")
             self.stop_computation()
 
         if not done:
             self.choose_next_action()
-            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+            self.logger.info("step: done if False")
+            try:
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+            except NoForecastAvailable:
+                self.logger.warn("step: no forecast seems to be available for the current observation.")
+                pass
         else:
             self._sim_done = True
             self._sim_reward = self.glop_env.reward_range[0]
