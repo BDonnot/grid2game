@@ -146,7 +146,7 @@ class PlotTemporalSeries(object):
             return self.fig_load_gen, self.fig_line_cap
 
         data = tree.temporal_data
-        beg_ = time.time()
+        beg_ = time.perf_counter()
         self.fig_load_gen.update_traces(x=data._datetimes,
                                         y=data._sum_hydro,
                                         selector=dict(name="Sum Hydro"))
@@ -177,6 +177,6 @@ class PlotTemporalSeries(object):
                                         selector=dict(name="3rd highest line cap."))
         self.fig_line_cap.update_traces(x=(data._datetimes[0], data._datetimes[-1]),
                                         selector=dict(name="Overflow limit"))
-        self._timer_update += time.time() - beg_
+        self._timer_update += time.perf_counter() - beg_
         # print(f"temporal series: {self._timer_update = }")
         return self.fig_load_gen, self.fig_line_cap
