@@ -28,11 +28,17 @@ def setupLayout(viz_server):
     header = html.Header(id="header", className="row w-100", children=[title])
 
     # App
+    button_css = "" # col-6 col-sm-6 col-md-3 col-lg-3 col-xl-1"
     reset_button = html.Label("Reset",
-                                id="reset-button",
-                                n_clicks=0,
-                                className="btn btn-primary")
+                              id="reset-button",
+                              n_clicks=0,
+                              className="btn btn-primary")
     reset_button_dummy = html.P("", style={'display': 'none'})
+    reset_col = html.Div(id="reset-col",
+                         className=button_css,
+                         children=[reset_button, reset_button_dummy],
+                         style={'display': 'flex'}
+                         )
 
     # Controls widget (step, reset etc.)
     step_button = html.Label("Step",
@@ -69,23 +75,36 @@ def setupLayout(viz_server):
                                     # style={'display': 'none'}
                                     )
     # html display
-    button_css = "col-6 col-sm-6 col-md-3 col-lg-3 col-xl-1"
-    reset_col = html.Div(id="reset-col", className=button_css, children=[reset_button, reset_button_dummy])
-    step_col = html.Div(id="step-col", className=button_css, children=[step_button])
-    sim_col = html.Div(id="sim-step-col", className=button_css, children=[simulate_button])
-    back_col = html.Div(id="back-col", className=button_css, children=[back_button])
-    go_col = html.Div(id="go-col", className=button_css, children=[go_butt])
-    nb_step_go_fast_col = html.Div(id="nb_step_go_fast-col", className=button_css, children=[nb_step_go_fast])
-    go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast])
-    go_till_game_over_col = html.Div(id="continue_until_game_over-col",
-                                        className=button_css,
-                                        children=[go_till_game_over])
+    # step_col = html.Div(id="step-col", className=button_css, children=[step_button])
+    # sim_col = html.Div(id="sim-step-col", className=button_css, children=[simulate_button])
+    # back_col = html.Div(id="back-col", className=button_css, children=[back_button])
+    # go_col = html.Div(id="go-col", className=button_css, children=[go_butt])
+    # nb_step_go_fast_col = html.Div(id="nb_step_go_fast-col", className=button_css, children=[nb_step_go_fast])
+    # go_fast_col = html.Div(id="go_fast-col", className=button_css, children=[go_fast])
+    # go_till_game_over_col = html.Div(id="continue_until_game_over-col", className=button_css, children=[go_till_game_over])
+
 
     # see https://dash.plotly.com/dash-core-components/loading
     # [dcc.Loading(id="loading_go_fast_", type="circle", children=html.Div(id="loading_go_fast_output"))]
     loading_go_fast = html.Div(children=[html.P("Is computing", style={'color': 'red'})],
                                id="loading_go_fast",
                                style={'display': 'none'})
+
+    controls_row = html.Div(id="control-buttons",
+                            # className="row",
+                            children=[
+                                back_button,  # TODO display back only if its possible in the viz_server.env
+                                step_button,
+                                simulate_button,
+                                go_butt,
+                                nb_step_go_fast,
+                                go_fast,
+                                go_till_game_over,
+                                loading_go_fast
+                            ],
+                            style={'justify-content': 'space-between',
+                                   "display": "flex"}
+                            )
 
     # Units displayed control
     # TODO add a button "trust assistant up to" that will play the actions suggested by the
@@ -133,7 +152,7 @@ def setupLayout(viz_server):
                                 ],
                                 value='none',
                                 clearable=False)
-    load_info_div = html.Div(id="load-info", children=[load_info_label, load_info])
+    # load_info_div = html.Div(id="load-info", children=[load_info_label, load_info])
 
     gen_info_label = html.Label("Gen. unit:")
     gen_info = dcc.Dropdown(id='gen-info-dropdown',
@@ -161,11 +180,17 @@ def setupLayout(viz_server):
                                 ],
                                 value='none',
                                 clearable=False)
-    lineinfo_col = html.Div(id="lineinfo-col", className=button_css, children=[line_info_label, line_info])
-    lineside_col = html.Div(id="lineside-col", className=button_css, children=[line_side_label, line_side])
-    loadinfo_col = html.Div(id="loadinfo-col", className=button_css, children=[load_info_div])
-    geninfo_col = html.Div(id="geninfo-col", className=button_css, children=[gen_info_label, gen_info])
-    storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label, stor_info])
+    button_css_class = "unit_buttons"
+    style_button = {"min-width": "15%"}
+    lineinfo_col = html.Div(id="lineinfo-col",
+                            className=button_css_class,
+                            children=[line_info_label, line_info],
+                            style=style_button
+                            )
+    lineside_col = html.Div(id="lineside-col", className=button_css_class, children=[line_side_label, line_side], style=style_button)
+    loadinfo_col = html.Div(id="loadinfo-col", className=button_css_class, children=[load_info_label, load_info], style=style_button)
+    geninfo_col = html.Div(id="geninfo-col", className=button_css_class, children=[gen_info_label, gen_info], style=style_button)
+    storinfo_col = html.Div(id="storinfo-col", className=button_css_class, children=[stor_info_label, stor_info], style=style_button)
     # storinfo_col = html.Div(id="storinfo-col", className=button_css, children=[stor_info_label,
     # show_temporal_graph])
 
@@ -179,98 +204,115 @@ def setupLayout(viz_server):
                                 storinfo_col,
                                 # show_temporal_graph
                             ],
-                            className="row",
+                            style={"display": "flex",
+                                   'justify-content': 'space-between'},
+                            # className="row",
                             )
-
-    controls_row = html.Div(id="control-buttons",
-                            className="row",
-                            children=[
-                                back_col,  # TODO display back only if its possible in the viz_server.env
-                                step_col,
-                                sim_col,
-                                go_col,
-                                nb_step_go_fast_col,
-                                go_fast_col,
-                                go_till_game_over_col,
-                                loading_go_fast
-                            ])
     select_assistant = html.Div(id='select_assistant_box',
-                                children=html.Div([dcc.Input(placeholder='Copy paste assistant location',
-                                                                id="select_assistant",
-                                                                type="text",
-                                                                style={
-                                                                    'width': '68%',
-                                                                    'height': '55px',
-                                                                    'lineHeight': '55px',
-                                                                    'vertical-align': 'middle',
-                                                                    "margin-top": 5,
-                                                                    "margin-left": 20}),
-                                                    html.Label("load",
-                                                                id="load_assistant_button",
-                                                                n_clicks=0,
-                                                                className="btn btn-primary",
-                                                                style={'height': '35px',
-                                                                        "margin-top": 18,
-                                                                        "margin-left": 5}),
-                                                    html.P(viz_server.format_path(viz_server.assistant_path),
-                                                            id="current_assistant_path",
-                                                            style={'width': '24%',
-                                                                    'textAlign': 'center',
-                                                                    'height': '55px',
-                                                                    'vertical-align': 'middle',
-                                                                    "margin-top": 20}
+                                children=[html.Div(children=[dcc.Input(placeholder='Copy paste assistant location',
+                                                                    id="select_assistant",
+                                                                    type="text",
+                                                                    style={
+                                                                        'width': '70%',
+                                                                        # 'height': '55px',
+                                                                        'lineHeight': '55px',
+                                                                        'vertical-align': 'middle',
+                                                                        # "margin-top": 5,
+                                                                        # "margin-left": 20
+                                                                        }
+                                                                        ),
+                                                            html.P(viz_server.format_path(viz_server.assistant_path),
+                                                                id="current_assistant_path",
+                                                                style={'width': '28%',
+                                                                        'textAlign': 'center',
+                                                                        # 'height': '55px',
+                                                                        'vertical-align': 'middle',
+                                                                        "margin": "0",
+                                                                        #"margin-top": 20
+                                                                        }),
+                                                                ],
+                                                            style={
+                                                                    'borderWidth': '1px',
+                                                                    'borderStyle': 'dashed',
+                                                                    'borderRadius': '5px',
+                                                                    # 'textAlign': 'center',
+                                                                    'width': '100%',
+                                                                    "display": "flex",
+                                                                    "align-items":"center",
+                                                                    # "padding": "2px",
+                                                                    "padding-top": "5px",
+                                                                    "padding-bottom": "5px",
+                                                                    "padding-left": "2px",
+                                                                    "padding-right": "2px"
+                                                                    # 'margin': '10px'
+                                                            }
                                                             ),
-                                                    ],
-                                                    className="row",
-                                                    style={'height': '65px', 'width': '100%'},
-                                                    ),
+                                            html.Label("load",
+                                                    id="load_assistant_button",
+                                                    n_clicks=0,
+                                                    className="btn btn-primary",
+                                                    style={# 'height': '35px',
+                                                            # "margin-top": 18,
+                                                            'width': '100%',
+                                                            # "margin-left": 5
+                                                            }
+                                                            ),
+                                ]
+                                                            )
+
+    save_experiment = html.Div(id='save_expe_box',
+                               children=[                  
+                               html.Div(children=[
+                                   dcc.Input(placeholder='Where do you want to save the current '
+                                                                        'experiment?',
+                                             id="save_expe",
+                                             type="text",
+                                             style={
+                                                 'width': '70%',
+                                                 'height': '55px',
+                                                 'lineHeight': '55px',
+                                                 'vertical-align': 'middle',
+                                                #  "margin-top": 5,
+                                                #  "margin-left": 20
+                                                 }),
+                                    html.P(viz_server.format_path(viz_server.assistant_path),
+                                           id="current_save_path",
+                                           style={'width': '28%',
+                                                  'textAlign': 'center',
+                                                  'height': '55px',
+                                                  'vertical-align': 'middle',
+                                                  "margin": "0",
+                                                #   "margin-top": 20
+                                                  }
+                                           ),
+                                        ],
                                 style={
                                         'borderWidth': '1px',
                                         'borderStyle': 'dashed',
                                         'borderRadius': '5px',
                                         'textAlign': 'center',
-                                        'margin': '10px'
+                                        "display": "flex",
+                                        "align-items":"center",
+                                        # "padding": "2px",
+                                        "padding-top": "5px",
+                                        "padding-bottom": "5px",
+                                        "padding-left": "2px",
+                                        "padding-right": "2px"
+                                        # 'margin': '10px'
                                 }
-                                )
-    save_experiment = html.Div(id='save_expe_box',
-                                children=html.Div([dcc.Input(placeholder='Where do you want to save the current '
-                                                                        'experiment?',
-                                                            id="save_expe",
-                                                            type="text",
-                                                            style={
-                                                                'width': '68%',
-                                                                'height': '55px',
-                                                                'lineHeight': '55px',
-                                                                'vertical-align': 'middle',
-                                                                "margin-top": 5,
-                                                                "margin-left": 20}),
+                                ),
                                                     html.Label("save",
                                                                 id="save_expe_button",
                                                                 n_clicks=0,
                                                                 className="btn btn-primary",
                                                                 style={'height': '35px',
-                                                                    "margin-top": 18,
-                                                                    "margin-left": 5}),
-                                                    html.P(viz_server.format_path(viz_server.assistant_path),
-                                                            id="current_save_path",
-                                                            style={'width': '24%',
-                                                                'textAlign': 'center',
-                                                                'height': '55px',
-                                                                'vertical-align': 'middle',
-                                                                "margin-top": 20}
-                                                            ),
-                                                    ],
-                                                    className="row",
-                                                    style={'height': '65px', 'width': '100%'},
-                                                    ),
-                                style={
-                                        'borderWidth': '1px',
-                                        'borderStyle': 'dashed',
-                                        'borderRadius': '5px',
-                                        'textAlign': 'center',
-                                        'margin': '10px'
-                                }
+                                                                    # "margin-top": 18,
+                                                                    'width': '100%',
+                                                                    # "margin-left": 5
+                                                                    }),
+                                                                    ]
                                 )
+
     controls_row = html.Div(id="controls-row",
                             children=[
                                 reset_col,
@@ -282,8 +324,8 @@ def setupLayout(viz_server):
 
     # progress in the scenario (progress bar and timeline)
     progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
-                                                                            value=0.,
-                                                                            color="danger"),
+                                                                         value=0.,
+                                                                         color="danger"),
                                                             ),
                                                     html.Div(dcc.Graph(id="timeline_graph",
                                                                         config={
@@ -298,7 +340,7 @@ def setupLayout(viz_server):
                                                             ),
                                                     html.Br(),
                                                     ],
-                                            className="six columns",
+                                            # className="six columns",
                                             # style={'width': '100%', "height": "300px"}
                                             )
 
