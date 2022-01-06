@@ -21,7 +21,17 @@ pkgs = {
         # "graphviz",
         # "networkx"
     ],
-    "extras": {}
+    "extras": {
+        "docs": [
+            "numpydoc>=0.9.2",
+            "sphinx>=2.4.4",
+            "sphinx-rtd-theme>=0.4.3",
+            "sphinxcontrib-trio>=1.1.0",
+            "autodocsumm>=0.1.13",
+            "grid2op>=1.6.4",
+            "recommonmark",
+        ],
+    }
 }
 
 setup(name='grid2game',

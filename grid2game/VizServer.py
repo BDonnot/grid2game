@@ -8,14 +8,15 @@
 
 import os
 import sys
-import dash
 import time
 
+import dash
 import dash_bootstrap_components as dbc
-from grid2game.plot import PlotGrids
-from grid2game.plot import PlotTemporalSeries
+
+from grid2game._utils import add_callbacks, setupLayout
 from grid2game.envs import Env
-from grid2game._utils import setupLayout, add_callbacks
+from grid2game.plot import PlotGrids, PlotTemporalSeries
+
 
 class VizServer:
     SELF_LOOP_STOP = 0
@@ -142,7 +143,6 @@ class VizServer:
         self.gofast_clicks = 0
         self.reset_clicks = 0
         self.nb_step_gofast = 12  # number of steps made in each frame for the "go_fast" mode
-        # TODO implement the to below
         self.time_refresh = 0.1  # in seconds (time at which the page will be refreshed)
         self.is_previous_click_end = False  # does the previous click on the button is the button
         # that makes it go until the end of the game ? If so i will need to upgrade, at the end of it, the
@@ -309,8 +309,6 @@ class VizServer:
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
             self.is_previous_click_end = True
-            # self._button_shape = "btn btn-secondary"
-            # self._go_button_shape = "btn btn-secondary"
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
@@ -802,8 +800,8 @@ class VizServer:
             env = self.env.glop_env.copy()
             nb_step = self.env.obs.current_step
             chro_id = env.chronics_handler.get_id()
-            from grid2op.Runner import Runner
             from grid2op.Agent import FromActionsListAgent
+            from grid2op.Runner import Runner
             list_action = self.env.get_current_action_list()
             agent = FromActionsListAgent(env.action_space, list_action)
             dict_ = env.get_params_for_runner()

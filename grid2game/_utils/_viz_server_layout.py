@@ -19,6 +19,7 @@ except ImportError:
 
 import dash_bootstrap_components as dbc
 
+
 def setupLayout(viz_server):
     # layout of the app
     # TODO split that in multiple subfunctions
