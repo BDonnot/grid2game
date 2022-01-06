@@ -5,8 +5,7 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
-
-import warnings
+import os
 import numpy as np
 import copy
 import time
@@ -14,6 +13,8 @@ import time
 import grid2op
 from grid2op.Action import PlayableAction
 from grid2op.Backend import PandaPowerBackend
+from grid2op.Exceptions import NoForecastAvailable
+from grid2op.Chronics import Multifolder
 
 try:
     from lightsim2grid import LightSimBackend
@@ -43,6 +44,7 @@ class Env(ComputeWrapper):
                  assistant_path=None,
                  assistant_seed=0,
                  logger=None,
+                 config_dict=None,
                  **kwargs):
         ComputeWrapper.__init__(self)
 
@@ -52,11 +54,15 @@ class Env(ComputeWrapper):
         else:
             self.logger = logger.getChild("Env")
 
+        if config_dict is None:
+            config_dict = {}
+
         # TODO some configuration here
         self.glop_env = grid2op.make(env_name,
                                      backend=bkClass(),
                                      action_class=PlayableAction,
                                      logger=self.logger,
+                                     **config_dict,
                                      **kwargs)
         self.logger.info("Grid2op environment initialized")
         self.do_stop_if_alarm = True  # I stop if an alarm is raised by the assistant, by default
@@ -98,6 +104,19 @@ class Env(ComputeWrapper):
 
     def get_timeline_figure(self):
         return self.env_tree.plot_plotly()
+
+    def get_current_node_id(self):
+        return self.env_tree.current_node.id
+
+    def scenario_id(self):
+        return os.path.split(self.glop_env.chronics_handler.get_id())[-1]
+
+    def list_chronics(self):
+        res = []
+        if isinstance(self.glop_env.chronics_handler.real_data, Multifolder):
+            res = self.glop_env.chronics_handler.available_chronics()
+            res = [os.path.split(el)[-1] for el in res]
+        return res
 
     def load_assistant(self, assistant_path):
         self.logger.info(f"attempt to load assistant with path : \"{assistant_path}\"")
@@ -191,7 +210,7 @@ class Env(ComputeWrapper):
             return self.back()
         elif self.next_computation == "reset":
             self.stop_computation()  # this is a "one time" call
-            return self.reset()
+            return self.reset(**self.next_computation_kwargs)
         else:
             msg_ = f"Unknown method to call: {self.next_computation = }"
             self.logger.error(msg_)
@@ -247,10 +266,33 @@ class Env(ComputeWrapper):
         #     self._current_action = self.past_envs[-1][0]
         self._current_action = self.env_tree.get_last_action()
 
-    def seed(self, seed):
+    def set_params(self, params_path, reset=False):
+        """set the environment parameters"""
+        self.logger.info(f"Updating the environment parameters.")
+        if not os.path.exists(params_path):
+            msg = f"set_params: {params_path} does not exists"
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+        if not os.path.isfile(params_path):
+            msg = f"set_params: {params_path} is not a file"
+            self.logger.error(msg)
+            raise RuntimeError(msg)
+
+        current_param = self.glop_env.parameters
+        current_param.init_from_json(params_path)
+        self.glop_env.change_parameters(current_param)
+        self.glop_env.change_forecast_parameters(current_param)
+        if reset:
+            self.logger.info(f"set_params: resetting the environment")
+            self.init_state()
+
+    def seed(self, seed, reset=True):
         """seed and reset the environment"""
+        self.logger.info(f"Setting env seed {seed} and resetting the environment.")
         seeds = self.glop_env.seed(seed)
-        self.init_state()
+        if reset:
+            self.logger.info(f"seed: resetting the environment")
+            self.init_state()
         return seeds
 
     def step(self, action=None):
@@ -270,12 +312,17 @@ class Env(ComputeWrapper):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
 
         if obs.time_since_last_alarm == 0:
-            self.logger.info("The assistant raised an alarm !")
+            self.logger.info("step: The assistant raised an alarm !")
             self.stop_computation()
 
         if not done:
             self.choose_next_action()
-            self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+            self.logger.info("step: done is False")
+            try:
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+            except NoForecastAvailable:
+                self.logger.warn("step: no forecast seems to be available for the current observation.")
+                pass
         else:
             self._sim_done = True
             self._sim_reward = self.glop_env.reward_range[0]
@@ -308,12 +355,16 @@ class Env(ComputeWrapper):
     def back(self):
         self.env_tree.back_one_step()
 
-    def reset(self):
+    def reset(self, chronics_id=None, seed=None):
+        if chronics_id is not None:
+            self.glop_env.set_id(chronics_id)
+        if seed is not None:
+            self.glop_env.seed(seed)
         self.init_state()
 
     def init_state(self):
         self.env_tree.clear()
-        obs = self.glop_env.reset()
+        obs = self.glop_env.reset()            
         self.env_tree.root(assistant=self.assistant, obs=obs, env=self.glop_env)
 
         self._current_action = self.glop_env.action_space()
@@ -355,12 +406,17 @@ class Env(ComputeWrapper):
         self.next_action_from = self.MANUAL
         self._current_action = copy.deepcopy(self._current_action)
 
+    def next_action_copy(self):
+        """something has selected an action, i need to copy it not to erase it first !"""
+        self._current_action = copy.deepcopy(self._current_action)
+
     def handle_click_timeline(self, time_line_graph_clcked) -> int:
         """handles the interaction from the timeline"""
         if "points" not in time_line_graph_clcked:
             return 0
         self.is_computing()
         res = self.env_tree.move_from_click(time_line_graph_clcked)
+        self._current_action = copy.deepcopy(self.env_tree.get_last_action())
         self.stop_computation()  # this is a "one time" call
         return res
 

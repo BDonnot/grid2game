@@ -15,6 +15,7 @@ pkgs = {
         "dash",
         "dash_bootstrap_components",
         "grid2op>=1.6.4",
+        "imageio",
         "orjson",
         # "igraph"
         # "graphviz",

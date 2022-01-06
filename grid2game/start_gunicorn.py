@@ -28,9 +28,11 @@ args.is_test = is_test
 args.env_seed = env_seed
 args.assistant_path = assistant_path
 args.assistant_seed = assistant_seed
+args.g2op_param = None
+args.g2op_config = None
 
 
-viz_server = VizServer(server=server, args=args)
+viz_server = VizServer(server=server, build_args=args)
 app = viz_server.my_app
 
 if __name__ == '__main__':

@@ -20,3 +20,9 @@ Change Log
 - [???] have a "chronological stuff" where you could "branch" and "navigate". For example, you could get
   advance to a given step, make an action, and then with a simple click to at the time you did the action
   to test another one.
+
+[0.0.2]
+---------
+- [ADDED] capability to change the parameters of the grid2op environments (command `--g2op_param XXX`).
+- [ADDED] capability to change the building of the environment (command `--g2op_config XXX`).
+- [ADDED] possibility to change the number of steps performed "at once"

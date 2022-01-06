@@ -442,12 +442,12 @@ class PlotGrids(PlotParams):
             # display of the temporal figures should not be updated (for example because i run the episode
             # until the end)
             return
-        beg_ = time.time()
+        beg_ = time.perf_counter()
         self._last_rt_time = obs_rt.current_step
         self.obs_rt = obs_rt
         self._update_all_elements(is_forecast=False)
         self._update_all_figures_all_values(forecast_only=False)
-        tmp = time.time() - beg_
+        tmp = time.perf_counter() - beg_
         self._time_update_rt += tmp
         # print(f'grid (main): {tmp}')
 
@@ -457,12 +457,12 @@ class PlotGrids(PlotParams):
             # display of the temporal figures should not be updated (for example because i run the episode
             # until the end)
             return
-        beg_ = time.time()
+        beg_ = time.perf_counter()
         self._last_for_step = obs_forecast.current_step
         self.obs_forecast = obs_forecast
         self._update_all_elements(is_forecast=True)
         self._update_all_figures_all_values(forecast_only=True)
-        tmp = time.time() - beg_
+        tmp = time.perf_counter() - beg_
         self._time_update_for += tmp
         # print(f'grid (forecast): {tmp}')
 
