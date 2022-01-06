@@ -71,7 +71,7 @@ You can also add more parameters:
   with `param.init_from_json` from grid2op)
 - `--g2op_config ./g2op_env_customization.py` how to configure the grid2op environment, this file should contain
   a dictionnary named `env_config` and it will be used to initialize the grid2Op environment with : 
-  `env.make(..., **env_config)`
+  `env.make(..., **env_config)` 
 
 Interact with it
 ~~~~~~~~~~~~~~~~~~~~~~

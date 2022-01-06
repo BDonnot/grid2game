@@ -1,4 +1,7 @@
 How to load an assisstant
 ===================================
 
-TODO
+TODO 
+- how to use it
+- what it shows when loaded
+- expected format for the assistant / agent

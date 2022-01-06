@@ -30,6 +30,12 @@ This is a work in progress at the moment
    :caption: Technical Documentation
 
    load_assistant
+   control_scenario
+   navigate_in_scenario
+   available_action
+   timeline
+   temporal_data
+   save_expe
 
 
 Indices and tables
