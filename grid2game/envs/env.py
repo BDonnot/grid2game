@@ -104,6 +104,9 @@ class Env(ComputeWrapper):
     def get_timeline_figure(self):
         return self.env_tree.plot_plotly()
 
+    def get_current_node_id(self):
+        return self.env_tree.current_node.id
+
     def load_assistant(self, assistant_path):
         self.logger.info(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
@@ -303,7 +306,7 @@ class Env(ComputeWrapper):
 
         if not done:
             self.choose_next_action()
-            self.logger.info("step: done if False")
+            self.logger.info("step: done is False")
             try:
                 self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
             except NoForecastAvailable:
@@ -346,10 +349,7 @@ class Env(ComputeWrapper):
 
     def init_state(self):
         self.env_tree.clear()
-        obs = self.glop_env.reset()    
-        print(f"{self.glop_env._opponent_class = }")    
-        print(f"{self.glop_env.parameters.NO_OVERFLOW_DISCONNECTION = }")    
-        
+        obs = self.glop_env.reset()            
         self.env_tree.root(assistant=self.assistant, obs=obs, env=self.glop_env)
 
         self._current_action = self.glop_env.action_space()

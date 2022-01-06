@@ -86,7 +86,7 @@ def setupLayout(viz_server):
 
     # see https://dash.plotly.com/dash-core-components/loading
     # [dcc.Loading(id="loading_go_fast_", type="circle", children=html.Div(id="loading_go_fast_output"))]
-    loading_go_fast = html.Div(children=[html.P("Is computing", style={'color': 'red'})],
+    loading_go_fast = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
                                id="loading_go_fast",
                                style={'display': 'none'})
 
@@ -325,6 +325,7 @@ def setupLayout(viz_server):
     # progress in the scenario (progress bar and timeline)
     progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
                                                                          value=0.,
+                                                                         max=100.,
                                                                          color="danger"),
                                                             ),
                                                     html.Div(dcc.Graph(id="timeline_graph",
@@ -346,7 +347,6 @@ def setupLayout(viz_server):
 
     ### Graph widget
     real_time_graph = dcc.Graph(id="real-time-graph",
-                                # className="w-100 h-100",
                                 config={
                                     'displayModeBar': False,
                                     "responsive": True,
@@ -354,7 +354,6 @@ def setupLayout(viz_server):
                                 },
                                 figure=viz_server.real_time)
     simulate_graph = dcc.Graph(id="simulated-graph",
-                                # className="w-100 h-100",
                                 config={
                                     'displayModeBar': False,
                                     "responsive": True,
@@ -369,80 +368,33 @@ def setupLayout(viz_server):
     rt_graph_label = html.H3("Real time observation:", style={'text-align': 'center'})
     rt_date_time = html.P(viz_server.rt_datetime, style={'text-align': 'center'}, id="rt_date_time")
     rt_graph_div = html.Div(id="rt_graph_div",
-                            className=graph_css,
                             children=[
                                 rt_graph_label,
                                 rt_date_time,
                                 real_time_graph],
                             style={'display': 'inline-block',
-                                    'width': '50%',
+                                   'width': '50%',
                                     }
                             )
     forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
     forecast_date_time = html.P(viz_server.for_datetime, style={'text-align': 'center'}, id="forecast_date_time")
     sim_graph_div = html.Div(id="sim_graph_div",
-                                className=graph_css,
+                                # className=graph_css,
                                 children=[
                                     forecast_graph_label,
                                     forecast_date_time,
                                     simulate_graph],
-
                                 style={'display': 'inline-block',
-                                    'width': '50%',
-                                    }
+                                       'width': '50%',
+                                       }
                                 )
 
     graph_col = html.Div(id="graph-col",
-                            children=[
-                                html.Br(),
-                                rt_graph_div,
-                                sim_graph_div
-                            ],
-                            className="row",
-                            style={'width': '100%', 'height': '55vh'},
-                            # style={'display': 'inline-block'}  # to allow stacking next to each other
-                            )
+                         children=[rt_graph_div, sim_graph_div],
+                         style={'height': '55vh'}, #'width': '100%', 'height': '55vh'},
+                         # style={'display': 'inline-block'}  # to allow stacking next to each other
+                         )
 
-    ## Grid state widget
-    row_css = "row d-xl-flex flex-xl-grow-1"
-    state_row = html.Div(id="state-row",
-                            # className="row",
-                            children=[graph_col]
-                            )
-
-    # TODO temporal indicator for cumulated load / generator, and generator by types
-    # TODO temporal indicator of average flows on lines, with min / max flow
-
-    graph_gen_load = dcc.Graph(id="graph_gen_load",
-                                config={
-                                    'displayModeBar': False,
-                                    "responsive": True,
-                                    "autosizable": True
-                                },
-
-                                style={'display': 'block'},
-                                figure=viz_server.fig_load_gen)
-    graph_flow_cap = dcc.Graph(id="graph_flow_cap",
-                                config={
-                                    'displayModeBar': False,
-                                    "responsive": True,
-                                    "autosizable": True
-                                },
-                                style={'display': 'block'},
-                                figure=viz_server.fig_line_cap)
-
-    temporal_graphs = html.Div([html.Div([graph_gen_load],
-                                            className=graph_css,
-                                            style={'display': 'inline-block',
-                                                'width': '50%', 'height': '47vh'}),
-                                html.Div([graph_flow_cap],
-                                            className=graph_css,
-                                            style={'display': 'inline-block',
-                                                'width': '50%', 'height': '47vh'})
-                                ],
-                                style={'width': '100%'},
-                                className="row",
-                                id="temporal_graphs")
     # page to click the data
     # see https://dash.plotly.com/interactive-graphing
     # TODO layout for the action made:
@@ -473,118 +425,158 @@ def setupLayout(viz_server):
         }
     }
     # interactive action panel
-    generator_clicked = html.Div([html.P("Generator id", id="gen-id-clicked"),
-                                    html.P("Redispatching / curtailment:", id="gen-redisp-curtail"),
-                                    dcc.Input(placeholder="redispatch to apply: ",
-                                            id='gen-dispatch',
-                                            type='range',
-                                            min=-1.0,
-                                            max=1.0,
-                                            ),
-                                    html.P("gen_p", id="gen_p"),
-                                    html.P("target_disp", id="target_disp"),
-                                    html.P("actual_disp", id="actual_disp"),
-                                    html.P("",
-                                            id="gen-id-hidden",
-                                            style={'display': 'none'}
-                                            )
-                                    ],
+    generator_clicked = html.Div(children=[html.P("Generator id", id="gen-id-clicked"),
+                                           html.P("Redispatching / curtailment:", id="gen-redisp-curtail"),
+                                           dcc.Input(placeholder="redispatch to apply: ",
+                                                     id='gen-dispatch',
+                                                     type='range',
+                                                     min=-1.0,
+                                                     max=1.0,
+                                                    ),
+                                           html.P("gen_p", id="gen_p"),
+                                           html.P("target_disp", id="target_disp"),
+                                           html.P("actual_disp", id="actual_disp"),
+                                           html.P("",
+                                                  id="gen-id-hidden",
+                                                  style={'display': 'none'}
+                                                  )
+                                          ],
                                     id="generator_clicked",
-                                    className="six columns",
+                                    # className="six columns",
                                     style={'display': 'inline-block'}
                                     )
-    storage_clicked = html.Div([html.P("Storage id", id="stor-id-clicked"),
-                                html.P("Storage consumption (>=0: charging = load):"),
-                                dcc.Input(placeholder="storage power setpoint: ",
-                                            id='storage-power-input',
-                                            type='range',
-                                            min=-1.0,
-                                            max=1.0,
-                                            ),
-                                html.P("storage_p", id="storage_p"),
-                                html.P("storage_energy", id="storage_energy"),
-                                html.P("",
-                                        id="storage-id-hidden",
-                                        style={'display': 'none'}
-                                        )
-                                ],
+    storage_clicked = html.Div(children=[html.P("Storage id", id="stor-id-clicked"),
+                                         html.P("Storage consumption (>=0: charging = load):"),
+                                         dcc.Input(placeholder="storage power setpoint: ",
+                                                     id='storage-power-input',
+                                                     type='range',
+                                                     min=-1.0,
+                                                     max=1.0,
+                                                     ),
+                                         html.P("storage_p", id="storage_p"),
+                                         html.P("storage_energy", id="storage_energy"),
+                                         html.P("",
+                                                 id="storage-id-hidden",
+                                                 style={'display': 'none'}
+                                                 )
+                                         ],
                                 id="storage_clicked",
-                                className="six columns",
+                                # className="six columns",
                                 style={'display': 'inline-block'}
                                 )
-    line_clicked = html.Div([html.P("Line id", id="line-id-clicked"),
-                                html.P("New status:"),
-                                dcc.Dropdown(
-                                    options=[
-                                        {'label': "connect", 'value': "+1"},
-                                        {'label': "disconnect", 'value': "-1"},
-                                        {'label': "don't change", 'value': "0"},
-                                    ],
-                                    id='line-status-input'
-                                ),
-                                html.P("line_flow", id="line_flow"),
-                                html.P("",
-                                    id="line-id-hidden",
-                                    style={'display': 'none'}
-                                    )
-                                ],
+    line_clicked = html.Div(children=[html.P("Line id", id="line-id-clicked"),
+                                      html.P("New status:"),
+                                      dcc.Dropdown(
+                                          options=[
+                                              {'label': "connect", 'value': "+1"},
+                                              {'label': "disconnect", 'value': "-1"},
+                                              {'label': "don't change", 'value': "0"},
+                                          ],
+                                          id='line-status-input'
+                                      ),
+                                      html.P("line_flow", id="line_flow"),
+                                      html.P("",
+                                          id="line-id-hidden",
+                                          style={'display': 'none'}
+                                          )
+                                      ],
                             id="line_clicked",
-                            className="six columns",
+                            # className="six columns",
                             style={'display': 'inline-block'}
                             )
-    sub_clicked = html.Div([html.P("sub id", id="sub-id-clicked"),
-                            html.P("New Topology:"),
-                            dcc.Graph(id="graph_clicked_sub",
-                                        config={
-                                            # 'displayModeBar': False,
-                                            # "responsive": True,
-                                            # "autosizable": False
-                                        },
-                                        style={
-                                                # 'width': '100%',
-                                                # 'height': '47vh'
-                                                }
-                                        ),
-                            html.P("",
-                                    id="sub-id-hidden",
-                                    style={'display': 'none'}
-                                    )
-                            ],
+    sub_clicked = html.Div(children=[html.P("sub id", id="sub-id-clicked"),
+                                     html.P("New Topology:"),
+                                     dcc.Graph(id="graph_clicked_sub",
+                                                 config={
+                                                     # 'displayModeBar': False,
+                                                     # "responsive": True,
+                                                     # "autosizable": False
+                                                 },
+                                                 style={
+                                                         # 'width': '100%',
+                                                         # 'height': '47vh'
+                                                         }
+                                                 ),
+                                     html.P("",
+                                             id="sub-id-hidden",
+                                             style={'display': 'none'}
+                                             )
+                                    ],
                             id="sub_clicked",
-                            className="six columns",
+                            # className="six columns",
                             style={'display': 'inline-block',
                                     'width': '100%',
                                     }
                             )
-    layout_click = html.Div([generator_clicked,
-                                storage_clicked,
-                                line_clicked,
-                                sub_clicked],
-                            className='six columns',
-                            style={"width": "60%",
-                                    'display': 'inline-block'})
 
-    # print (str) the action
+    # Title
     action_widget_title = html.Div(id="action_widget_title",
                                     children=[html.P("Action:  "),
-                                                which_action_button],
-                                    style={'width': '100%'},
+                                              which_action_button],
+                                    style={},
                                     )
+    # display the action
+    layout_click = html.Div(id="action_clicked",
+                            children=[generator_clicked,
+                                      storage_clicked,
+                                      line_clicked,
+                                      sub_clicked],
+                            # className='six columns',
+                            style={"width": "59%",
+                                #    'display': 'inline-block'
+                                   })
+    # action as text
     action_col = html.Div(id="action_widget",
-                            className=action_css,
-                            children=[current_action],
-                            style={'display': 'inline-block', 'width': '40%'}
-                            )
+                        #   className=action_css,
+                          children=[current_action],
+                          style={# 'display': 'inline-block', 
+                                 'width': '39%'}
+                          )
     
     # combine both
-    interaction_and_action = html.Div([html.Br(),
-                                        action_widget_title,
-                                        html.Div([layout_click,
-                                                    action_col],
-                                                className="row",
-                                                style={"width": "100%"},
-                                                )
-                                        ])
+    interaction_and_action = html.Div([action_widget_title,
+                                       html.Div([layout_click,
+                                                 action_col],
+                                                 id="action_display",
+                                                 style={"width": "100%", "display": "flex"})
+                                       ],
+                                      id="action_select_and_print",
+                                      style={"width": "100%"},
+                                      )
+
+    ## temporal graphs
+    graph_gen_load = dcc.Graph(id="graph_gen_load",
+                                config={
+                                    'displayModeBar': False,
+                                    "responsive": True,
+                                    "autosizable": True
+                                },
+
+                                style={'display': 'block'},
+                                figure=viz_server.fig_load_gen)
+    graph_flow_cap = dcc.Graph(id="graph_flow_cap",
+                                config={
+                                    'displayModeBar': False,
+                                    "responsive": True,
+                                    "autosizable": True
+                                },
+                                style={'display': 'block'},
+                                figure=viz_server.fig_line_cap)
+
+    temporal_graphs = html.Div([html.Div([graph_gen_load],
+                                            className=graph_css,
+                                            style={'display': 'inline-block',
+                                                   'width': '50%', # 'height': '47vh'
+                                                }),
+                                html.Div([graph_flow_cap],
+                                            className=graph_css,
+                                            style={'display': 'inline-block',
+                                                   'width': '50%', # 'height': '47vh'
+                                                })
+                                ],
+                                style={'width': '100%'},
+                                # className="row",
+                                id="temporal_graphs")
 
     # hidden control button, hack for having same output for multiple callbacks
     interval_object = dcc.Interval(id='interval-component',
@@ -730,9 +722,8 @@ def setupLayout(viz_server):
                             html.Br(),
                             progress_bar_for_scenario,
                             html.Br(),
-                            html.Div([html.P("")], className="six columns"),
-                            state_row,  # the two graphs of the grid
-                            html.Div([html.P("")], style={"height": "10uv"}),
+                            # state_row,  # the two graphs of the grid
+                            graph_col,  # the two graphs of the grid
                             html.Br(),
                             interaction_and_action,
                             html.Br(),

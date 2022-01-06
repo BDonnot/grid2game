@@ -148,8 +148,9 @@ class VizServer:
 
         # buttons layout
         self._button_shape = "btn btn-primary"
-        self._go_button_shape = "btn btn-primary"
-        self._gofast_button_shape = "btn btn-primary"
+        self._go_button_shape = "btn btn-primary"  # "go" button
+        self._gofast_button_shape = "btn btn-primary"  # "+XXX" button
+        self._go_till_go_button_shape = "btn btn-primary"  # "end" button
 
         # ugly hack for the date time display
         self.rt_datetime = f"{self.env.obs.get_time_stamp():%Y-%m-%d %H:%M}"
@@ -164,6 +165,9 @@ class VizServer:
         self.my_app.layout = setupLayout(self)
         add_callbacks(self.my_app, self)
         self.logger.info("Viz server initialized")
+
+        # last node id (to not plot twice the same stuff to gain time)
+        self._last_node_id = -1
 
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
@@ -273,10 +277,15 @@ class VizServer:
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
-        trigger_heavy_computation_wrapper = 1
+        display_new_state = 1
         something_clicked = True
 
-        loading_state = {'display': 'block'}
+        i_am_computing_state = {'display': 'block'}
+        display_new_state = 0  # by default I am computing I do not update the graphs
+        self._button_shape = "btn btn-secondary"  # by default buttons are "grey"
+        self._gofast_button_shape = "btn btn-secondary"
+        self._go_button_shape = "btn btn-secondary"
+        self._go_till_go_button_shape = "btn btn-secondary"
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -326,42 +335,68 @@ class VizServer:
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
             self.is_previous_click_end = False
+            display_new_state = 1  # in this mode, even though I am computing, I need to update the graphs live
         else:
             something_clicked = False
 
         if not self.env.needs_compute():
             # don't start the computation if not needed
-            trigger_heavy_computation_wrapper = dash.no_update
-            loading_state = {'display': 'none'}  # activate the loading button
+            i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
+            display_new_state = 1  # I am NOT computing I DO update the graphs
+            self._button_shape = "btn btn-primary"  # by default buttons are "grey"
+            self._gofast_button_shape = "btn btn-primary"
+            self._go_button_shape = "btn btn-primary"
+            self._go_till_go_button_shape = "btn btn-primary"
 
         if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked:
             # in this case, this should be the first call to this function after the "operate the grid until the
             # end" function is called
             # so i need to force update the figures
-            trigger_heavy_computation_wrapper = 1
+            display_new_state = 1
             self.is_previous_click_end = False
             # I need that to the proper update of the progress bar
             self._last_step = self.env.obs.current_step
             self._last_max_step = self.env.obs.max_step
-            loading_state = {'display': 'none'}  # activate the loading button
-        print(loading_state)
-        return [trigger_heavy_computation_wrapper,
+            i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
+            display_new_state = 1  # I am NOT computing I DO update the graphs
+            self._button_shape = "btn btn-primary"  # by default buttons are "grey"
+            self._gofast_button_shape = "btn btn-primary"
+            self._go_button_shape = "btn btn-primary"
+            self._go_till_go_button_shape = "btn btn-primary"
+
+        # print(i_am_computing_state)
+        return [display_new_state,
                 self._button_shape,
                 self._button_shape,
                 self._button_shape,
                 self._button_shape,
                 self._go_button_shape,
                 self._gofast_button_shape,
-                loading_state]
+                self._go_till_go_button_shape,
+                i_am_computing_state]
 
-    def computation_wrapper(self, trigger_heavy_computation_wrapper, recompute_rt_from_timeline):
+    def computation_wrapper(self, display_new_state, recompute_rt_from_timeline):
         # simulate a "state" of the application that depends on the computation
         if not self.env.is_computing():
             self.env.heavy_compute()
-        # TODO the condition to update the stuff
-        # TODO and better yet: use the no_update !
-        trigger_rt = 1
-        trigger_for = 1
+        
+        if self.env.is_computing():
+            # environment is computing I do not update anything
+            raise dash.exceptions.PreventUpdate
+
+        if display_new_state == 1:
+            trigger_rt = 1
+            trigger_for = 1
+
+            # update the state only if needed
+            if self.env.get_current_node_id() == self._last_node_id:
+                # the state did not change, i do not update anything
+                raise dash.exceptions.PreventUpdate
+            else:
+                self._last_node_id = self.env.get_current_node_id()
+        else:
+            trigger_rt = dash.no_update
+            trigger_for = dash.no_update
         return [trigger_rt, trigger_for]
 
     # handle the layout
@@ -374,7 +409,7 @@ class VizServer:
             trigger_for_graph = 1
 
             # scenario progress bar
-            progress_color = None
+            progress_color = "primary"
             if not self.env.is_done:
                 self._last_step = self.env.obs.current_step
                 self._last_max_step = self.env.obs.max_step
