@@ -95,6 +95,7 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("go_till_game_over-button", "className"),
                        dash.dependencies.Output("is_computing_left", "style"),
                        dash.dependencies.Output("is_computing_right", "style"),
+                       dash.dependencies.Output("change_graph_title", "n_clicks")
                         ],
                         [dash.dependencies.Input("step-button", "n_clicks"),
                         dash.dependencies.Input("simulate-button", "n_clicks"),
@@ -191,4 +192,20 @@ def add_callbacks(dash_app, viz_server):
 
     # callback for the timeline
     dash_app.callback([dash.dependencies.Output("recompute_rt_from_timeline", "n_clicks")],
-                            [dash.dependencies.Input('timeline_graph', 'clickData')])(viz_server.timeline_set_time)
+                      [dash.dependencies.Input('timeline_graph', 'clickData')])(viz_server.timeline_set_time)
+
+    # callbacks when the "reset" button is pressed
+    dash_app.callback([dash.dependencies.Output("scenario_id_title", "children"),
+                       dash.dependencies.Output("scenario_seed_title", "children"),
+                       dash.dependencies.Output("chronic_names", "value"),
+                       dash.dependencies.Output("set_seed", "value"),
+                       ],
+                      [dash.dependencies.Input("change_graph_title", "n_clicks")])(viz_server.change_graph_title)
+
+    # set the chronics
+    dash_app.callback([dash.dependencies.Output("chronic_names_dummy_output", "n_clicks")],
+                      [dash.dependencies.Input("chronic_names", "value")])(viz_server.set_chronics)
+
+    # set the seed
+    dash_app.callback([dash.dependencies.Output("set_seed_dummy_output", "n_clicks")],
+                      [dash.dependencies.Input("set_seed", "value")])(viz_server.set_seed)

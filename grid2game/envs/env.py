@@ -14,6 +14,7 @@ import grid2op
 from grid2op.Action import PlayableAction
 from grid2op.Backend import PandaPowerBackend
 from grid2op.Exceptions import NoForecastAvailable
+from grid2op.Chronics import Multifolder
 
 try:
     from lightsim2grid import LightSimBackend
@@ -107,6 +108,16 @@ class Env(ComputeWrapper):
     def get_current_node_id(self):
         return self.env_tree.current_node.id
 
+    def scenario_id(self):
+        return os.path.split(self.glop_env.chronics_handler.get_id())[-1]
+
+    def list_chronics(self):
+        res = []
+        if isinstance(self.glop_env.chronics_handler.real_data, Multifolder):
+            res = self.glop_env.chronics_handler.available_chronics()
+            res = [os.path.split(el)[-1] for el in res]
+        return res
+
     def load_assistant(self, assistant_path):
         self.logger.info(f"attempt to load assistant with path : \"{assistant_path}\"")
         has_been_loaded = False
@@ -199,7 +210,7 @@ class Env(ComputeWrapper):
             return self.back()
         elif self.next_computation == "reset":
             self.stop_computation()  # this is a "one time" call
-            return self.reset()
+            return self.reset(**self.next_computation_kwargs)
         else:
             msg_ = f"Unknown method to call: {self.next_computation = }"
             self.logger.error(msg_)
@@ -344,7 +355,11 @@ class Env(ComputeWrapper):
     def back(self):
         self.env_tree.back_one_step()
 
-    def reset(self):
+    def reset(self, chronics_id=None, seed=None):
+        if chronics_id is not None:
+            self.glop_env.set_id(chronics_id)
+        if seed is not None:
+            self.glop_env.seed(seed)
         self.init_state()
 
     def init_state(self):

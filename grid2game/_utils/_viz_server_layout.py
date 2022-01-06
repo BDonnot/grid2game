@@ -33,18 +33,42 @@ def setupLayout(viz_server):
                               id="reset-button",
                               n_clicks=0,
                               className="btn btn-primary")
-    reset_button_dummy = html.P("", style={'display': 'none'})
+    # reset_button_dummy = html.P("", style={'display': 'none'})
     reset_col = html.Div(id="reset-col",
-                         className=button_css,
-                         children=[reset_button, reset_button_dummy],
-                         style={'display': 'flex'}
+                         children=[reset_button,
+                                   html.Div([# html.P("Chronics: ", style={"marginRight": 5, "marginLeft": 5}),
+                                             html.Div([dcc.Dropdown(id="chronic_names",
+                                                                    placeholder="Select a chronic",
+                                                                    options=[{"value": el, "label": el} 
+                                                                             for el in viz_server.env.list_chronics()])
+                                                      ],
+                                                      
+                                                      id="chronics_dropdown",
+                                                      style={"width": "100%"}),
+                                           ],
+                                           id="chronics_selector",
+                                           style={"display": "flex", "minWidth": "20%", "marginRight": "10", "marginLeft": "10"}),
+                                    html.Div([
+                                              dcc.Input(id="set_seed",
+                                                        type="number",
+                                                        placeholder="Select a seed",
+                                                       ),   
+                                            # html.Label("seed",
+                                            #            id="seed-button",
+                                            #            n_clicks=0,
+                                            #            className="btn btn-primary")          
+                                             ],id="seed_selector")
+                                  ],
+                         style={"display": "flex",
+                                # 'justify-content': 'space-between'
+                                }
                          )
 
     # Controls widget (step, reset etc.)
     step_button = html.Label("Step",
-                                id="step-button",
-                                n_clicks=0,
-                                className="btn btn-primary")
+                             id="step-button",
+                             n_clicks=0,
+                             className="btn btn-primary")
     simulate_button = html.Label("Simulate",
                                     id="simulate-button",
                                     n_clicks=0,
@@ -61,6 +85,7 @@ def setupLayout(viz_server):
         id="nb_step_go_fast",
         type="number",
         placeholder="steps",
+        # style={"marginRight": "30"}
     )                     
     go_fast = html.Label(children =f"+ {viz_server.nb_step_gofast}",
                             id="gofast-button",
@@ -101,12 +126,14 @@ def setupLayout(viz_server):
                                 step_button,
                                 simulate_button,
                                 go_butt,
-                                nb_step_go_fast,
-                                go_fast,
+                                html.Div([nb_step_go_fast,
+                                          go_fast],
+                                          id="control_nb_step_fast",
+                                          style= {"display": "flex"}),
                                 go_till_game_over,
                                 is_computing_right
                             ],
-                            style={'justify-content': 'space-between',
+                            style={'justifyContent': 'space-between',
                                    "display": "flex"}
                             )
 
@@ -185,7 +212,7 @@ def setupLayout(viz_server):
                                 value='none',
                                 clearable=False)
     button_css_class = "unit_buttons"
-    style_button = {"min-width": "15%"}
+    style_button = {"minWidth": "15%"}
     lineinfo_col = html.Div(id="lineinfo-col",
                             className=button_css_class,
                             children=[line_info_label, line_info],
@@ -209,7 +236,7 @@ def setupLayout(viz_server):
                                 # show_temporal_graph
                             ],
                             style={"display": "flex",
-                                   'justify-content': 'space-between'},
+                                   'justifyContent': 'space-between'},
                             # className="row",
                             )
     select_assistant = html.Div(id='select_assistant_box',
@@ -220,7 +247,7 @@ def setupLayout(viz_server):
                                                                         'width': '70%',
                                                                         # 'height': '55px',
                                                                         'lineHeight': '55px',
-                                                                        'vertical-align': 'middle',
+                                                                        'verticalAlign': 'middle',
                                                                         # "margin-top": 5,
                                                                         # "margin-left": 20
                                                                         }
@@ -230,7 +257,7 @@ def setupLayout(viz_server):
                                                                 style={'width': '28%',
                                                                         'textAlign': 'center',
                                                                         # 'height': '55px',
-                                                                        'vertical-align': 'middle',
+                                                                        'verticalAlign': 'middle',
                                                                         "margin": "0",
                                                                         #"margin-top": 20
                                                                         }),
@@ -242,12 +269,12 @@ def setupLayout(viz_server):
                                                                     # 'textAlign': 'center',
                                                                     'width': '100%',
                                                                     "display": "flex",
-                                                                    "align-items":"center",
+                                                                    "alignItems":"center",
                                                                     # "padding": "2px",
-                                                                    "padding-top": "5px",
-                                                                    "padding-bottom": "5px",
-                                                                    "padding-left": "2px",
-                                                                    "padding-right": "2px"
+                                                                    "paddingTop": "5px",
+                                                                    "paddingBottom": "5px",
+                                                                    "paddingLeft": "2px",
+                                                                    "paddingRight": "2px"
                                                                     # 'margin': '10px'
                                                             }
                                                             ),
@@ -275,7 +302,7 @@ def setupLayout(viz_server):
                                                  'width': '70%',
                                                  'height': '55px',
                                                  'lineHeight': '55px',
-                                                 'vertical-align': 'middle',
+                                                 'verticalAlign': 'middle',
                                                 #  "margin-top": 5,
                                                 #  "margin-left": 20
                                                  }),
@@ -284,7 +311,7 @@ def setupLayout(viz_server):
                                            style={'width': '28%',
                                                   'textAlign': 'center',
                                                   'height': '55px',
-                                                  'vertical-align': 'middle',
+                                                  'verticalAlign': 'middle',
                                                   "margin": "0",
                                                 #   "margin-top": 20
                                                   }
@@ -296,12 +323,12 @@ def setupLayout(viz_server):
                                         'borderRadius': '5px',
                                         'textAlign': 'center',
                                         "display": "flex",
-                                        "align-items":"center",
+                                        "alignItems":"center",
                                         # "padding": "2px",
-                                        "padding-top": "5px",
-                                        "padding-bottom": "5px",
-                                        "padding-left": "2px",
-                                        "padding-right": "2px"
+                                        "paddingTop": "5px",
+                                        "paddingBottom": "5px",
+                                        "paddingLeft": "2px",
+                                        "paddingRight": "2px"
                                         # 'margin': '10px'
                                 }
                                 ),
@@ -369,8 +396,8 @@ def setupLayout(viz_server):
                 "order-last order-sm-last order-md-last order-xl-frist " \
                 "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
     graph_css = "six columns"
-    rt_graph_label = html.H3("Real time observation:", style={'text-align': 'center'})
-    rt_date_time = html.P(viz_server.rt_datetime, style={'text-align': 'center'}, id="rt_date_time")
+    rt_graph_label = html.H3("Real time observation:", style={'textAlign': 'center'})
+    rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
     rt_graph_div = html.Div(id="rt_graph_div",
                             children=[
                                 rt_graph_label,
@@ -380,8 +407,8 @@ def setupLayout(viz_server):
                                    'width': '50%',
                                     }
                             )
-    forecast_graph_label = html.H3("Forecast (t+5mins):", style={'text-align': 'center'})
-    forecast_date_time = html.P(viz_server.for_datetime, style={'text-align': 'center'}, id="forecast_date_time")
+    forecast_graph_label = html.H3("Forecast (t+5mins):", style={'textAlign': 'center'})
+    forecast_date_time = html.P(viz_server.for_datetime, style={'textAlign': 'center'}, id="forecast_date_time")
     sim_graph_div = html.Div(id="sim_graph_div",
                                 # className=graph_css,
                                 children=[
@@ -392,10 +419,15 @@ def setupLayout(viz_server):
                                        'width': '50%',
                                        }
                                 )
-
+    scenario_label = html.H3(f"Scenario: {viz_server.env.scenario_id()}",
+                             style={'textAlign': 'center'},
+                             id="scenario_id_title")
+    seed_label = html.H4(f"(seed: {viz_server.seed})",
+                         style={'textAlign': 'center'},
+                         id="scenario_seed_title")
     graph_col = html.Div(id="graph-col",
-                         children=[rt_graph_div, sim_graph_div],
-                         style={'height': '55vh'}, #'width': '100%', 'height': '55vh'},
+                         children=[scenario_label, seed_label, rt_graph_div, sim_graph_div],
+                         style={'height': '75vh'}, #'width': '100%', 'height': '55vh'},
                          # style={'display': 'inline-block'}  # to allow stacking next to each other
                          )
 
@@ -694,6 +726,9 @@ def setupLayout(viz_server):
     recompute_rt_from_timeline = html.Label("",
                                             id="recompute_rt_from_timeline",
                                             n_clicks=0)
+    change_graph_title = html.Label("", id="change_graph_title", n_clicks=0)
+    chronic_names_dummy_output = html.Label("", id="chronic_names_dummy_output", n_clicks=0)
+    set_seed_dummy_output = html.Label("", id="set_seed_dummy_output", n_clicks=0)
     hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                     unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                     figfor_trigger_for_graph, figrt_trigger_rt_graph,
@@ -706,7 +741,8 @@ def setupLayout(viz_server):
                                     act_on_env_trigger_for, reset_butt_call_act_on_env,
                                     act_on_env_call_selfloop, selfloop_call_act_on_env,
                                     do_display_action, clear_assistant_path,
-                                    trigger_computation, recompute_rt_from_timeline
+                                    trigger_computation, recompute_rt_from_timeline, change_graph_title,
+                                    chronic_names_dummy_output, set_seed_dummy_output
                                     ],
                                     id="hidden_button_for_callbacks",
                                     style={'display': 'none'})

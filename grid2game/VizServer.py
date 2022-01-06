@@ -118,8 +118,13 @@ class VizServer:
         if build_args.g2op_param is not None and build_args.g2op_param != "":
             self.env.set_params(build_args.g2op_param, reset=False)
 
+        # seed part
         if build_args.env_seed is not None:
             self.env.seed(build_args.env_seed, reset=True)
+        self.seed = None  # no seed are set through the UI yet
+
+        # chronics part
+        self.chronics_id = None  # no chronics are set through the UI yet
 
         self.logger.info("Environment initialized")
         self.plot_grids = PlotGrids(self.env.observation_space)
@@ -291,6 +296,7 @@ class VizServer:
         self._gofast_button_shape = "btn btn-secondary"
         self._go_button_shape = "btn btn-secondary"
         self._go_till_go_button_shape = "btn btn-secondary"
+        change_graph_title = dash.no_update
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -308,8 +314,9 @@ class VizServer:
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
-            self.env.next_computation_kwargs = {}
+            self.env.next_computation_kwargs = {"chronics_id": self.chronics_id, "seed": self.seed}
             self.is_previous_click_end = False
+            change_graph_title = 1
         elif button_id == "simulate-button":
             self.env.start_computation()
             self.env.next_computation = "simulate"
@@ -392,7 +399,36 @@ class VizServer:
                 self._gofast_button_shape,
                 self._go_till_go_button_shape,
                 i_am_computing_state,
-                i_am_computing_state]
+                i_am_computing_state,
+                change_graph_title]
+
+    def change_graph_title(self, change_graph_title):
+        # make sure that the environment has done computing
+        i = 0
+        while self.env.is_computing():
+            time.sleep(0.1)
+            i += 1
+            if i >= 20:
+                # in this case, the environment has not finished running for 2s, I stop here
+                # in this case the user should probably call reset another time !
+                raise dash.exceptions.PreventUpdate
+
+        # reset the elements !
+        self.seed = None
+        self.chronics_id = None
+        chronics_name = None
+        set_seed = None
+        return [f"Scenario: {self.env.scenario_id()}", f"(seed: {self.env.glop_env.seed_used})", chronics_name, set_seed]
+
+    def set_chronics(self, chronics):
+        if chronics is not None:
+            self.chronics_id = chronics
+        return [1]
+
+    def set_seed(self, seed):
+        if seed is not None:
+            self.seed = int(seed)
+        return [1]
 
     def computation_wrapper(self, display_new_state, recompute_rt_from_timeline):
         # simulate a "state" of the application that depends on the computation
