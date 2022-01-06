@@ -401,6 +401,7 @@ class Env(ComputeWrapper):
             return 0
         self.is_computing()
         res = self.env_tree.move_from_click(time_line_graph_clcked)
+        self._current_action = copy.deepcopy(self.env_tree.get_last_action())
         self.stop_computation()  # this is a "one time" call
         return res
 

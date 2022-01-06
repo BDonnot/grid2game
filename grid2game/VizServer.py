@@ -22,6 +22,8 @@ class VizServer:
     SELF_LOOP_GO = 1
     SELF_LOOP_GOFAST = 2
 
+    GO_MODE = 11
+
     def __init__(self,
                  server,
                  build_args,
@@ -170,7 +172,7 @@ class VizServer:
         self._last_node_id = -1
 
         # last action taken
-        self._last_action = "dn"
+        self._last_action = "assistant"
 
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
@@ -326,12 +328,12 @@ class VizServer:
         elif button_id == "go-button":
             self.go_clicks += 1
             if self.go_clicks % 2:
-                # i clicked on gofast an even number of time, i need to stop computation
+                # i clicked on gofast an even number of times, i need to stop computation
                 self.env.stop_computation()
                 self._button_shape = "btn btn-primary"
                 self._gofast_button_shape = "btn btn-primary"
             else:
-                # i clicked on gofast an even number of time, i need to stop computation
+                # i clicked on gofast an odd number of times, i need to start computation
                 self.env.start_computation()
                 self._button_shape = "btn btn-secondary"
                 self._gofast_button_shape = "btn btn-secondary"
@@ -346,12 +348,14 @@ class VizServer:
             # don't start the computation if not needed
             i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
             display_new_state = 1  # I am NOT computing I DO update the graphs
-            self._button_shape = "btn btn-primary"  # by default buttons are "grey"
+            self._button_shape = "btn btn-primary"
             self._gofast_button_shape = "btn btn-primary"
             self._go_button_shape = "btn btn-primary"
             self._go_till_go_button_shape = "btn btn-primary"
 
-        if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked:
+        in_go_mode = self.go_clicks % 2 == 0
+
+        if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked and not in_go_mode:
             # in this case, this should be the first call to this function after the "operate the grid until the
             # end" function is called
             # so i need to force update the figures
@@ -360,14 +364,25 @@ class VizServer:
             # I need that to the proper update of the progress bar
             self._last_step = self.env.obs.current_step
             self._last_max_step = self.env.obs.max_step
+
             i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
             display_new_state = 1  # I am NOT computing I DO update the graphs
-            self._button_shape = "btn btn-primary"  # by default buttons are "grey"
+            self._button_shape = "btn btn-primary"
             self._gofast_button_shape = "btn btn-primary"
             self._go_button_shape = "btn btn-primary"
             self._go_till_go_button_shape = "btn btn-primary"
 
-        # print(i_am_computing_state)
+        elif in_go_mode:
+            # I have clicked on the "go" button, I need to "hack" everything to make sure proper buttons are set correctly
+            # for this case
+            display_new_state = type(self).GO_MODE
+            i_am_computing_state = {'display': 'block'}
+            self._go_button_shape = "btn btn-primary"
+
+            self._go_till_go_button_shape = "btn btn-secondary"
+            self._gofast_button_shape = "btn btn-secondary"
+            self._button_shape = "btn btn-secondary"
+            
         return [display_new_state,
                 self._button_shape,
                 self._button_shape,
@@ -376,6 +391,7 @@ class VizServer:
                 self._go_button_shape,
                 self._gofast_button_shape,
                 self._go_till_go_button_shape,
+                i_am_computing_state,
                 i_am_computing_state]
 
     def computation_wrapper(self, display_new_state, recompute_rt_from_timeline):
@@ -383,11 +399,11 @@ class VizServer:
         if not self.env.is_computing():
             self.env.heavy_compute()
         
-        if self.env.is_computing():
+        if self.env.is_computing() and display_new_state != type(self).GO_MODE:
             # environment is computing I do not update anything
             raise dash.exceptions.PreventUpdate
 
-        if display_new_state == 1:
+        if display_new_state == 1 or display_new_state == type(self).GO_MODE:
             trigger_rt = 1
             trigger_for = 1
 
@@ -558,7 +574,6 @@ class VizServer:
         # i need to display the action
         self._last_action = "manual"
         dropdown_value = "manual"
-
         self.env.next_action_is_manual()
         is_modif = False
         if gen_id != "":
@@ -590,10 +605,6 @@ class VizServer:
 
         if not is_modif:
             raise dash.exceptions.PreventUpdate
-        # else:
-        #     # i force the env to do the "current_action" in the next step
-        #     self.env.next_action_from = self.env.LIKE_PREVIOUS
-
         # TODO optim here to save that if not needed because nothing has changed
         res = [f"{self.env.current_action}", dropdown_value]
         return res

@@ -53,8 +53,8 @@ class EnvTree(object):
         self._current_node = node
         self.__is_init = True
         self.init_plot_timeline()
-        self.Xn = [0]
-        self.Yn = [0]
+        self.Xn = np.array([0])
+        self.Yn = np.array([0])
 
     def init_plot_timeline(self) -> None:
         """initialize the plot for the timeline"""
@@ -196,6 +196,10 @@ class EnvTree(object):
             self._current_node = node
             self._all_nodes.append(node)
 
+            # recompute the position of the node
+            # TODO optimize here to compute only the last position, and not recompute all previous positions each time !
+            self.Xn, self.Yn = self.layout_manual()
+
     def go_to_node(self, node: Node):
         """set the current node of the tree to be this node"""
         # TODO check that the node exist ! (using the id)
@@ -274,7 +278,10 @@ class EnvTree(object):
                 pos_y += son_id[node.father.id]
                 son_id[node.father.id] += width[node.id]
             Yn.append(pos_y)
+        return np.array(Xn), np.array(Yn)
 
+    def node_info(self):
+        """computes which type of information should be displayed on which node in the timeline"""
         Xe = []
         Ye = []
         texts = []
@@ -282,13 +289,13 @@ class EnvTree(object):
         Ye_c = []
         for node in self._all_nodes:
             # run through all the node and connect it to its children, if any
-            my_x = Xn[node.id]
-            my_y = Yn[node.id]
+            my_x = self.Xn[node.id]
+            my_y = self.Yn[node.id]
             for link in node.get_actions_to_sons():
                 if link.son is not None:
                     # This link has a son
-                    tmp_x = Xn[link.son.id]
-                    tmp_y = Yn[link.son.id]
+                    tmp_x = self.Xn[link.son.id]
+                    tmp_y = self.Yn[link.son.id]
                     Xe += [my_x, tmp_x, None]
                     Ye += [my_y, tmp_y, None]
                     Xe_c.append(0.5 * (my_x + tmp_x))
@@ -297,13 +304,13 @@ class EnvTree(object):
                     if link.action.can_affect_something():
                         txt = re.sub("\n", "<br>", link.action.__str__())
                     texts.append(txt)
-        return np.array(Xn), np.array(Yn), Xe, Ye, Xe_c, Ye_c, texts
+        return Xe, Ye, Xe_c, Ye_c, texts
 
     def plot_plotly(self) -> plotly.graph_objects.Figure:
         # see https://plotly.com/python/tree-plots/
 
         # retrieve the layout
-        Xn, Yn, Xe, Ye, Xe_c, Ye_c, texts = self.layout_manual()
+        Xe, Ye, Xe_c, Ye_c, texts = self.node_info()
 
         # now filter them based on game over or not
         node_normal = []
@@ -321,23 +328,21 @@ class EnvTree(object):
             else:
                 node_normal.append(node.id)
 
-        self.Xn = Xn
-        self.Yn = Yn
         # and now plot the figure
-        self.fig_timeline.update_traces(x=Xn[node_normal],
-                                        y=Yn[node_normal],
+        self.fig_timeline.update_traces(x=self.Xn[node_normal],
+                                        y=self.Yn[node_normal],
                                         text=[f"{id_}" for id_ in node_normal],
                                         selector=dict(name="nodes"))
-        self.fig_timeline.update_traces(x=Xn[node_game_over],
-                                        y=Yn[node_game_over],
+        self.fig_timeline.update_traces(x=self.Xn[node_game_over],
+                                        y=self.Yn[node_game_over],
                                         text=[f"{id_}" for id_ in node_game_over],
                                         selector=dict(name="nodes_game_over"))
-        self.fig_timeline.update_traces(x=Xn[node_sucess],
-                                        y=Yn[node_sucess],
+        self.fig_timeline.update_traces(x=self.Xn[node_sucess],
+                                        y=self.Yn[node_sucess],
                                         text=[f"{id_}" for id_ in node_sucess],
                                         selector=dict(name="nodes_success"))
-        self.fig_timeline.update_traces(x=Xn[node_alert],
-                                        y=Yn[node_alert],
+        self.fig_timeline.update_traces(x=self.Xn[node_alert],
+                                        y=self.Yn[node_alert],
                                         text=[f"{id_}" for id_ in node_alert],
                                         selector=dict(name="nodes_alert"))
         self.fig_timeline.update_traces(x=Xe,
@@ -350,7 +355,7 @@ class EnvTree(object):
         self.fig_timeline.update_traces(x=[self.current_node.step, self.current_node.step],
                                         selector=dict(name="real_time"))
         # self.fig_timeline.update_xaxes(range=[-0.1, np.max(Xn) + 0.1], showgrid=False, visible=False)
-        self.fig_timeline.update_yaxes(range=[-self.margin_for_plot, np.max(Yn) + self.margin_for_plot])
+        self.fig_timeline.update_yaxes(range=[-self.margin_for_plot, np.max(self.Yn) + self.margin_for_plot])
         return self.fig_timeline
 
     def clear(self) -> None:
@@ -506,8 +511,3 @@ if __name__ == "__main__":
 
     fig = tree.plot_plotly()
     fig.show()
-
-
-
-
-

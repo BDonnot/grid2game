@@ -86,13 +86,17 @@ def setupLayout(viz_server):
 
     # see https://dash.plotly.com/dash-core-components/loading
     # [dcc.Loading(id="loading_go_fast_", type="circle", children=html.Div(id="loading_go_fast_output"))]
-    loading_go_fast = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
-                               id="loading_go_fast",
+    is_computing_left = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
+                               id="is_computing_left",
+                               style={'display': 'none'})
+    is_computing_right = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
+                               id="is_computing_right",
                                style={'display': 'none'})
 
     controls_row = html.Div(id="control-buttons",
                             # className="row",
                             children=[
+                                is_computing_left,
                                 back_button,  # TODO display back only if its possible in the viz_server.env
                                 step_button,
                                 simulate_button,
@@ -100,7 +104,7 @@ def setupLayout(viz_server):
                                 nb_step_go_fast,
                                 go_fast,
                                 go_till_game_over,
-                                loading_go_fast
+                                is_computing_right
                             ],
                             style={'justify-content': 'space-between',
                                    "display": "flex"}
