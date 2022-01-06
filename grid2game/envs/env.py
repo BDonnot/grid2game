@@ -114,7 +114,12 @@ class Env(ComputeWrapper):
     def list_chronics(self):
         res = []
         if isinstance(self.glop_env.chronics_handler.real_data, Multifolder):
-            res = self.glop_env.chronics_handler.available_chronics()
+            chron = self.glop_env.chronics_handler
+            if hasattr(chron, "available_chronics"):
+                res = self.glop_env.chronics_handler.available_chronics()
+            else:
+                self.logger.warn("You are using an 'old' grid2op version, please upgrade it to version >= 1.6.5")
+                res = chron.subpaths[chron._order]
             res = [os.path.split(el)[-1] for el in res]
         return res
 
@@ -357,7 +362,13 @@ class Env(ComputeWrapper):
 
     def reset(self, chronics_id=None, seed=None):
         if chronics_id is not None:
-            self.glop_env.set_id(chronics_id)
+            
+            chron = self.glop_env.chronics_handler
+            if hasattr(chron, "available_chronics"):  # "proxy" for "grid2op >= 1.6.5"
+                self.glop_env.set_id(chronics_id)
+            else:
+                self.logger.warn("Please upgrade to grid2op >= 1.6.5 to benefit from the functionality to set chronics with directory id")
+                self.glop_env.set_id(os.path.join(chron.path, chronics_id))
         if seed is not None:
             self.glop_env.seed(seed)
         self.init_state()
@@ -417,6 +428,16 @@ class Env(ComputeWrapper):
         self.is_computing()
         res = self.env_tree.move_from_click(time_line_graph_clcked)
         self._current_action = copy.deepcopy(self.env_tree.get_last_action())
+        
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        if not done:
+            self.choose_next_action()
+            self.logger.info("step: done is False")
+            try:
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+            except NoForecastAvailable:
+                self.logger.warn("handle_click_timeline: no forecast seems to be available for the current observation.")
+                pass
         self.stop_computation()  # this is a "one time" call
         return res
 
