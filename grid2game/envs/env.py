@@ -391,6 +391,10 @@ class Env(ComputeWrapper):
         self.next_action_from = self.MANUAL
         self._current_action = copy.deepcopy(self._current_action)
 
+    def next_action_copy(self):
+        """something has selected an action, i need to copy it not to erase it first !"""
+        self._current_action = copy.deepcopy(self._current_action)
+
     def handle_click_timeline(self, time_line_graph_clcked) -> int:
         """handles the interaction from the timeline"""
         if "points" not in time_line_graph_clcked:

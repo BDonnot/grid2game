@@ -412,6 +412,7 @@ def setupLayout(viz_server):
                                             {'label': 'do nothing', 'value': 'dn'},
                                             {'label': 'previous', 'value': 'prev'},
                                             {'label': 'assistant', 'value': 'assistant'},
+                                            {'label': 'manual', 'value': 'manual'},
                                         ],
                                         value='assistant',
                                         clearable=False)

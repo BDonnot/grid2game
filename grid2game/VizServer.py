@@ -169,6 +169,9 @@ class VizServer:
         # last node id (to not plot twice the same stuff to gain time)
         self._last_node_id = -1
 
+        # last action taken
+        self._last_action = "dn"
+
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
         cont_ = True
@@ -512,10 +515,10 @@ class VizServer:
         # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
         ctx = dash.callback_context
+        dropdown_value = self._last_action
         if not ctx.triggered:
             # no click have been made yet
-            # return [""]
-            return [f"{self.env.current_action}"]
+            return [f"{self.env.current_action}", dropdown_value]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -523,57 +526,76 @@ class VizServer:
             # the "base action" has been modified, so i need to change it here
             if which_action_button == "dn":
                 self.env.next_action_is_dn()
+                self._last_action = "dn"
+                do_display = False
+                dropdown_value = "dn"
             elif which_action_button == "assistant":
                 self.env.next_action_is_assistant()
+                self._last_action = "assistant"
+                do_display = False
+                dropdown_value = "assistant"
             elif which_action_button == "prev":
                 self.env.next_action_is_previous()
+                self._last_action = "prev"
+                do_display = False
+                dropdown_value = "prev"
+            elif which_action_button == "manual":
+                self.env.next_action_copy()
+                self._last_action = "manual"
+                do_display = True
+                dropdown_value = "manual"
             else:
                 # nothing is done
                 pass
-            res = [f"{self.env.current_action}"]
-        elif not do_display:
+            res = [f"{self.env.current_action}", dropdown_value]
+            return res
+
+        if not do_display:
             # i should not display the action
-            # res = [""]
-            res = [f"{self.env.current_action}"]
-        else:
-            # i need to display the action
-            self.env.next_action_is_manual()
-            is_modif = False
-            if gen_id != "":
-                try:
-                    gen_id_int = int(gen_id)
-                    if self.env.glop_env.gen_renewable[gen_id_int]:
-                        self.env._current_action.curtail_mw = [(int(gen_id), float(redisp))]
+            res = [f"{self.env.current_action}", dropdown_value]
+            return res
+        
+        # i need to display the action
+        self._last_action = "manual"
+        dropdown_value = "manual"
 
-                    else:
-                        self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
-                    is_modif = True
-                except Exception as exc_:
-                    # either initialization of something else
-                    self.logger.error(f"Error in display_action_fun: {exc_}")
-                    pass
-            if stor_id != "":
-                self.env._current_action.storage_p = [(int(stor_id), float(storage_p))]
-                is_modif = True
-            if line_id != "" and line_status is not None:
-                self.env._current_action.line_set_status = [(int(line_id), int(line_status))]
-                is_modif = True
-            if sub_id != "":
-                is_modif = True
-                if clicked_sub_fig is not None:
-                    # i modified a substation topology
-                    obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
-                    if obj_id is not None:
-                        self.env._current_action.set_bus = [(obj_id, new_bus)]
+        self.env.next_action_is_manual()
+        is_modif = False
+        if gen_id != "":
+            try:
+                gen_id_int = int(gen_id)
+                if self.env.glop_env.gen_renewable[gen_id_int]:
+                    self.env._current_action.curtail_mw = [(int(gen_id), float(redisp))]
 
-            if not is_modif:
-                raise dash.exceptions.PreventUpdate
-            # else:
-            #     # i force the env to do the "current_action" in the next step
-            #     self.env.next_action_from = self.env.LIKE_PREVIOUS
+                else:
+                    self.env._current_action.redispatch = [(int(gen_id), float(redisp))]
+                is_modif = True
+            except Exception as exc_:
+                # either initialization of something else
+                self.logger.error(f"Error in display_action_fun: {exc_}")
+                pass
+        if stor_id != "":
+            self.env._current_action.storage_p = [(int(stor_id), float(storage_p))]
+            is_modif = True
+        if line_id != "" and line_status is not None:
+            self.env._current_action.line_set_status = [(int(line_id), int(line_status))]
+            is_modif = True
+        if sub_id != "":
+            is_modif = True
+            if clicked_sub_fig is not None:
+                # i modified a substation topology
+                obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
+                if obj_id is not None:
+                    self.env._current_action.set_bus = [(obj_id, new_bus)]
 
-            # TODO optim here to save that if not needed because nothing has changed
-            res = [f"{self.env.current_action}"]
+        if not is_modif:
+            raise dash.exceptions.PreventUpdate
+        # else:
+        #     # i force the env to do the "current_action" in the next step
+        #     self.env.next_action_from = self.env.LIKE_PREVIOUS
+
+        # TODO optim here to save that if not needed because nothing has changed
+        res = [f"{self.env.current_action}", dropdown_value]
         return res
 
     def display_click_data(self,

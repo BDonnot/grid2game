@@ -65,6 +65,7 @@ def add_callbacks(dash_app, viz_server):
 
     # handle display of the action, if needed
     dash_app.callback([dash.dependencies.Output("current_action", "children"),
+                       dash.dependencies.Output("which_action_button", "value")
                             ],
                             [dash.dependencies.Input("which_action_button", "value"),
                             dash.dependencies.Input("do_display_action", "value"),
