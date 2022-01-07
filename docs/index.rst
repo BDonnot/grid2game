@@ -18,6 +18,9 @@ It allows to:
    :caption: Quickstart
 
    quickstart
+   play_the_game
+   help_your_agent
+   imitation_learning
 
 
 Technical Documentation (work in progress)
@@ -30,12 +33,14 @@ This is a work in progress at the moment
    :caption: Technical Documentation
 
    load_assistant
+   save_expe
    control_scenario
    navigate_in_scenario
-   available_action
+   control_display
    timeline
+   grid_displayed
+   available_action
    temporal_data
-   save_expe
 
 
 Indices and tables

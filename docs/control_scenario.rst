@@ -1,3 +1,5 @@
+.. _page_scenario_seed:
+
 How to select a scenario or seed
 ===================================
 

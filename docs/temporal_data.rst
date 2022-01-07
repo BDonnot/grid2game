@@ -1,3 +1,5 @@
+.. _page_temporal_data:
+
 Past temporal data
 ===================================
 

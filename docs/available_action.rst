@@ -1,3 +1,5 @@
+.. _page_available_action:
+
 Perform action on the powergrid
 ===================================
 

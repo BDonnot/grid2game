@@ -1,3 +1,5 @@
+.. _page_save_expe:
+
 Save experiment
 ===================================
 
