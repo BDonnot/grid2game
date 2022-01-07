@@ -1,3 +1,11 @@
+.. Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
+   See AUTHORS.txt
+   This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
+   If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
+   you can obtain one at http://mozilla.org/MPL/2.0/.
+   SPDX-License-Identifier: MPL-2.0
+   This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
+
 .. |control_panel| image:: ./img/ControlPanel.png
 .. |grid_timeline| image:: ./img/grid_timeline.png
 .. |action_temporal_graphs| image:: ./img/action_temporal_graphs.png
@@ -57,6 +65,10 @@ With the ability to "help" your agent with better solutions and to save the expe
 standardized manner, you will then also be able to perform imiation learning (or "behavioral cloning")
 to help your agent even more (see section :ref:`page_imitation_learning` for a usecase).
 
+Last, but not least, you can also "jump  in time" to explore counterfactuals ("what if i 
+had taken a different actions 2h ago, what would have had happened ?"). This allows to explore
+different "reality" where you took different actions and compare which one is the best, among 
+many other things.
 
 Start Using grid2game
 ---------------------------
