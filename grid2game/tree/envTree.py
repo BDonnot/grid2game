@@ -189,9 +189,10 @@ class EnvTree(object):
         """make a "step" in the tree with the given action"""
         if not self.__is_init:
             raise RuntimeError("You are trying to use a non initialized envTree.")
-
+        # print(f"chosen_action: {np.any(chosen_action.raise_alarm)}")
         chosen_action = copy.deepcopy(chosen_action)
         res = self._current_node.son_for_this_action(chosen_action)
+        # print(f"chosen_action: {np.any(chosen_action.raise_alarm)}")
         if res is not None:
             # I "already" made this action "in the past"
             # so i retrieve what i did
@@ -205,7 +206,6 @@ class EnvTree(object):
                         glop_env=current_env,
                         id_=len(self._all_nodes),
                         father=self._current_node)
-
             # TODO check if node exist ! (not using id !)
             self._current_node.add_son(chosen_action, node)
             self._current_node = node

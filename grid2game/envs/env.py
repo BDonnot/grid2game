@@ -95,7 +95,9 @@ class Env(ComputeWrapper):
         self.next_computation_kwargs = {}
 
     def is_assistant_illegal(self):
-        return self._sim_info["is_illegal"]
+        if "is_illegal" in self._sim_info:
+            return self._sim_info["is_illegal"]
+        return False
 
     def prevent_display(self):
         self._should_display = False
@@ -174,9 +176,10 @@ class Env(ComputeWrapper):
             self.stop_computation()  # this is a "one time" call
             return self.seed(**self.next_computation_kwargs)
         elif self.next_computation == "step":
+            res = self.step(**self.next_computation_kwargs)
             self.stop_computation()  # this is a "one time" call
-            return self.step(**self.next_computation_kwargs)
-        elif self.next_computation == "step_rec":
+            return res
+        elif self.next_computation == "step_rec":  # this is the "go" button
             res = self.step()
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             if self._stop_if_alarm(obs):
@@ -184,12 +187,13 @@ class Env(ComputeWrapper):
                 self.logger.info("step_rec: An alarm is raised, I stop")
                 self.stop_computation()
             return res
-        elif self.next_computation == "step_rec_fast":
+        elif self.next_computation == "step_rec_fast":    # I press "+xxx" button (eg +12)
             # currently not used !
             res = None
             for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+                # print(f"do_computation: {self._assistant_action.raise_alarm}")
                 if self._stop_if_alarm(obs):
                     self.logger.info("step_rec_fast: An alarm is raised, I stop")
                     break
@@ -311,7 +315,11 @@ class Env(ComputeWrapper):
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             return obs, reward, done, info
 
+        if self._assistant_action is None:
+            self.choose_next_assistant_action()
+
         if action is None:
+            self.choose_next_action()
             action = self._current_action
         else:
             # TODO is this correct ? I never really tested that
@@ -337,6 +345,7 @@ class Env(ComputeWrapper):
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
+        # print(f"step: {np.any(self._assistant_action.raise_alarm)}") 
         return obs, reward, done, info
 
     def choose_next_assistant_action(self):
@@ -345,6 +354,7 @@ class Env(ComputeWrapper):
 
     def choose_next_action(self):
         if self.next_action_from == self.ASSISTANT:
+            print("previous action is assistant")
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
             # next action should be like the previous one or manually set
