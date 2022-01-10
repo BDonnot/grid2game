@@ -38,7 +38,7 @@ pkgs = {
 }
 
 setup(name='grid2game',
-      version='0.0.1a',
+      version='0.1.0',
       description='A gamification of the "powergrid problem" using grid2op and dash',
       classifiers=[
           'Development Status :: 2 - Pre-Alpha',
