@@ -5,3 +5,4 @@ grid2op>=1.6.4
 imageio
 orjson
 lightsim2grid
+gunicorn
