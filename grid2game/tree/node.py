@@ -34,7 +34,12 @@ class Node(object):
 
         self._father: Union["Node", None] = father
         self.step: int = obs.current_step  # unique identifier of the node ID
-
+        if info is None:
+            self.prev_action_is_illegal = False
+            self.prev_action_is_ambiguous = False
+        else:
+            self.prev_action_is_illegal = info["is_illegal"]
+            self.prev_action_is_ambiguous = info["is_ambiguous"]
         # current state of the grid
         self._obs: BaseObservation = obs
         self._reward: Union[float, None] = reward

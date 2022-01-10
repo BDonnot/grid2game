@@ -146,6 +146,20 @@ class EnvTree(object):
                                                hoverinfo='text',
                                                opacity=0.8
                                                ))
+
+        # illegal vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_illegal',
+                                               marker=dict(symbol='triangle-up-dot',
+                                                           size=16,
+                                                           color='black'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
         # real time vertical bar
         self.fig_timeline.add_trace(go.Scatter(x=[0, 0],
                                                y=[-10, 10],
@@ -318,12 +332,15 @@ class EnvTree(object):
         node_game_over = []
         node_sucess = []
         node_alert = []
+        node_illegal = []
         for node in self._all_nodes:
             if node.done:
                 if node.step != self._current_node.obs.max_step:
                     node_game_over.append(node.id)
                 else:
                     node_sucess.append(node.id)
+            elif node.prev_action_is_illegal:
+                node_illegal.append(node.id)
             elif np.any(node.obs.time_since_last_alarm == 0):
                 node_alert.append(node.id)
             else:
@@ -346,6 +363,10 @@ class EnvTree(object):
                                         y=self.Yn[node_alert],
                                         text=[f"{id_}" for id_ in node_alert],
                                         selector=dict(name="nodes_alert"))
+        self.fig_timeline.update_traces(x=self.Xn[node_illegal],
+                                        y=self.Yn[node_illegal],
+                                        text=[f"{id_}" for id_ in node_illegal],
+                                        selector=dict(name="nodes_illegal"))
         self.fig_timeline.update_traces(x=Xe,
                                         y=Ye,
                                         selector=dict(name="edges"))
