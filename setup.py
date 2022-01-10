@@ -31,6 +31,9 @@ pkgs = {
             "grid2op>=1.6.4",
             "recommonmark",
         ],
+        "recommended": [
+            "lightsim2grid"
+        ]
     }
 }
 

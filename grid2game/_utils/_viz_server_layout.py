@@ -223,8 +223,17 @@ def setupLayout(viz_server):
                             style={"display": "flex",
                                    'justifyContent': 'space-between'},
                             )
+    if viz_server._app_heroku:
+        assistant_txt = "Feature currently unavailable on heroku"
+        save_txt = "Feature currently unavailable on heroku"
+        btn_assistant_save = "btn btn-secondary"
+    else:
+        assistant_txt = 'Copy paste assistant location'
+        save_txt = 'Where do you want to save the current experiment?'
+        btn_assistant_save = "btn btn-primary"
+
     select_assistant = html.Div(id='select_assistant_box',
-                                children=[html.Div(children=[dcc.Input(placeholder='Copy paste assistant location',
+                                children=[html.Div(children=[dcc.Input(placeholder=assistant_txt,
                                                                        id="select_assistant",
                                                                        type="text",
                                                                        style={
@@ -257,7 +266,7 @@ def setupLayout(viz_server):
                                           html.Label("load",
                                                      id="load_assistant_button",
                                                      n_clicks=0,
-                                                     className="btn btn-primary",
+                                                     className=btn_assistant_save,
                                                      style={ 'width': '100%', }
                                                     ),
                                          ]
@@ -266,8 +275,7 @@ def setupLayout(viz_server):
     save_experiment = html.Div(id='save_expe_box',
                                children=[                  
                                html.Div(children=[
-                                   dcc.Input(placeholder='Where do you want to save the current '
-                                                                        'experiment?',
+                                   dcc.Input(placeholder=save_txt,
                                              id="save_expe",
                                              type="text",
                                              style={
@@ -307,7 +315,7 @@ def setupLayout(viz_server):
                                html.Label("save",
                                           id="save_expe_button",
                                           n_clicks=0,
-                                          className="btn btn-primary",
+                                          className=btn_assistant_save,
                                           style={'height': '35px',
                                                  'width': '100%',
                                                 }

@@ -106,6 +106,12 @@ class VizServer:
         self.assistant_path = str(build_args.assistant_path)
         self.save_expe_path = ""
 
+        if build_args._app_heroku:
+            self.logger.info("Heorku mode used")
+            self._app_heroku = True
+        else:
+            self._app_heroku = False
+
         # read the right config
         g2op_config = self._make_glop_env_config(build_args)
 

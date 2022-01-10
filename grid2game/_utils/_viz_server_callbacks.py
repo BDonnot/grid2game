@@ -188,14 +188,16 @@ def add_callbacks(dash_app, viz_server):
                       [dash.dependencies.State("select_assistant", "value")]
                      )(viz_server.load_assistant)
 
-    dash_app.callback([dash.dependencies.Output("select_assistant", "value")],
-                      [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
-                     )(viz_server.clear_loading)
+    if viz_server._app_heroku is False:
+        # this is deactivated on heroku at the moment !
+        dash_app.callback([dash.dependencies.Output("select_assistant", "value")],
+                        [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
+                        )(viz_server.clear_loading)
 
-    dash_app.callback([dash.dependencies.Output("current_save_path", "children")],
-                      [dash.dependencies.Input("save_expe_button", "n_clicks")],
-                      [dash.dependencies.State("save_expe", "value")]
-                     )(viz_server.save_expe)
+        dash_app.callback([dash.dependencies.Output("current_save_path", "children")],
+                        [dash.dependencies.Input("save_expe_button", "n_clicks")],
+                        [dash.dependencies.State("save_expe", "value")]
+                        )(viz_server.save_expe)
 
     # callback for the timeline
     dash_app.callback([dash.dependencies.Output("recompute_rt_from_timeline", "n_clicks")],
