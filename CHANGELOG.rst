@@ -9,7 +9,13 @@ Change Log
 - [???] hide the "action" panel in go / go fast mode to show directly the temporal series.
 - [???] make a "mode" where you **cannot** go "backward"
 
-[0.1.0] - 2022/01/10
+[0.2.0] - 2022-xx-yy
+----------------------
+- [IMPROVED] illegal actions are now displayed on the GUI (see https://github.com/BDonnot/grid2game/issues/3) 
+- [IMPROVED] when creating a topological action, the graph of the substation is updated "on the fly" (see https://github.com/BDonnot/grid2game/issues/36) 
+- [IMPROVED] buses having 2 or more activated buses are displayed in a different color (see https://github.com/BDonnot/grid2game/issues/35) 
+
+[0.1.0] - 2022-01-10
 ----------------------
 - [ADDED] fix the Action panel, by adding a "manual" pre selection and a "manual" mode, instead of having to always click
   and unclick to "do nothing"
