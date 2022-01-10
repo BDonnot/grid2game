@@ -21,11 +21,24 @@ pkgs = {
         # "graphviz",
         # "networkx"
     ],
-    "extras": {}
+    "extras": {
+        "docs": [
+            "numpydoc>=0.9.2",
+            "sphinx>=2.4.4",
+            "sphinx-rtd-theme>=0.4.3",
+            "sphinxcontrib-trio>=1.1.0",
+            "autodocsumm>=0.1.13",
+            "grid2op>=1.6.4",
+            "recommonmark",
+        ],
+        "recommended": [
+            "lightsim2grid"
+        ]
+    }
 }
 
 setup(name='grid2game',
-      version='0.0.1a',
+      version='0.1.0',
       description='A gamification of the "powergrid problem" using grid2op and dash',
       classifiers=[
           'Development Status :: 2 - Pre-Alpha',

@@ -50,6 +50,10 @@ def cli():
 
     # TODO add an option to change the parameters of the environment
 
+    parser.add_argument("--_app_heroku", required=False,
+                        action="store_true", default=False,
+                        help="INTERNAL: do not use (inform that the app is running on the heroku server)")
+
     return parser.parse_args()
 
 

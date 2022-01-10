@@ -6,12 +6,12 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
-from typing import Union, List, Tuple
+from typing import List, Tuple, Union
 
 from grid2op.Action import BaseAction
-from grid2op.Observation import BaseObservation
 from grid2op.Agent import BaseAgent
 from grid2op.Environment import BaseEnv
+from grid2op.Observation import BaseObservation
 
 from grid2game.tree.link import Link
 from grid2game.tree.temporalNodeData import TemporalNodeData

@@ -9,14 +9,15 @@
 import copy
 import re
 from typing import Union
+
 import numpy as np
 import plotly
 import plotly.graph_objects as go
 
 from grid2op.Action import BaseAction
-from grid2op.Observation import BaseObservation
 from grid2op.Agent import BaseAgent
 from grid2op.Environment import BaseEnv
+from grid2op.Observation import BaseObservation
 
 from grid2game.tree.node import Node
 
@@ -450,9 +451,10 @@ class EnvTree(object):
 
 
 if __name__ == "__main__":
+    import pdb
+
     import grid2op
     from lightsim2grid import LightSimBackend
-    import pdb
     env = grid2op.make("l2rpn_case14_sandbox", backend=LightSimBackend())
     obs = env.reset()
     assistant = None
