@@ -74,6 +74,7 @@ class Env(ComputeWrapper):
         self._sim_reward = None
         self._sim_done = None
         self._sim_info = None
+        self._current_assistant_action = None
 
         # define variables
         self._should_display = True
@@ -92,6 +93,9 @@ class Env(ComputeWrapper):
         # to control which action will be done when
         self.next_computation = None
         self.next_computation_kwargs = {}
+
+    def is_assistant_illegal(self):
+        return self._sim_info["is_illegal"]
 
     def prevent_display(self):
         self._should_display = False
@@ -321,10 +325,10 @@ class Env(ComputeWrapper):
             self.stop_computation()
 
         if not done:
-            self.choose_next_action()
+            self.choose_next_assistant_action()
             self.logger.info("step: done is False")
             try:
-                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:
                 self.logger.warn("step: no forecast seems to be available for the current observation.")
                 pass
@@ -335,11 +339,12 @@ class Env(ComputeWrapper):
             self._sim_obs.set_game_over(self.glop_env)
         return obs, reward, done, info
 
+    def choose_next_assistant_action(self):
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        self._assistant_action = self.assistant.act(obs, reward, done)
+
     def choose_next_action(self):
-        self._assistant_action = None
         if self.next_action_from == self.ASSISTANT:
-            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-            self._assistant_action = self.assistant.act(obs, reward, done)
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
             # next action should be like the previous one or manually set

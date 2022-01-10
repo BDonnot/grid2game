@@ -372,25 +372,48 @@ def setupLayout(viz_server):
                 "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
     graph_css = "six columns"
     rt_graph_label = html.H3("Real time observation:", style={'textAlign': 'center'})
-    rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
+    # rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
+    rt_date_time = html.Div([# html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_left"),
+                             html.H6(viz_server.rt_datetime, id="rt_date_time"), # , style={'textAlign': 'center'}
+                             # html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_right")
+                            ],
+                            style={"display": "flex",
+                                   "alignItems": "center",
+                                   "justifyContent": "center"})
+    # rt_extra_info = html.P("", style={'textAlign': 'center', 'color': 'red'}, id="extra_info_rt")
+    graph_height = "520px"
+    graph_height = "550px"
     rt_graph_div = html.Div(id="rt_graph_div",
                             children=[
                                 rt_graph_label,
                                 rt_date_time,
-                                real_time_graph],
+                                html.H6("⚠️ Previous action illegal ⚠️", style=viz_server._style_legal_info, id="rt_extra_info"),
+                                real_time_graph,
+                            ],
                             style={'display': 'inline-block',
                                    'width': '50%',
+                                   "height": graph_height
                                   }
                             )
     forecast_graph_label = html.H3("Forecast (t+5mins):", style={'textAlign': 'center'})
-    forecast_date_time = html.P(viz_server.for_datetime, style={'textAlign': 'center'}, id="forecast_date_time")
+    forecast_date_time = html.Div([# html.H6("illegal  ", style={'color': 'red'}, id="forecast_extra_info_left"),
+                                   html.H6(viz_server.for_datetime, id="forecast_date_time"), # , style={'textAlign': 'center'}
+                                   # html.H6("  illegal", style={'color': 'red'}, id="forecast_extra_info_right")
+                                  ],
+                                  style={"display": "flex",
+                                         "alignItems": "center",
+                                         "justifyContent": "center"})
+    # forecast_extra_info = html.P("illegal action", style={'textAlign': 'center', 'color': 'red'}, id="forecast_extra_info")
     sim_graph_div = html.Div(id="sim_graph_div",
                                 children=[
                                     forecast_graph_label,
                                     forecast_date_time,
-                                    simulate_graph],
+                                    html.H6("⚠️ Previous action illegal ⚠️", style=viz_server._style_legal_info, id="forecast_extra_info"),
+                                    simulate_graph,
+                                ],
                                 style={'display': 'inline-block',
                                        'width': '50%',
+                                       "height": graph_height
                                        }
                                 )
     scenario_label = html.H3(f"Scenario: {viz_server.env.scenario_id()}",
@@ -401,7 +424,7 @@ def setupLayout(viz_server):
                          id="scenario_seed_title")
     graph_col = html.Div(id="graph-col",
                          children=[scenario_label, seed_label, rt_graph_div, sim_graph_div],
-                         style={'height': '75vh'},
+                         style={},  #  'height': '80vh'},
                          )
 
     # page to click the data
@@ -678,9 +701,9 @@ def setupLayout(viz_server):
     update_substation_layout_clicked_from_sub = html.Label("",
                                                            id="update_substation_layout_clicked_from_sub",
                                                            n_clicks=0)
-    update_substation_layout_clicked_from_grid = html.Label("",
-                                                            id="update_substation_layout_clicked_from_grid",
-                                                            n_clicks=0)
+    update_substation_layout_clicked_from_grid = html.Label("", id="update_substation_layout_clicked_from_grid", n_clicks=0)
+    trigger_rt_extra_info = html.Label("", id="trigger_rt_extra_info", n_clicks=0)
+    trigger_for_extra_info = html.Label("", id="trigger_for_extra_info", n_clicks=0)
     change_graph_title = html.Label("", id="change_graph_title", n_clicks=0)
     chronic_names_dummy_output = html.Label("", id="chronic_names_dummy_output", n_clicks=0)
     set_seed_dummy_output = html.Label("", id="set_seed_dummy_output", n_clicks=0)
@@ -698,7 +721,8 @@ def setupLayout(viz_server):
                                     do_display_action, clear_assistant_path,
                                     trigger_computation, recompute_rt_from_timeline, change_graph_title,
                                     chronic_names_dummy_output, set_seed_dummy_output,
-                                    update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid
+                                    update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid,
+                                    trigger_rt_extra_info, trigger_for_extra_info
                                    ],
                                    id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})

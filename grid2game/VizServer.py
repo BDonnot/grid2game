@@ -125,6 +125,9 @@ class VizServer:
                        logger=self.logger,
                        config_dict=g2op_config)
 
+        self._style_legal_info = {'color': 'red', "display": "flex", "alignItems": "center", "justifyContent": "center", 'display': 'none'}
+        self._style_illegal_info = {'color': 'red', "display": "flex", "alignItems": "center", "justifyContent": "center"}
+
         if build_args.g2op_param is not None and build_args.g2op_param != "":
             self.env.set_params(build_args.g2op_param, reset=False)
 
@@ -176,7 +179,6 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
-
         # initialize the layout
         self.my_app.layout = setupLayout(self)
         add_callbacks(self.my_app, self)
@@ -409,8 +411,7 @@ class VizServer:
                 i_am_computing_state,
                 change_graph_title]
 
-    def change_graph_title(self, change_graph_title):
-        # make sure that the environment has done computing
+    def _wait_for_computing_over(self):
         i = 0
         while self.env.is_computing():
             time.sleep(0.1)
@@ -419,6 +420,10 @@ class VizServer:
                 # in this case, the environment has not finished running for 2s, I stop here
                 # in this case the user should probably call reset another time !
                 raise dash.exceptions.PreventUpdate
+
+    def change_graph_title(self, change_graph_title):
+        # make sure that the environment has done computing
+        self._wait_for_computing_over()
 
         # reset the elements !
         self.seed = None
@@ -541,7 +546,16 @@ class VizServer:
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
             raise dash.exceptions.PreventUpdate
-        return [self.real_time,  self.rt_datetime]
+        self._wait_for_computing_over()
+        if self.env.env_tree.current_node.prev_action_is_illegal:
+            is_illegal = 1
+        else:
+            is_illegal = 0
+        return [self.real_time,  self.rt_datetime, is_illegal]
+
+    def update_if_rt_illegal(self, trigger_rt_extra_info):
+        if trigger_rt_extra_info:
+            pass
 
     def update_for_graph_figs(self, figrt_trigger, figfor_trigger, unit_trigger):
         if (figrt_trigger is None or figrt_trigger == 0) and \
@@ -549,7 +563,26 @@ class VizServer:
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
             raise dash.exceptions.PreventUpdate
-        return [self.forecast, self.for_datetime]
+        self._wait_for_computing_over()
+        if self.env.is_assistant_illegal():
+            is_illegal = 1
+        else:
+            is_illegal = 0
+        return [self.forecast, self.for_datetime, is_illegal]
+
+    def tell_illegal_rt(self, is_illegal):
+        if is_illegal == 1:
+            res = self._style_illegal_info
+        else:
+            res = self._style_legal_info
+        return [res]
+
+    def tell_illegal_for(self, is_illegal):
+        if is_illegal == 1:
+            res = self._style_illegal_info
+        else:
+            res = self._style_legal_info
+        return [res]
 
     # auxiliary functions
     def update_obs_fig(self):
