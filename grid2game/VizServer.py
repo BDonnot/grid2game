@@ -112,6 +112,9 @@ class VizServer:
         else:
             self._app_heroku = False
 
+        # remember which substation is clicked on
+        self._last_sub_id = None
+
         # read the right config
         g2op_config = self._make_glop_env_config(build_args)
 
@@ -572,9 +575,10 @@ class VizServer:
 
         ctx = dash.callback_context
         dropdown_value = self._last_action
+        update_substation_layout_clicked_from_sub = 0
         if not ctx.triggered:
             # no click have been made yet
-            return [f"{self.env.current_action}", dropdown_value]
+            return [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -603,12 +607,12 @@ class VizServer:
             else:
                 # nothing is done
                 pass
-            res = [f"{self.env.current_action}", dropdown_value]
+            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
 
         if not do_display:
             # i should not display the action
-            res = [f"{self.env.current_action}", dropdown_value]
+            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
         
         # i need to display the action
@@ -637,6 +641,7 @@ class VizServer:
             is_modif = True
         if sub_id != "":
             is_modif = True
+            update_substation_layout_clicked_from_sub = 1
             if clicked_sub_fig is not None:
                 # i modified a substation topology
                 obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
@@ -646,8 +651,22 @@ class VizServer:
         if not is_modif:
             raise dash.exceptions.PreventUpdate
         # TODO optim here to save that if not needed because nothing has changed
-        res = [f"{self.env.current_action}", dropdown_value]
+        res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
         return res
+
+    def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
+        """update the figure of the substation (when zoomed in)"""
+        if update_substation_layout_clicked_from_sub != 1 and update_substation_layout_clicked_from_grid != 1:
+            raise dash.exceptions.PreventUpdate
+        if update_substation_layout_clicked_from_sub is None and update_substation_layout_clicked_from_grid is None:
+            raise dash.exceptions.PreventUpdate
+
+        # update "in real time" the topology of the substation (https://github.com/BDonnot/grid2game/issues/36)
+        if self._last_sub_id is None:
+            self.logger.error("display_click_data: Unable to update the substatin plot: no know last substation id")
+            raise dash.exceptions.PreventUpdate
+        sub_res = self.plot_grids.update_sub_figure(self.env._current_action, self._last_sub_id)
+        return [sub_res[-1]]
 
     def display_click_data(self,
                            clickData,
@@ -675,6 +694,7 @@ class VizServer:
         style_sub_input = {'display': 'none'}
         sub_id_clicked = ""
         sub_res = ["", self.plot_grids.sub_fig]
+        update_substation_layout_clicked_from_grid = 0
 
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
@@ -687,9 +707,9 @@ class VizServer:
                     style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                     style_storage_input, storage_id_clicked, *storage_res,
                     style_line_input, line_id_clicked, *line_res,
-                    style_sub_input, sub_id_clicked, *sub_res
+                    style_sub_input, sub_id_clicked, *sub_res[:-1],
+                    update_substation_layout_clicked_from_grid
                     ]
-
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -697,12 +717,16 @@ class VizServer:
         if clickData is None:
             # i never clicked on any data
             do_display_action = 0
+            self._last_sub_id = None
         elif button_id == "step-button" or button_id == "simulate-button" or \
                 button_id == "go-button" or button_id == "gofast-button" or\
                 button_id == "back-button":
             # i never clicked on simulate, step, go, gofast or back
-            do_display_action = 0
+            do_display_action = 0 
+            self._last_sub_id = None
         else:
+            # I clicked on the graph of the grid
+            self._last_sub_id = None
             obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
             if obj_type == "gen":
                 gen_redisp_curtail = "Curtail (MW)" if self.env.glop_env.gen_renewable[obj_id] else "Redispatch"
@@ -725,13 +749,17 @@ class VizServer:
                 style_sub_input = {'display': 'inline-block'}
                 sub_res = res_type
                 do_display_action = 1
+                # remember that for next time
+                self._last_sub_id = obj_id
+                update_substation_layout_clicked_from_grid = 1
             else:
                 raise dash.exceptions.PreventUpdate
         return [do_display_action,
                 style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                 style_storage_input, storage_id_clicked, *storage_res,
                 style_line_input, line_id_clicked, *line_res,
-                style_sub_input, sub_id_clicked, *sub_res
+                style_sub_input, sub_id_clicked, *sub_res[:-1],
+                update_substation_layout_clicked_from_grid
                 ]
 
     def format_path(self, path):

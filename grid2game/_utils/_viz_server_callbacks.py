@@ -59,7 +59,8 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("sub_clicked", "style"),
                        dash.dependencies.Output("sub-id-hidden", "children"),
                        dash.dependencies.Output("sub-id-clicked", "children"),
-                       dash.dependencies.Output("graph_clicked_sub", "figure"),
+                    #    dash.dependencies.Output("graph_clicked_sub", "figure"),
+                       dash.dependencies.Output("update_substation_layout_clicked_from_grid", "n_clicks"),
                       ],
                       [dash.dependencies.Input('real-time-graph', 'clickData'),
                        dash.dependencies.Input("back-button", "n_clicks"),
@@ -72,7 +73,8 @@ def add_callbacks(dash_app, viz_server):
 
     # handle display of the action, if needed
     dash_app.callback([dash.dependencies.Output("current_action", "children"),
-                       dash.dependencies.Output("which_action_button", "value")
+                       dash.dependencies.Output("which_action_button", "value"),
+                       dash.dependencies.Output("update_substation_layout_clicked_from_sub", "n_clicks")
                       ],
                       [dash.dependencies.Input("which_action_button", "value"),
                        dash.dependencies.Input("do_display_action", "value"),
@@ -87,6 +89,10 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Input("graph_clicked_sub", "clickData")
                       ])(viz_server.display_action_fun)
 
+    # plot the substation that changes when we click
+    dash_app.callback([dash.dependencies.Output("graph_clicked_sub", "figure")],
+                      [dash.dependencies.Input("update_substation_layout_clicked_from_sub", "n_clicks"),
+                       dash.dependencies.Input("update_substation_layout_clicked_from_grid", "n_clicks"),])(viz_server.display_grid_substation)
     # handle the interaction with self.env, that should be done all in one function, otherwise
     # there are concurrency issues
     dash_app.callback([

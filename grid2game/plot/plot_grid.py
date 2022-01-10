@@ -106,6 +106,12 @@ class PlotGrids(PlotParams):
         self._last_rt_step = -1
         self._last_for_step = -1
 
+    def update_sub_figure(self, grid2op_action, sub_id):
+        """update the substation based on the proposed action (implements https://github.com/BDonnot/grid2game/issues/36)"""
+        obs = self.obs_rt + grid2op_action
+        res_substation = self._get_res_sub_clicked(sub_id, obs=obs)
+        return res_substation
+
     def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, fig,
                             pos_obj, pos_in_sub, pos_in_topo_vect,
                             line_side=None):
@@ -124,15 +130,18 @@ class PlotGrids(PlotParams):
         my_dist = self._dist_zoomed_in * self._r_sub_zoom
         tmp_x = int(posx + my_dist / dist_center * (tmp_x - posx))
         tmp_y = int(posy + my_dist / dist_center * (tmp_y - posy))
+
         # compute intersection with the circles representing the buses
         posx_bus1 = int(posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
         posy_bus1 = int(posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
         posx_bus2 = int(posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
         posy_bus2 = int(posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
+
         # dict to map coordinate to objects
         pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub, pos_in_topo_vect)
         pos_obj[(posx_bus1, posy_bus1)] = (nm_this_obj, "bus1", pos_in_sub, pos_in_topo_vect)
         pos_obj[(posx_bus2, posy_bus2)] = (nm_this_obj, "bus2", pos_in_sub, pos_in_topo_vect)
+
         # dict to map object to their coordinates
         if line_side is None:
             self.objs_info_zoomed[nm_this_obj] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
@@ -298,14 +307,16 @@ class PlotGrids(PlotParams):
                 res = (pos_in_topo_vect, -1 if what_clicked == "obj" else (1 if what_clicked == "bus1" else 2))
         return res
 
-    def _get_res_sub_clicked(self, obj_id):
+    def _get_res_sub_clicked(self, obj_id, obs=None):
         # draw the substation
         self.sub_fig, _ = self.figs_substation_zoomed[obj_id]
         self._last_sub_clicked = obj_id
 
         # add the right color to which the object is connected
-        current_topo = self.obs_rt.sub_topology(obj_id)
-        objs_this_sub = self.obs_rt.get_obj_substations(substation_id=obj_id)
+        if obs is None:
+            obs = self.obs_rt
+        current_topo = obs.sub_topology(obj_id)
+        objs_this_sub = obs.get_obj_substations(substation_id=obj_id)
         for obj_info, obj_bus in zip(objs_this_sub, current_topo):
             nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = self.retrieve_obj_info(obj_info)
             line_style = dict(color=self.col_bus1, dash=self.style_bus1)

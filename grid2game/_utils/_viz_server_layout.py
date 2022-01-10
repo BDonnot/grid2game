@@ -675,6 +675,12 @@ def setupLayout(viz_server):
     recompute_rt_from_timeline = html.Label("",
                                             id="recompute_rt_from_timeline",
                                             n_clicks=0)
+    update_substation_layout_clicked_from_sub = html.Label("",
+                                                           id="update_substation_layout_clicked_from_sub",
+                                                           n_clicks=0)
+    update_substation_layout_clicked_from_grid = html.Label("",
+                                                            id="update_substation_layout_clicked_from_grid",
+                                                            n_clicks=0)
     change_graph_title = html.Label("", id="change_graph_title", n_clicks=0)
     chronic_names_dummy_output = html.Label("", id="chronic_names_dummy_output", n_clicks=0)
     set_seed_dummy_output = html.Label("", id="set_seed_dummy_output", n_clicks=0)
@@ -691,9 +697,10 @@ def setupLayout(viz_server):
                                     act_on_env_call_selfloop, selfloop_call_act_on_env,
                                     do_display_action, clear_assistant_path,
                                     trigger_computation, recompute_rt_from_timeline, change_graph_title,
-                                    chronic_names_dummy_output, set_seed_dummy_output
+                                    chronic_names_dummy_output, set_seed_dummy_output,
+                                    update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid
                                    ],
-                                   id="hidden_button_for_callbacks",
+                                   id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
 
     # timer for the automatic callbacks
