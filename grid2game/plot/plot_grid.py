@@ -9,6 +9,7 @@
 import cmath
 import warnings
 import time
+import copy
 import plotly.graph_objects as go
 
 from grid2op.PlotGrid import PlotPlotly
@@ -188,12 +189,12 @@ class PlotGrids(PlotParams):
             (posx, posy) = self.layout[sub_name]
             tmp_fig.add_shape(type="circle",
                               xref="x", yref="y",
-                              fillcolor=self._sub_fill_color,
+                              fillcolor=self._sub_fill_color_1bus,
                               x0=posx - self._r_sub_zoom,
                               y0=posy - self._r_sub_zoom,
                               x1=posx + self._r_sub_zoom,
                               y1=posy + self._r_sub_zoom,
-                              line_color=self._sub_fill_color,
+                              line_color=self._sub_fill_color_1bus,
                               opacity=0.5
                               )
             tmp_fig.add_shape(type="circle",
@@ -460,7 +461,6 @@ class PlotGrids(PlotParams):
         self._update_all_figures_all_values(forecast_only=False)
         tmp = time.perf_counter() - beg_
         self._time_update_rt += tmp
-        # print(f'grid (main): {tmp}')
 
     def update_forecat(self, obs_forecast, env=None):
         """update forecast observation both in the values of the dictionary and in the figure"""
@@ -475,7 +475,6 @@ class PlotGrids(PlotParams):
         self._update_all_figures_all_values(forecast_only=True)
         tmp = time.perf_counter() - beg_
         self._time_update_for += tmp
-        # print(f'grid (forecast): {tmp}')
 
     def _update_all_figures_all_values(self, forecast_only):
         self.update_lines_info(forecast_only)
@@ -483,6 +482,7 @@ class PlotGrids(PlotParams):
         self.update_loads_info(forecast_only)
         self.update_gens_info(forecast_only)
         self.update_storages_info(forecast_only)
+        self.update_subs_info(forecast_only)
 
     def update_lines_info(self, forecast_only=False):
         """update the information displayed for powerlines, and updates the traces"""
@@ -542,6 +542,17 @@ class PlotGrids(PlotParams):
         self._update_storages(self.obs_forecast, is_forecast=True)
         self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.for_trace_stor[trace.name])
                                                          if trace.name in self.for_trace_stor else ())
+
+    def update_subs_info(self, forecast_only=False):
+        """update the information displayed for storages, and updates the traces"""
+        if not forecast_only:
+            self._update_subs(self.obs_rt, is_forecast=False)
+            self.figure_rt.for_each_trace(lambda trace: trace.update(**self.rt_trace_sub[trace.name])
+                                                         if trace.name in self.rt_trace_sub else ())
+
+        self._update_subs(self.obs_forecast, is_forecast=True)
+        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.rt_trace_sub[trace.name])
+                                                         if trace.name in self.rt_trace_sub else ())
 
     def _process_lines_layout(self):
         """compute pos_or and pos_ex of both the extremity of the powerline and update the self.ids"""
@@ -623,7 +634,7 @@ class PlotGrids(PlotParams):
         else:
             # this was the real time
             self.rt_trace_sub = {}
-            traces = self.for_trace_sub
+            traces = self.rt_trace_sub
 
         for nm in self.grid.name_sub:
             self._one_sub(nm, obs, traces)
@@ -713,9 +724,12 @@ class PlotGrids(PlotParams):
 
     def _one_sub(self, name, obs, dict_traces):
         """draw one substation"""
-        pass
-        # plot the topology (circle for the busbars)
-        # TODO
+        id_ = self.ids[name]
+        dict_me = obs.state_of(substation_id=id_)
+        if dict_me["nb_bus"] >= 2:
+            dict_traces[name] = {"marker": {"color": self._sub_fill_color_2buses}}
+        else:
+            dict_traces[name] = {"marker": {"color": self._sub_fill_color_1bus}}
 
     @staticmethod
     def _choose_label_pos(my_pos, sub_pos):
@@ -1041,7 +1055,7 @@ class PlotGrids(PlotParams):
         pos_subx, pos_suby = self.layout[sub_name]
         to_sub = go.Scatter(x=(x_or, pos_subx),
                             y=(y_or, pos_suby),
-                            name=name+"_bus",
+                            name=name+"_bus_or",
                             hoverinfo='skip',
                             showlegend=False,
                             mode='lines',
@@ -1056,7 +1070,7 @@ class PlotGrids(PlotParams):
         pos_subx, pos_suby = self.layout[sub_name]
         to_sub = go.Scatter(x=(x_ex, pos_subx),
                             y=(y_ex, pos_suby),
-                            name=name+"_bus",
+                            name=name+"_bus_ex",
                             hoverinfo='skip',
                             showlegend=False,
                             mode='lines',
@@ -1138,15 +1152,15 @@ class PlotGrids(PlotParams):
         id_topo_vect = self.grid.line_or_pos_topo_vect[id_]
         this_bus = obs.topo_vect[id_topo_vect]
         color_busor = self._get_bus_color(this_bus)
-        id_topo_vect = self.grid.line_or_pos_topo_vect[id_]
+        id_topo_vect = self.grid.line_ex_pos_topo_vect[id_]
         this_bus = obs.topo_vect[id_topo_vect]
         color_busex = self._get_bus_color(this_bus)
 
         # plot the "arrow" to the substation for origin side
-        dict_traces[name + "_bus"] = {"line": dict(color=color_busor, width=self._line_bus_width)}
+        dict_traces[name + "_bus_or"] = {"line": dict(color=color_busor, width=self._line_bus_width)}
 
         # plot the "arrow" to the substation for extremity side
-        dict_traces[name + "_bus"] = {"line": dict(color=color_busex, width=self._line_bus_width)}
+        dict_traces[name + "_bus_ex"] = {"line": dict(color=color_busex, width=self._line_bus_width)}
 
         # plot texts on the powerline
         # text in the middle
