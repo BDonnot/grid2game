@@ -250,6 +250,10 @@ def setupLayout(viz_server):
                                                                            "margin": "0",
                                                                            }
                                                                    ),
+                                                             dcc.Loading(id="loading_assistant",
+                                                                         type="default",
+                                                                         children=html.Div(id="loading_assistant_output")
+                                                                        )
                                                             ],
                                                    style={'borderWidth': '1px',
                                                           'borderStyle': 'dashed',
@@ -296,6 +300,10 @@ def setupLayout(viz_server):
                                                 #   "margin-top": 20
                                                   }
                                            ),
+                                    dcc.Loading(id="loading_save",
+                                                type="default",
+                                                children=html.Div(id="loading_save_output")
+                                            )
                                                  ],
                                         style={
                                         'borderWidth': '1px',

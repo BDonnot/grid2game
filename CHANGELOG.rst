@@ -11,6 +11,10 @@ Change Log
 
 [0.2.0] - 2022-xx-yy
 ----------------------
+- [ADDED] a logger in the "Node" and "EnvTree" classes.
+- [ADDED] a "loading widget" when an assistant is loading (see issue https://github.com/BDonnot/grid2game/issues/38)
+- [ADDED] a "loading widget" when saving the results (see issue https://github.com/BDonnot/grid2game/issues/39)
+- [IMPROVED] error are catch when an assistant raises some.
 - [IMPROVED] progress bar updates during computation (even if nothing else does)
 - [IMPROVED] illegal actions are now displayed on the GUI (see https://github.com/BDonnot/grid2game/issues/3) 
 - [IMPROVED] when creating a topological action, the graph of the substation is updated "on the fly" (see https://github.com/BDonnot/grid2game/issues/36) 

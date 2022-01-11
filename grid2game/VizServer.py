@@ -827,6 +827,7 @@ class VizServer:
 
     def load_assistant(self, trigger_load, assistant_path):
         """loads an assistant and display the right things"""
+        loader_state = ""
         if assistant_path is None:
             raise dash.exceptions.PreventUpdate
         self.assistant_path = assistant_path.rstrip().lstrip()
@@ -834,7 +835,7 @@ class VizServer:
             properly_loaded = self.env.load_assistant(self.assistant_path)
         except Exception as exc_:
             self.logger.error(f"Error in load_assistant: {exc_}")
-            return [f"❌ {exc_}", dash.no_update]
+            return [f"❌ {exc_}", dash.no_update, loader_state]
         clear = 0
         if properly_loaded:
             res = self.format_path(os.path.abspath(self.assistant_path))
@@ -842,7 +843,7 @@ class VizServer:
             clear = 1
         else:
             res = ""
-        return [res, clear]
+        return [res, clear, loader_state]
 
     def clear_loading(self, need_clearing):
         """once an assistant has been """
@@ -858,6 +859,7 @@ class VizServer:
 
         TODO: reuse the computation of the environment instead of creating a runner for such purpose !
         """
+        loader_state = ""
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
@@ -867,22 +869,22 @@ class VizServer:
             # cannot save while an experiment is running
             msg_ = "environment is still computing"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"⌛ {msg_}"]
+            return [f"⌛ {msg_}", loader_state]
 
         if save_expe_path is None:
             msg_ = "invalid path (None)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
 
         self.save_expe_path = save_expe_path.rstrip().lstrip()
         if not os.path.exists(self.save_expe_path):
             msg_ = "invalid path (does not exists)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
         if not os.path.isdir(self.save_expe_path):
             msg_ = "invalid path (not a directory)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
         self.logger.info(f"saving experiment in {self.save_expe_path}")
         self.env.start_computation()  # prevent other type of computation
         try:
@@ -916,7 +918,7 @@ class VizServer:
         finally:
             # ensure I stop the computation that i fake to start here
             self.env.stop_computation()  # prevent other type of computation
-        return [res]
+        return [res, loader_state]
 
     def timeline_set_time(self, time_line_graph_clicked):
         if self.env.is_computing():

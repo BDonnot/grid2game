@@ -200,21 +200,26 @@ def add_callbacks(dash_app, viz_server):
                       ]
                      )(viz_server.update_for_graph_figs)
 
-    # load the assistant
-    dash_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
-                       dash.dependencies.Output("clear_assistant_path", "n_clicks"),
-                      ],
-                      [dash.dependencies.Input("load_assistant_button", "n_clicks")],
-                      [dash.dependencies.State("select_assistant", "value")]
-                     )(viz_server.load_assistant)
-
     if viz_server._app_heroku is False:
         # this is deactivated on heroku at the moment !
+        # load the assistant
+        dash_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
+                           dash.dependencies.Output("clear_assistant_path", "n_clicks"),
+                           dash.dependencies.Output("loading_assistant_output", "children"),
+                          ],
+                          [dash.dependencies.Input("load_assistant_button", "n_clicks")
+                          ],
+                          [dash.dependencies.State("select_assistant", "value")]
+                         )(viz_server.load_assistant)
+
         dash_app.callback([dash.dependencies.Output("select_assistant", "value")],
                           [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
                          )(viz_server.clear_loading)
 
-        dash_app.callback([dash.dependencies.Output("current_save_path", "children")],
+        # save the current experiment
+        dash_app.callback([dash.dependencies.Output("current_save_path", "children"),
+                           dash.dependencies.Output("loading_save_output", "children"),
+                          ],
                           [dash.dependencies.Input("save_expe_button", "n_clicks")],
                           [dash.dependencies.State("save_expe", "value")]
                          )(viz_server.save_expe)
