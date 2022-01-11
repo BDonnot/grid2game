@@ -127,3 +127,13 @@ class Node(object):
     @property
     def temporal_data(self):
         return self._temporal_data
+
+    @property
+    def assistant_action(self):
+        if self._assistant_action is not None:
+            return self._assistant_action
+        else:
+            if self._assistant is not None:
+                self.fill_assistant(self.assistant)
+                return self._assistant_action
+        return None

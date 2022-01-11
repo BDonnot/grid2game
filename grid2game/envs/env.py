@@ -149,19 +149,6 @@ class Env(ComputeWrapper):
             if self._assistant_seed is not None:
                 self.assistant.seed(int(self._assistant_seed))
 
-        if has_been_loaded:
-            # # TODO do i "change the past" ?
-            pass
-            # for step_id in range(len(self.past_envs)):
-            #     _current_action, \
-            #     _assistant_action, \
-            #     _obs, _reward, _done, _info, \
-            #     glop_env = self.past_envs[step_id]
-            #     _assistant_action = self.assistant.act(_obs, _reward, _done)
-            #     self.past_envs[step_id] = (_current_action,
-            #                                _assistant_action,
-            #                                _obs, _reward, _done, _info,
-            #                                glop_env)
         self.logger.info(f"assistant loaded with class {type(self.assistant)}")
         return has_been_loaded
 
@@ -353,12 +340,10 @@ class Env(ComputeWrapper):
         return obs, reward, done, info
 
     def choose_next_assistant_action(self):
-        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-        self._assistant_action = self.assistant.act(obs, reward, done)
+        self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
 
     def choose_next_action(self):
         if self.next_action_from == self.ASSISTANT:
-            print("previous action is assistant")
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
             # next action should be like the previous one or manually set
@@ -425,9 +410,14 @@ class Env(ComputeWrapper):
         self.next_action_from = self.ASSISTANT
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
-            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-            self._assistant_action = self.assistant.act(obs, reward, done)
-        self._current_action = copy.deepcopy(self._assistant_action)
+            # obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            if self.env_tree.current_node.assistant_action is not None:
+                self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
+        if self._assistant_action is not None:
+            self._current_action = copy.deepcopy(self._assistant_action)
+        else:
+            # do nothing action is selected if there is no assistant
+            self._current_action = self.glop_env.action_space()
 
     def next_action_is_manual(self):
         """the next action is manually selected"""
@@ -450,10 +440,10 @@ class Env(ComputeWrapper):
         
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         if not done:
-            self.choose_next_action()
+            self.choose_next_assistant_action()
             self.logger.info("step: done is False")
             try:
-                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:
                 self.logger.warn("handle_click_timeline: no forecast seems to be available for the current observation.")
                 pass
