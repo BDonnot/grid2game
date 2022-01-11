@@ -77,7 +77,8 @@ class MyAgent(GreedyAgent):
         else:
             best_action = self.tested_action[0]
         if observation.current_step % 10 == 0:
-            best_action.raise_alarm = [0]
+            if observation.dim_alarms > 0:
+                best_action.raise_alarm = [0]
         return best_action
 
     def _get_tested_action(self, observation):

@@ -6,7 +6,9 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
+import logging
 from typing import List, Tuple, Union
+from grid2op import Exceptions
 
 from grid2op.Action import BaseAction
 from grid2op.Agent import BaseAgent
@@ -27,14 +29,26 @@ class Node(object):
                  assistant: Union[BaseAgent, None],
                  reward: Union[float, None],
                  done: Union[bool, None],
-                 info: Union[dict, None]):
+                 info: Union[dict, None],
+                 logger: Union[logging.Logger, None]):
         self._id: int = id_
         self._father_id: Union[None, int] = None  # None if its the root
         # we should get: self.father._act_to_sons[self._father_id].son is self
 
+        if logger is None:
+            import logging
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger.getChild(f"Node {self._id}")
+
         self._father: Union["Node", None] = father
         self.step: int = obs.current_step  # unique identifier of the node ID
-
+        if info is None:
+            self.prev_action_is_illegal = False
+            self.prev_action_is_ambiguous = False
+        else:
+            self.prev_action_is_illegal = info["is_illegal"]
+            self.prev_action_is_ambiguous = info["is_ambiguous"]
         # current state of the grid
         self._obs: BaseObservation = obs
         self._reward: Union[float, None] = reward
@@ -54,7 +68,11 @@ class Node(object):
     def fill_assistant(self, assistant: Union[BaseAgent, None]) -> None:
         """fill the action the assistant would have done in this node"""
         if assistant is not None:
-            self._assistant_action = assistant.act(self._obs, self._reward, self._done)
+            try:
+                self._assistant_action = assistant.act(self._obs, self._reward, self._done)
+            except Exception as exc_:
+                self.logger.error(f"Exception {exc_} when using the assistant. Assistant action replaced by do nothing.")
+                self._assistant_action = self._glop_env.action_space()
 
     def son_for_this_action(self, action: BaseAction) -> Union[Link, None]:
         """retrieve the link (if it exists) corresponding to the action `action` performed at this node"""
@@ -122,3 +140,13 @@ class Node(object):
     @property
     def temporal_data(self):
         return self._temporal_data
+
+    @property
+    def assistant_action(self):
+        if self._assistant_action is not None:
+            return self._assistant_action
+        else:
+            if self._assistant is not None:
+                self.fill_assistant(self.assistant)
+                return self._assistant_action
+        return None

@@ -28,7 +28,7 @@ class EnvTree(object):
 
     And also implements the possibility to plot it.
     """
-    def __init__(self):
+    def __init__(self, logger=None):
         self._all_nodes = []
         self._current_node = None
         self._last_action = None
@@ -40,6 +40,12 @@ class EnvTree(object):
 
         self.margin_for_plot = 0.5
 
+        if logger is None:
+            import logging
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger.getChild("EnvTree")
+
     def root(self,
              assistant: Union[BaseAgent, None],
              env: BaseEnv,
@@ -49,7 +55,8 @@ class EnvTree(object):
                     assistant=assistant,
                     glop_env=env.copy(),
                     obs=obs,
-                    reward=None, done=False, info=None)
+                    reward=None, done=False, info=None,
+                    logger=self.logger)
         self._all_nodes.append(node)
         self._current_node = node
         self.__is_init = True
@@ -146,6 +153,20 @@ class EnvTree(object):
                                                hoverinfo='text',
                                                opacity=0.8
                                                ))
+
+        # illegal vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_illegal',
+                                               marker=dict(symbol='triangle-up-dot',
+                                                           size=16,
+                                                           color='black'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
         # real time vertical bar
         self.fig_timeline.add_trace(go.Scatter(x=[0, 0],
                                                y=[-10, 10],
@@ -175,9 +196,10 @@ class EnvTree(object):
         """make a "step" in the tree with the given action"""
         if not self.__is_init:
             raise RuntimeError("You are trying to use a non initialized envTree.")
-
+        # print(f"chosen_action: {np.any(chosen_action.raise_alarm)}")
         chosen_action = copy.deepcopy(chosen_action)
         res = self._current_node.son_for_this_action(chosen_action)
+        # print(f"chosen_action: {np.any(chosen_action.raise_alarm)}")
         if res is not None:
             # I "already" made this action "in the past"
             # so i retrieve what i did
@@ -190,8 +212,8 @@ class EnvTree(object):
                         obs=_obs, reward=_reward, done=_done, info=_info,
                         glop_env=current_env,
                         id_=len(self._all_nodes),
-                        father=self._current_node)
-
+                        father=self._current_node,
+                        logger=self.logger)
             # TODO check if node exist ! (not using id !)
             self._current_node.add_son(chosen_action, node)
             self._current_node = node
@@ -318,12 +340,15 @@ class EnvTree(object):
         node_game_over = []
         node_sucess = []
         node_alert = []
+        node_illegal = []
         for node in self._all_nodes:
             if node.done:
                 if node.step != self._current_node.obs.max_step:
                     node_game_over.append(node.id)
                 else:
                     node_sucess.append(node.id)
+            elif node.prev_action_is_illegal:
+                node_illegal.append(node.id)
             elif np.any(node.obs.time_since_last_alarm == 0):
                 node_alert.append(node.id)
             else:
@@ -346,6 +371,10 @@ class EnvTree(object):
                                         y=self.Yn[node_alert],
                                         text=[f"{id_}" for id_ in node_alert],
                                         selector=dict(name="nodes_alert"))
+        self.fig_timeline.update_traces(x=self.Xn[node_illegal],
+                                        y=self.Yn[node_illegal],
+                                        text=[f"{id_}" for id_ in node_illegal],
+                                        selector=dict(name="nodes_illegal"))
         self.fig_timeline.update_traces(x=Xe,
                                         y=Ye,
                                         selector=dict(name="edges"))

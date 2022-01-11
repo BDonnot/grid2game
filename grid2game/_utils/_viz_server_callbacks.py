@@ -59,7 +59,8 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("sub_clicked", "style"),
                        dash.dependencies.Output("sub-id-hidden", "children"),
                        dash.dependencies.Output("sub-id-clicked", "children"),
-                       dash.dependencies.Output("graph_clicked_sub", "figure"),
+                    #    dash.dependencies.Output("graph_clicked_sub", "figure"),
+                       dash.dependencies.Output("update_substation_layout_clicked_from_grid", "n_clicks"),
                       ],
                       [dash.dependencies.Input('real-time-graph', 'clickData'),
                        dash.dependencies.Input("back-button", "n_clicks"),
@@ -72,7 +73,8 @@ def add_callbacks(dash_app, viz_server):
 
     # handle display of the action, if needed
     dash_app.callback([dash.dependencies.Output("current_action", "children"),
-                       dash.dependencies.Output("which_action_button", "value")
+                       dash.dependencies.Output("which_action_button", "value"),
+                       dash.dependencies.Output("update_substation_layout_clicked_from_sub", "n_clicks")
                       ],
                       [dash.dependencies.Input("which_action_button", "value"),
                        dash.dependencies.Input("do_display_action", "value"),
@@ -86,6 +88,12 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Input('sub-id-hidden', "children"),
                        dash.dependencies.Input("graph_clicked_sub", "clickData")
                       ])(viz_server.display_action_fun)
+
+    # plot the substation that changes when we click
+    dash_app.callback([dash.dependencies.Output("graph_clicked_sub", "figure")],
+                      [dash.dependencies.Input("update_substation_layout_clicked_from_sub", "n_clicks"),
+                       dash.dependencies.Input("update_substation_layout_clicked_from_grid", "n_clicks"),
+                      ])(viz_server.display_grid_substation)
 
     # handle the interaction with self.env, that should be done all in one function, otherwise
     # there are concurrency issues
@@ -102,7 +110,8 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("go_till_game_over-button", "className"),
                        dash.dependencies.Output("is_computing_left", "style"),
                        dash.dependencies.Output("is_computing_right", "style"),
-                       dash.dependencies.Output("change_graph_title", "n_clicks")
+                       dash.dependencies.Output("change_graph_title", "n_clicks"),
+                       dash.dependencies.Output("update_progress_bar_from_act", "n_clicks")
                       ],
                       [dash.dependencies.Input("step-button", "n_clicks"),
                        dash.dependencies.Input("simulate-button", "n_clicks"),
@@ -133,15 +142,21 @@ def add_callbacks(dash_app, viz_server):
     dash_app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
                        dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
                        dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
-                       dash.dependencies.Output("scenario_progression", "value"),
-                       dash.dependencies.Output("scenario_progression", "label"),
-                       dash.dependencies.Output("scenario_progression", "color"),
                        dash.dependencies.Output("timeline_graph", "figure"),
+                       dash.dependencies.Output("update_progress_bar_from_figs", "n_clicks")
                       ],
                       [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
                       []
                      )(viz_server.update_rt_fig)
 
+    dash_app.callback([
+                       dash.dependencies.Output("scenario_progression", "value"),
+                       dash.dependencies.Output("scenario_progression", "label"),
+                       dash.dependencies.Output("scenario_progression", "color"),
+                      ],[
+                       dash.dependencies.Input("update_progress_bar_from_act", "n_clicks"),
+                       dash.dependencies.Input("update_progress_bar_from_figs", "n_clicks"),
+                      ])(viz_server.update_progress_bar)
     # handle triggers: refresh of the figures for the forecast
     dash_app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
                       [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks")],
@@ -166,7 +181,9 @@ def add_callbacks(dash_app, viz_server):
 
     # handle final graph of the real time grid
     dash_app.callback([dash.dependencies.Output("real-time-graph", "figure"),
-                       dash.dependencies.Output("rt_date_time", "children")],
+                       dash.dependencies.Output("rt_date_time", "children"),
+                       dash.dependencies.Output("trigger_rt_extra_info", "n_clicks")
+                      ],
                       [dash.dependencies.Input("figrt_trigger_rt_graph", "n_clicks"),
                        dash.dependencies.Input("unit_trigger_rt_graph", "n_clicks"),
                       ]
@@ -174,30 +191,46 @@ def add_callbacks(dash_app, viz_server):
 
     # handle final graph for the forecast grid
     dash_app.callback([dash.dependencies.Output("simulated-graph", "figure"),
-                       dash.dependencies.Output("forecast_date_time", "children")],
+                       dash.dependencies.Output("forecast_date_time", "children"),
+                       dash.dependencies.Output("trigger_for_extra_info", "n_clicks")
+                      ],
                       [dash.dependencies.Input("figrt_trigger_for_graph", "n_clicks"),
                        dash.dependencies.Input("figfor_trigger_for_graph", "n_clicks"),
                        dash.dependencies.Input("unit_trigger_for_graph", "n_clicks"),
                       ]
                      )(viz_server.update_for_graph_figs)
 
-    # load the assistant
-    dash_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
-                       dash.dependencies.Output("clear_assistant_path", "n_clicks")],
-                      [dash.dependencies.Input("load_assistant_button", "n_clicks")],
-                      [dash.dependencies.State("select_assistant", "value")]
-                     )(viz_server.load_assistant)
-
     if viz_server._app_heroku is False:
         # this is deactivated on heroku at the moment !
-        dash_app.callback([dash.dependencies.Output("select_assistant", "value")],
-                        [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
-                        )(viz_server.clear_loading)
+        # load the assistant
+        dash_app.callback([dash.dependencies.Output("current_assistant_path", "children"),
+                           dash.dependencies.Output("clear_assistant_path", "n_clicks"),
+                           dash.dependencies.Output("loading_assistant_output", "children"),
+                          ],
+                          [dash.dependencies.Input("load_assistant_button", "n_clicks")
+                          ],
+                          [dash.dependencies.State("select_assistant", "value")]
+                         )(viz_server.load_assistant)
 
-        dash_app.callback([dash.dependencies.Output("current_save_path", "children")],
-                        [dash.dependencies.Input("save_expe_button", "n_clicks")],
-                        [dash.dependencies.State("save_expe", "value")]
-                        )(viz_server.save_expe)
+        dash_app.callback([dash.dependencies.Output("select_assistant", "value")],
+                          [dash.dependencies.Input("clear_assistant_path", "n_clicks")]
+                         )(viz_server.clear_loading)
+
+        # save the current experiment
+        dash_app.callback([dash.dependencies.Output("current_save_path", "children"),
+                           dash.dependencies.Output("loading_save_output", "children"),
+                          ],
+                          [dash.dependencies.Input("save_expe_button", "n_clicks")],
+                          [dash.dependencies.State("save_expe", "value")]
+                         )(viz_server.save_expe)
+
+    # tell if action was illegal
+    dash_app.callback([dash.dependencies.Output("forecast_extra_info", "style")],
+                      [dash.dependencies.Input("trigger_for_extra_info", "n_clicks")]
+                     )(viz_server.tell_illegal_for)
+    dash_app.callback([dash.dependencies.Output("rt_extra_info", "style")],
+                      [dash.dependencies.Input("trigger_rt_extra_info", "n_clicks")]
+                     )(viz_server.tell_illegal_rt)
 
     # callback for the timeline
     dash_app.callback([dash.dependencies.Output("recompute_rt_from_timeline", "n_clicks")],

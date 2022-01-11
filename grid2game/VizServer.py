@@ -112,6 +112,9 @@ class VizServer:
         else:
             self._app_heroku = False
 
+        # remember which substation is clicked on
+        self._last_sub_id = None
+
         # read the right config
         g2op_config = self._make_glop_env_config(build_args)
 
@@ -121,6 +124,9 @@ class VizServer:
                        assistant_seed=int(build_args.assistant_seed) if build_args.assistant_seed is not None else None,
                        logger=self.logger,
                        config_dict=g2op_config)
+
+        self._style_legal_info = {'color': 'red', "display": "flex", "alignItems": "center", "justifyContent": "center", 'display': 'none'}
+        self._style_illegal_info = {'color': 'red', "display": "flex", "alignItems": "center", "justifyContent": "center"}
 
         if build_args.g2op_param is not None and build_args.g2op_param != "":
             self.env.set_params(build_args.g2op_param, reset=False)
@@ -173,7 +179,6 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
-
         # initialize the layout
         self.my_app.layout = setupLayout(self)
         add_callbacks(self.my_app, self)
@@ -303,6 +308,7 @@ class VizServer:
         self._go_button_shape = "btn btn-secondary"
         self._go_till_go_button_shape = "btn btn-secondary"
         change_graph_title = dash.no_update
+        update_progress_bar = 1
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -404,10 +410,10 @@ class VizServer:
                 self._go_till_go_button_shape,
                 i_am_computing_state,
                 i_am_computing_state,
-                change_graph_title]
+                change_graph_title,
+                update_progress_bar]
 
-    def change_graph_title(self, change_graph_title):
-        # make sure that the environment has done computing
+    def _wait_for_computing_over(self):
         i = 0
         while self.env.is_computing():
             time.sleep(0.1)
@@ -416,6 +422,10 @@ class VizServer:
                 # in this case, the environment has not finished running for 2s, I stop here
                 # in this case the user should probably call reset another time !
                 raise dash.exceptions.PreventUpdate
+
+    def change_graph_title(self, change_graph_title):
+        # make sure that the environment has done computing
+        self._wait_for_computing_over()
 
         # reset the elements !
         self.seed = None
@@ -466,19 +476,47 @@ class VizServer:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
             trigger_for_graph = 1
+        else:
+            raise dash.exceptions.PreventUpdate
+        if trigger_rt_graph == 1:
+            self.fig_timeline = self.env.get_timeline_figure()
 
+        update_progress_bar = 1
+        return [trigger_temporal_figs,
+                trigger_rt_graph,
+                trigger_for_graph,
+                self.fig_timeline,
+                update_progress_bar]
+
+    def update_progress_bar(self, from_act, from_figs):
+        """update the progress bar"""
+        # if from_act is None and from_figs is None:
+            # raise dash.exceptions.PreventUpdate
+        if self.env.env_tree.current_node is None:
+            # A reset has just been called and the grid2op env is not reset yet
+            progress_color = "primary"
+            self._last_step = 0
+            self._last_done = False
+            self._last_max_step = max(self._last_max_step, 1)  # prevent possible division by 0.
+        else:
             # scenario progress bar
             progress_color = "primary"
             if not self.env.is_done:
+                # if from_act == 1:
+                #     self._last_step = max(self.env.obs.current_step, self._last_step)
+                #     self._last_max_step = max(self.env.obs.max_step, self._last_max_step)
+                # elif from_figs == 1:
                 self._last_step = self.env.obs.current_step
                 self._last_max_step = self.env.obs.max_step
                 self._last_done = False
             else:
-                if not self._last_done:
-                    self._last_done = True
-                    if self._last_step != self._last_max_step:
-                        # fail to run the scenario till the end
-                        self._last_step += 1
+                self._last_step = self.env.obs.current_step
+                self._last_max_step = self.env.obs.max_step
+                # if not self._last_done:
+                #     self._last_done = True
+                #     if self._last_step != self._last_max_step:
+                #         # fail to run the scenario till the end
+                #         self._last_step += 1
                 if self._last_step != self._last_max_step:
                     # fail to run the scenario till the end
                     progress_color = "danger"
@@ -486,19 +524,11 @@ class VizServer:
                     # no game over, until the end of the scenario
                     progress_color = "success"
 
-            progress_pct = 100. * self._last_step / self._last_max_step
-            progress_label = f"{self._last_step} / {self._last_max_step}"
-        else:
-            raise dash.exceptions.PreventUpdate
-        if trigger_rt_graph == 1:
-            self.fig_timeline = self.env.get_timeline_figure()
-        return [trigger_temporal_figs,
-                trigger_rt_graph,
-                trigger_for_graph,
-                progress_pct,
+        progress_pct = 100. * self._last_step / self._last_max_step
+        progress_label = f"{self._last_step} / {self._last_max_step}"
+        return [progress_pct,
                 progress_label,
-                progress_color,
-                self.fig_timeline]
+                progress_color]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
@@ -538,7 +568,16 @@ class VizServer:
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
             raise dash.exceptions.PreventUpdate
-        return [self.real_time,  self.rt_datetime]
+        self._wait_for_computing_over()
+        if self.env.env_tree.current_node.prev_action_is_illegal:
+            is_illegal = 1
+        else:
+            is_illegal = 0
+        return [self.real_time,  self.rt_datetime, is_illegal]
+
+    def update_if_rt_illegal(self, trigger_rt_extra_info):
+        if trigger_rt_extra_info:
+            pass
 
     def update_for_graph_figs(self, figrt_trigger, figfor_trigger, unit_trigger):
         if (figrt_trigger is None or figrt_trigger == 0) and \
@@ -546,7 +585,26 @@ class VizServer:
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
             raise dash.exceptions.PreventUpdate
-        return [self.forecast, self.for_datetime]
+        self._wait_for_computing_over()
+        if self.env.is_assistant_illegal():
+            is_illegal = 1
+        else:
+            is_illegal = 0
+        return [self.forecast, self.for_datetime, is_illegal]
+
+    def tell_illegal_rt(self, is_illegal):
+        if is_illegal == 1:
+            res = self._style_illegal_info
+        else:
+            res = self._style_legal_info
+        return [res]
+
+    def tell_illegal_for(self, is_illegal):
+        if is_illegal == 1:
+            res = self._style_illegal_info
+        else:
+            res = self._style_legal_info
+        return [res]
 
     # auxiliary functions
     def update_obs_fig(self):
@@ -572,9 +630,10 @@ class VizServer:
 
         ctx = dash.callback_context
         dropdown_value = self._last_action
+        update_substation_layout_clicked_from_sub = 0
         if not ctx.triggered:
             # no click have been made yet
-            return [f"{self.env.current_action}", dropdown_value]
+            return [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -603,12 +662,12 @@ class VizServer:
             else:
                 # nothing is done
                 pass
-            res = [f"{self.env.current_action}", dropdown_value]
+            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
 
         if not do_display:
             # i should not display the action
-            res = [f"{self.env.current_action}", dropdown_value]
+            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
         
         # i need to display the action
@@ -637,6 +696,7 @@ class VizServer:
             is_modif = True
         if sub_id != "":
             is_modif = True
+            update_substation_layout_clicked_from_sub = 1
             if clicked_sub_fig is not None:
                 # i modified a substation topology
                 obj_id, new_bus = self.plot_grids.get_object_clicked_sub(clicked_sub_fig)
@@ -646,8 +706,22 @@ class VizServer:
         if not is_modif:
             raise dash.exceptions.PreventUpdate
         # TODO optim here to save that if not needed because nothing has changed
-        res = [f"{self.env.current_action}", dropdown_value]
+        res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
         return res
+
+    def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
+        """update the figure of the substation (when zoomed in)"""
+        if update_substation_layout_clicked_from_sub != 1 and update_substation_layout_clicked_from_grid != 1:
+            raise dash.exceptions.PreventUpdate
+        if update_substation_layout_clicked_from_sub is None and update_substation_layout_clicked_from_grid is None:
+            raise dash.exceptions.PreventUpdate
+
+        # update "in real time" the topology of the substation (https://github.com/BDonnot/grid2game/issues/36)
+        if self._last_sub_id is None:
+            self.logger.error("display_click_data: Unable to update the substatin plot: no know last substation id")
+            raise dash.exceptions.PreventUpdate
+        sub_res = self.plot_grids.update_sub_figure(self.env._current_action, self._last_sub_id)
+        return [sub_res[-1]]
 
     def display_click_data(self,
                            clickData,
@@ -675,6 +749,7 @@ class VizServer:
         style_sub_input = {'display': 'none'}
         sub_id_clicked = ""
         sub_res = ["", self.plot_grids.sub_fig]
+        update_substation_layout_clicked_from_grid = 0
 
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
@@ -687,9 +762,9 @@ class VizServer:
                     style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                     style_storage_input, storage_id_clicked, *storage_res,
                     style_line_input, line_id_clicked, *line_res,
-                    style_sub_input, sub_id_clicked, *sub_res
+                    style_sub_input, sub_id_clicked, *sub_res[:-1],
+                    update_substation_layout_clicked_from_grid
                     ]
-
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -697,12 +772,16 @@ class VizServer:
         if clickData is None:
             # i never clicked on any data
             do_display_action = 0
+            self._last_sub_id = None
         elif button_id == "step-button" or button_id == "simulate-button" or \
                 button_id == "go-button" or button_id == "gofast-button" or\
                 button_id == "back-button":
             # i never clicked on simulate, step, go, gofast or back
-            do_display_action = 0
+            do_display_action = 0 
+            self._last_sub_id = None
         else:
+            # I clicked on the graph of the grid
+            self._last_sub_id = None
             obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
             if obj_type == "gen":
                 gen_redisp_curtail = "Curtail (MW)" if self.env.glop_env.gen_renewable[obj_id] else "Redispatch"
@@ -725,13 +804,17 @@ class VizServer:
                 style_sub_input = {'display': 'inline-block'}
                 sub_res = res_type
                 do_display_action = 1
+                # remember that for next time
+                self._last_sub_id = obj_id
+                update_substation_layout_clicked_from_grid = 1
             else:
                 raise dash.exceptions.PreventUpdate
         return [do_display_action,
                 style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                 style_storage_input, storage_id_clicked, *storage_res,
                 style_line_input, line_id_clicked, *line_res,
-                style_sub_input, sub_id_clicked, *sub_res
+                style_sub_input, sub_id_clicked, *sub_res[:-1],
+                update_substation_layout_clicked_from_grid
                 ]
 
     def format_path(self, path):
@@ -744,6 +827,7 @@ class VizServer:
 
     def load_assistant(self, trigger_load, assistant_path):
         """loads an assistant and display the right things"""
+        loader_state = ""
         if assistant_path is None:
             raise dash.exceptions.PreventUpdate
         self.assistant_path = assistant_path.rstrip().lstrip()
@@ -751,7 +835,7 @@ class VizServer:
             properly_loaded = self.env.load_assistant(self.assistant_path)
         except Exception as exc_:
             self.logger.error(f"Error in load_assistant: {exc_}")
-            return [f"❌ {exc_}", dash.no_update]
+            return [f"❌ {exc_}", dash.no_update, loader_state]
         clear = 0
         if properly_loaded:
             res = self.format_path(os.path.abspath(self.assistant_path))
@@ -759,7 +843,7 @@ class VizServer:
             clear = 1
         else:
             res = ""
-        return [res, clear]
+        return [res, clear, loader_state]
 
     def clear_loading(self, need_clearing):
         """once an assistant has been """
@@ -775,6 +859,7 @@ class VizServer:
 
         TODO: reuse the computation of the environment instead of creating a runner for such purpose !
         """
+        loader_state = ""
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
@@ -784,22 +869,22 @@ class VizServer:
             # cannot save while an experiment is running
             msg_ = "environment is still computing"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"⌛ {msg_}"]
+            return [f"⌛ {msg_}", loader_state]
 
         if save_expe_path is None:
             msg_ = "invalid path (None)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
 
         self.save_expe_path = save_expe_path.rstrip().lstrip()
         if not os.path.exists(self.save_expe_path):
             msg_ = "invalid path (does not exists)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
         if not os.path.isdir(self.save_expe_path):
             msg_ = "invalid path (not a directory)"
             self.logger.info(f"save_expe: {msg_}")
-            return [f"❌ {msg_}"]
+            return [f"❌ {msg_}", loader_state]
         self.logger.info(f"saving experiment in {self.save_expe_path}")
         self.env.start_computation()  # prevent other type of computation
         try:
@@ -833,7 +918,7 @@ class VizServer:
         finally:
             # ensure I stop the computation that i fake to start here
             self.env.stop_computation()  # prevent other type of computation
-        return [res]
+        return [res, loader_state]
 
     def timeline_set_time(self, time_line_graph_clicked):
         if self.env.is_computing():

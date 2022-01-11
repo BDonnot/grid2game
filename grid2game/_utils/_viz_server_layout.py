@@ -250,6 +250,10 @@ def setupLayout(viz_server):
                                                                            "margin": "0",
                                                                            }
                                                                    ),
+                                                             dcc.Loading(id="loading_assistant",
+                                                                         type="default",
+                                                                         children=html.Div(id="loading_assistant_output")
+                                                                        )
                                                             ],
                                                    style={'borderWidth': '1px',
                                                           'borderStyle': 'dashed',
@@ -274,52 +278,56 @@ def setupLayout(viz_server):
 
     save_experiment = html.Div(id='save_expe_box',
                                children=[                  
-                               html.Div(children=[
-                                   dcc.Input(placeholder=save_txt,
-                                             id="save_expe",
-                                             type="text",
-                                             style={
-                                                 'width': '70%',
-                                                 'height': '55px',
-                                                 'lineHeight': '55px',
-                                                 'verticalAlign': 'middle',
-                                                #  "margin-top": 5,
-                                                #  "margin-left": 20
-                                                 }),
-                                    html.P(viz_server.format_path(viz_server.assistant_path),
-                                           id="current_save_path",
-                                           style={'width': '28%',
-                                                  'textAlign': 'center',
-                                                  'height': '55px',
-                                                  'verticalAlign': 'middle',
-                                                  "margin": "0",
-                                                #   "margin-top": 20
-                                                  }
-                                           ),
-                                                 ],
-                                        style={
-                                        'borderWidth': '1px',
-                                        'borderStyle': 'dashed',
-                                        'borderRadius': '5px',
-                                        'textAlign': 'center',
-                                        "display": "flex",
-                                        "alignItems":"center",
-                                        # "padding": "2px",
-                                        "paddingTop": "5px",
-                                        "paddingBottom": "5px",
-                                        "paddingLeft": "2px",
-                                        "paddingRight": "2px"
-                                        # 'margin': '10px'
-                                              }
-                                       ),
-                               html.Label("save",
-                                          id="save_expe_button",
-                                          n_clicks=0,
-                                          className=btn_assistant_save,
-                                          style={'height': '35px',
-                                                 'width': '100%',
-                                                }
-                                         ),
+                                    html.Div(children=[
+                                        dcc.Input(placeholder=save_txt,
+                                                    id="save_expe",
+                                                    type="text",
+                                                    style={
+                                                        'width': '70%',
+                                                        'height': '55px',
+                                                        'lineHeight': '55px',
+                                                        'verticalAlign': 'middle',
+                                                        #  "margin-top": 5,
+                                                        #  "margin-left": 20
+                                                        }),
+                                            html.P(viz_server.format_path(viz_server.assistant_path),
+                                                id="current_save_path",
+                                                style={'width': '28%',
+                                                        'textAlign': 'center',
+                                                        'height': '55px',
+                                                        'verticalAlign': 'middle',
+                                                        "margin": "0",
+                                                        #   "margin-top": 20
+                                                        }
+                                                ),
+                                            dcc.Loading(id="loading_save",
+                                                        type="default",
+                                                        children=html.Div(id="loading_save_output")
+                                                    )
+                                                        ],
+                                                style={
+                                                'borderWidth': '1px',
+                                                'borderStyle': 'dashed',
+                                                'borderRadius': '5px',
+                                                'textAlign': 'center',
+                                                "display": "flex",
+                                                "alignItems":"center",
+                                                # "padding": "2px",
+                                                "paddingTop": "5px",
+                                                "paddingBottom": "5px",
+                                                "paddingLeft": "2px",
+                                                "paddingRight": "2px"
+                                                # 'margin': '10px'
+                                                    }
+                                            ),
+                                    html.Label("save",
+                                                id="save_expe_button",
+                                                n_clicks=0,
+                                                className=btn_assistant_save,
+                                                style={'height': '35px',
+                                                        'width': '100%',
+                                                        }
+                                                ),
                                         ]
                                 )
 
@@ -372,25 +380,48 @@ def setupLayout(viz_server):
                 "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
     graph_css = "six columns"
     rt_graph_label = html.H3("Real time observation:", style={'textAlign': 'center'})
-    rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
+    # rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
+    rt_date_time = html.Div([# html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_left"),
+                             html.H6(viz_server.rt_datetime, id="rt_date_time"), # , style={'textAlign': 'center'}
+                             # html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_right")
+                            ],
+                            style={"display": "flex",
+                                   "alignItems": "center",
+                                   "justifyContent": "center"})
+    # rt_extra_info = html.P("", style={'textAlign': 'center', 'color': 'red'}, id="extra_info_rt")
+    graph_height = "520px"
+    graph_height = "550px"
     rt_graph_div = html.Div(id="rt_graph_div",
                             children=[
                                 rt_graph_label,
                                 rt_date_time,
-                                real_time_graph],
+                                html.H6("⚠️ Previous action illegal ⚠️", style=viz_server._style_legal_info, id="rt_extra_info"),
+                                real_time_graph,
+                            ],
                             style={'display': 'inline-block',
                                    'width': '50%',
+                                   "height": graph_height
                                   }
                             )
     forecast_graph_label = html.H3("Forecast (t+5mins):", style={'textAlign': 'center'})
-    forecast_date_time = html.P(viz_server.for_datetime, style={'textAlign': 'center'}, id="forecast_date_time")
+    forecast_date_time = html.Div([# html.H6("illegal  ", style={'color': 'red'}, id="forecast_extra_info_left"),
+                                   html.H6(viz_server.for_datetime, id="forecast_date_time"), # , style={'textAlign': 'center'}
+                                   # html.H6("  illegal", style={'color': 'red'}, id="forecast_extra_info_right")
+                                  ],
+                                  style={"display": "flex",
+                                         "alignItems": "center",
+                                         "justifyContent": "center"})
+    # forecast_extra_info = html.P("illegal action", style={'textAlign': 'center', 'color': 'red'}, id="forecast_extra_info")
     sim_graph_div = html.Div(id="sim_graph_div",
                                 children=[
                                     forecast_graph_label,
                                     forecast_date_time,
-                                    simulate_graph],
+                                    html.H6("⚠️ Previous action illegal ⚠️", style=viz_server._style_legal_info, id="forecast_extra_info"),
+                                    simulate_graph,
+                                ],
                                 style={'display': 'inline-block',
                                        'width': '50%',
+                                       "height": graph_height
                                        }
                                 )
     scenario_label = html.H3(f"Scenario: {viz_server.env.scenario_id()}",
@@ -401,7 +432,7 @@ def setupLayout(viz_server):
                          id="scenario_seed_title")
     graph_col = html.Div(id="graph-col",
                          children=[scenario_label, seed_label, rt_graph_div, sim_graph_div],
-                         style={'height': '75vh'},
+                         style={},  #  'height': '80vh'},
                          )
 
     # page to click the data
@@ -663,21 +694,19 @@ def setupLayout(viz_server):
                                     )
 
     # triggering the update of the figures
-    act_on_env_trigger_rt = html.Label("",
-                                       id="act_on_env_trigger_rt",
-                                        n_clicks=0)
-    act_on_env_trigger_for = html.Label("",
-                                        id="act_on_env_trigger_for",
-                                        n_clicks=0)
-    clear_assistant_path = html.Label("",
-                                      id="clear_assistant_path",
-                                      n_clicks=0)
-    recompute_rt_from_timeline = html.Label("",
-                                            id="recompute_rt_from_timeline",
-                                            n_clicks=0)
+    act_on_env_trigger_rt = html.Label("", id="act_on_env_trigger_rt",  n_clicks=0)
+    act_on_env_trigger_for = html.Label("",  id="act_on_env_trigger_for",  n_clicks=0)
+    clear_assistant_path = html.Label("", id="clear_assistant_path", n_clicks=0)
+    recompute_rt_from_timeline = html.Label("", id="recompute_rt_from_timeline", n_clicks=0)
+    update_substation_layout_clicked_from_sub = html.Label("", id="update_substation_layout_clicked_from_sub", n_clicks=0)
+    update_substation_layout_clicked_from_grid = html.Label("", id="update_substation_layout_clicked_from_grid", n_clicks=0)
+    trigger_rt_extra_info = html.Label("", id="trigger_rt_extra_info", n_clicks=0)
+    trigger_for_extra_info = html.Label("", id="trigger_for_extra_info", n_clicks=0)
     change_graph_title = html.Label("", id="change_graph_title", n_clicks=0)
     chronic_names_dummy_output = html.Label("", id="chronic_names_dummy_output", n_clicks=0)
     set_seed_dummy_output = html.Label("", id="set_seed_dummy_output", n_clicks=0)
+    update_progress_bar_from_act = html.Label("", id="update_progress_bar_from_act", n_clicks=0)
+    update_progress_bar_from_figs = html.Label("", id="update_progress_bar_from_figs", n_clicks=0)
     hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                     unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                     figfor_trigger_for_graph, figrt_trigger_rt_graph,
@@ -691,9 +720,12 @@ def setupLayout(viz_server):
                                     act_on_env_call_selfloop, selfloop_call_act_on_env,
                                     do_display_action, clear_assistant_path,
                                     trigger_computation, recompute_rt_from_timeline, change_graph_title,
-                                    chronic_names_dummy_output, set_seed_dummy_output
+                                    chronic_names_dummy_output, set_seed_dummy_output,
+                                    update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid,
+                                    trigger_rt_extra_info, trigger_for_extra_info,
+                                    update_progress_bar_from_act, update_progress_bar_from_figs
                                    ],
-                                   id="hidden_button_for_callbacks",
+                                   id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
 
     # timer for the automatic callbacks

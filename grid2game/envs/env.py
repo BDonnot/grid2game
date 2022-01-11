@@ -74,6 +74,7 @@ class Env(ComputeWrapper):
         self._sim_reward = None
         self._sim_done = None
         self._sim_info = None
+        self._current_assistant_action = None
 
         # define variables
         self._should_display = True
@@ -92,6 +93,11 @@ class Env(ComputeWrapper):
         # to control which action will be done when
         self.next_computation = None
         self.next_computation_kwargs = {}
+
+    def is_assistant_illegal(self):
+        if "is_illegal" in self._sim_info:
+            return self._sim_info["is_illegal"]
+        return False
 
     def prevent_display(self):
         self._should_display = False
@@ -143,19 +149,6 @@ class Env(ComputeWrapper):
             if self._assistant_seed is not None:
                 self.assistant.seed(int(self._assistant_seed))
 
-        if has_been_loaded:
-            # # TODO do i "change the past" ?
-            pass
-            # for step_id in range(len(self.past_envs)):
-            #     _current_action, \
-            #     _assistant_action, \
-            #     _obs, _reward, _done, _info, \
-            #     glop_env = self.past_envs[step_id]
-            #     _assistant_action = self.assistant.act(_obs, _reward, _done)
-            #     self.past_envs[step_id] = (_current_action,
-            #                                _assistant_action,
-            #                                _obs, _reward, _done, _info,
-            #                                glop_env)
         self.logger.info(f"assistant loaded with class {type(self.assistant)}")
         return has_been_loaded
 
@@ -170,9 +163,10 @@ class Env(ComputeWrapper):
             self.stop_computation()  # this is a "one time" call
             return self.seed(**self.next_computation_kwargs)
         elif self.next_computation == "step":
+            res = self.step(**self.next_computation_kwargs)
             self.stop_computation()  # this is a "one time" call
-            return self.step(**self.next_computation_kwargs)
-        elif self.next_computation == "step_rec":
+            return res
+        elif self.next_computation == "step_rec":  # this is the "go" button
             res = self.step()
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             if self._stop_if_alarm(obs):
@@ -180,12 +174,13 @@ class Env(ComputeWrapper):
                 self.logger.info("step_rec: An alarm is raised, I stop")
                 self.stop_computation()
             return res
-        elif self.next_computation == "step_rec_fast":
+        elif self.next_computation == "step_rec_fast":    # I press "+xxx" button (eg +12)
             # currently not used !
             res = None
             for i in range(int(self.next_computation_kwargs["nb_step_gofast"])):
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+                # print(f"do_computation: {self._assistant_action.raise_alarm}")
                 if self._stop_if_alarm(obs):
                     self.logger.info("step_rec_fast: An alarm is raised, I stop")
                     break
@@ -262,7 +257,11 @@ class Env(ComputeWrapper):
 
     @property
     def is_done(self):
-        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        if self.env_tree.current_node is not None:
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        else:
+            # this can happen just after a reset
+            done = False
         return done
 
     def take_last_action(self):
@@ -307,7 +306,11 @@ class Env(ComputeWrapper):
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
             return obs, reward, done, info
 
+        if self._assistant_action is None:
+            self.choose_next_assistant_action()
+
         if action is None:
+            self.choose_next_action()
             action = self._current_action
         else:
             # TODO is this correct ? I never really tested that
@@ -321,10 +324,10 @@ class Env(ComputeWrapper):
             self.stop_computation()
 
         if not done:
-            self.choose_next_action()
+            self.choose_next_assistant_action()
             self.logger.info("step: done is False")
             try:
-                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:
                 self.logger.warn("step: no forecast seems to be available for the current observation.")
                 pass
@@ -333,13 +336,14 @@ class Env(ComputeWrapper):
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
+        # print(f"step: {np.any(self._assistant_action.raise_alarm)}") 
         return obs, reward, done, info
 
+    def choose_next_assistant_action(self):
+        self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
+
     def choose_next_action(self):
-        self._assistant_action = None
         if self.next_action_from == self.ASSISTANT:
-            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-            self._assistant_action = self.assistant.act(obs, reward, done)
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
             # next action should be like the previous one or manually set
@@ -406,9 +410,14 @@ class Env(ComputeWrapper):
         self.next_action_from = self.ASSISTANT
         if self._assistant_action is None:
             # self._assistant_action = self.glop_env.action_space.sample()
-            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-            self._assistant_action = self.assistant.act(obs, reward, done)
-        self._current_action = copy.deepcopy(self._assistant_action)
+            # obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            if self.env_tree.current_node.assistant_action is not None:
+                self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
+        if self._assistant_action is not None:
+            self._current_action = copy.deepcopy(self._assistant_action)
+        else:
+            # do nothing action is selected if there is no assistant
+            self._current_action = self.glop_env.action_space()
 
     def next_action_is_manual(self):
         """the next action is manually selected"""
@@ -431,10 +440,10 @@ class Env(ComputeWrapper):
         
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         if not done:
-            self.choose_next_action()
+            self.choose_next_assistant_action()
             self.logger.info("step: done is False")
             try:
-                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._current_action)
+                self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:
                 self.logger.warn("handle_click_timeline: no forecast seems to be available for the current observation.")
                 pass

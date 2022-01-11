@@ -9,14 +9,27 @@ Change Log
 - [???] hide the "action" panel in go / go fast mode to show directly the temporal series.
 - [???] make a "mode" where you **cannot** go "backward"
 
-[0.1.0] - 2022/01/10
+[0.1.1] - 2022-01-11
 ----------------------
+- [ADDED] a logger in the "Node" and "EnvTree" classes.
+- [ADDED] a "loading widget" when an assistant is loading (see issue https://github.com/BDonnot/grid2game/issues/38)
+- [ADDED] a "loading widget" when saving the results (see issue https://github.com/BDonnot/grid2game/issues/39)
+- [IMPROVED] error are catched when an assistant raises some when ask to perform an action.
+- [IMPROVED] progress bar updates during computation (even if nothing else does)
+- [IMPROVED] illegal actions are now displayed on the GUI (see https://github.com/BDonnot/grid2game/issues/3) 
+- [IMPROVED] when creating a topological action, the graph of the substation is updated "on the fly" (see https://github.com/BDonnot/grid2game/issues/36) 
+- [IMPROVED] buses having 2 or more activated buses are displayed in a different color (see https://github.com/BDonnot/grid2game/issues/35) 
+- [IMPROVED] positionning of the elements (all rounding are remove, which makes things smoother) (see https://github.com/BDonnot/grid2game/issue/43) 
+- [IMPROVED] visualization of parrallel powerlines (see issue see https://github.com/BDonnot/grid2game/issue/42)
+
+[0.1.0] - 2022-01-10
+--------------------
 - [ADDED] fix the Action panel, by adding a "manual" pre selection and a "manual" mode, instead of having to always click
   and unclick to "do nothing"
 - [ADDED]  a saving method, that save the experiments played currently (using the runner and an agent reading an
   action list, might require to upgrade the runner api to play only certain scenarios)
 - [ADDED] add alarm feature : stop the computation if the assistant raises an alarm
-- [ADDED] have everything go through the "env.do_computation()" interface and not "hack" it, like for the assistant
+- [ADDED] have everything go through the "env.do_computation()" interface and not "hac like for the assistant
   for example (where `self.env.next_action_is_dn()`, `self.env.next_action_is_assistant()` or
   `self.env.next_action_is_previous()` are directly called by the VizServer)
 - [ADDED] add the name of the current scenario next to the "reset"

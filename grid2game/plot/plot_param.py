@@ -47,11 +47,12 @@ class PlotParams(object):
 
         ################# from grid2op, for substation
         self._sub_radius = 25
-        self._sub_fill_color = "PaleTurquoise"
+        self._sub_fill_color_1bus = "PaleTurquoise"
+        self._sub_fill_color_2buses =  "palegreen"  # "palevioletred" see https://community.plotly.com/t/plotly-colours-list/11730/3
         self._sub_line_color = "black"
         self._sub_line_width = 1
         self._marker_sub = dict(size=self._sub_radius,
-                                color=self._sub_fill_color,
+                                color=self._sub_fill_color_1bus,
                                 showscale=False,
                                 line=dict(
                                     width=self._sub_line_width,

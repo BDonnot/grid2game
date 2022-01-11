@@ -9,7 +9,9 @@
 import cmath
 import warnings
 import time
+import copy
 import plotly.graph_objects as go
+import numpy as np
 
 from grid2op.PlotGrid import PlotPlotly
 from grid2op.Space import GridObjects
@@ -28,7 +30,7 @@ class PlotGrids(PlotParams):
         self.grid = GridObjects.init_grid(observation_space)
 
         # process the layout (position of everything)
-        self.layout = self.glop_plot._grid_layout
+        self.layout = copy.deepcopy(self.glop_plot._grid_layout)
         self.ids = {nm: id_ for id_, nm in enumerate(self.grid.name_load)}
         self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_gen)})
         if hasattr(self.grid, "name_storage"):
@@ -69,8 +71,8 @@ class PlotGrids(PlotParams):
                 self.pos_to_object[tuple(self.layout[name])] = ("stor", name, stor_id)
         for line_id, name in enumerate(self.grid.name_line):
             (x_or, y_or), (x_ex, y_ex) = self.layout[name]
-            x_mid = int((x_or + x_ex) / 2)
-            y_mid = int((y_or + y_ex) / 2)
+            x_mid = ((x_or + x_ex) / 2)
+            y_mid = ((y_or + y_ex) / 2)
             self.pos_to_object[(x_mid, y_mid)] = ("line", name, line_id)
 
         # need to be initialized
@@ -106,6 +108,12 @@ class PlotGrids(PlotParams):
         self._last_rt_step = -1
         self._last_for_step = -1
 
+    def update_sub_figure(self, grid2op_action, sub_id):
+        """update the substation based on the proposed action (implements https://github.com/BDonnot/grid2game/issues/36)"""
+        obs = self.obs_rt + grid2op_action
+        res_substation = self._get_res_sub_clicked(sub_id, obs=obs)
+        return res_substation
+
     def _add_element_to_sub(self, nm_this_obj, posx, posy, marker, fig,
                             pos_obj, pos_in_sub, pos_in_topo_vect,
                             line_side=None):
@@ -122,17 +130,20 @@ class PlotGrids(PlotParams):
         dist_center = cmath.sqrt((tmp_x - posx) ** 2 + (tmp_y - posy) ** 2)
         dist_center = dist_center.real
         my_dist = self._dist_zoomed_in * self._r_sub_zoom
-        tmp_x = int(posx + my_dist / dist_center * (tmp_x - posx))
-        tmp_y = int(posy + my_dist / dist_center * (tmp_y - posy))
+        tmp_x = (posx + my_dist / dist_center * (tmp_x - posx))
+        tmp_y = (posy + my_dist / dist_center * (tmp_y - posy))
+
         # compute intersection with the circles representing the buses
-        posx_bus1 = int(posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
-        posy_bus1 = int(posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
-        posx_bus2 = int(posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
-        posy_bus2 = int(posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
+        posx_bus1 = (posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus1 = (posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
+        posx_bus2 = (posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus2 = (posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
+
         # dict to map coordinate to objects
         pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub, pos_in_topo_vect)
         pos_obj[(posx_bus1, posy_bus1)] = (nm_this_obj, "bus1", pos_in_sub, pos_in_topo_vect)
         pos_obj[(posx_bus2, posy_bus2)] = (nm_this_obj, "bus2", pos_in_sub, pos_in_topo_vect)
+
         # dict to map object to their coordinates
         if line_side is None:
             self.objs_info_zoomed[nm_this_obj] = ((tmp_x, tmp_y), (posx_bus1, posy_bus1), (posx_bus2, posy_bus2))
@@ -179,12 +190,12 @@ class PlotGrids(PlotParams):
             (posx, posy) = self.layout[sub_name]
             tmp_fig.add_shape(type="circle",
                               xref="x", yref="y",
-                              fillcolor=self._sub_fill_color,
+                              fillcolor=self._sub_fill_color_1bus,
                               x0=posx - self._r_sub_zoom,
                               y0=posy - self._r_sub_zoom,
                               x1=posx + self._r_sub_zoom,
                               y1=posy + self._r_sub_zoom,
-                              line_color=self._sub_fill_color,
+                              line_color=self._sub_fill_color_1bus,
                               opacity=0.5
                               )
             tmp_fig.add_shape(type="circle",
@@ -292,20 +303,22 @@ class PlotGrids(PlotParams):
         res = (None, 0)
         if clickData is not None:
             pts = clickData['points'][0]
-            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            pos_clicked = ((pts["x"]), (pts["y"]))
             if pos_clicked in dict_sub:
                 (nm_this_obj, what_clicked, pos_in_sub, pos_in_topo_vect) = dict_sub[pos_clicked]
                 res = (pos_in_topo_vect, -1 if what_clicked == "obj" else (1 if what_clicked == "bus1" else 2))
         return res
 
-    def _get_res_sub_clicked(self, obj_id):
+    def _get_res_sub_clicked(self, obj_id, obs=None):
         # draw the substation
         self.sub_fig, _ = self.figs_substation_zoomed[obj_id]
         self._last_sub_clicked = obj_id
 
         # add the right color to which the object is connected
-        current_topo = self.obs_rt.sub_topology(obj_id)
-        objs_this_sub = self.obs_rt.get_obj_substations(substation_id=obj_id)
+        if obs is None:
+            obs = self.obs_rt
+        current_topo = obs.sub_topology(obj_id)
+        objs_this_sub = obs.get_obj_substations(substation_id=obj_id)
         for obj_info, obj_bus in zip(objs_this_sub, current_topo):
             nm_this_obj, (x_this_obj, y_this_obj), (xbus1, ybus1), (xbus2, ybus2) = self.retrieve_obj_info(obj_info)
             line_style = dict(color=self.col_bus1, dash=self.style_bus1)
@@ -392,7 +405,7 @@ class PlotGrids(PlotParams):
         res_type = tuple()
         if clickData is not None:
             pts = clickData['points'][0]
-            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            pos_clicked = ((pts["x"]), (pts["y"]))
             if pos_clicked in self.pos_to_object:
                 (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
                 if obj_type == "sub":
@@ -449,7 +462,6 @@ class PlotGrids(PlotParams):
         self._update_all_figures_all_values(forecast_only=False)
         tmp = time.perf_counter() - beg_
         self._time_update_rt += tmp
-        # print(f'grid (main): {tmp}')
 
     def update_forecat(self, obs_forecast, env=None):
         """update forecast observation both in the values of the dictionary and in the figure"""
@@ -464,7 +476,6 @@ class PlotGrids(PlotParams):
         self._update_all_figures_all_values(forecast_only=True)
         tmp = time.perf_counter() - beg_
         self._time_update_for += tmp
-        # print(f'grid (forecast): {tmp}')
 
     def _update_all_figures_all_values(self, forecast_only):
         self.update_lines_info(forecast_only)
@@ -472,6 +483,7 @@ class PlotGrids(PlotParams):
         self.update_loads_info(forecast_only)
         self.update_gens_info(forecast_only)
         self.update_storages_info(forecast_only)
+        self.update_subs_info(forecast_only)
 
     def update_lines_info(self, forecast_only=False):
         """update the information displayed for powerlines, and updates the traces"""
@@ -532,30 +544,65 @@ class PlotGrids(PlotParams):
         self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.for_trace_stor[trace.name])
                                                          if trace.name in self.for_trace_stor else ())
 
-    def _process_lines_layout(self):
-        """compute pos_or and pos_ex of both the extremity of the powerline and update the self.ids"""
+    def update_subs_info(self, forecast_only=False):
+        """update the information displayed for storages, and updates the traces"""
+        if not forecast_only:
+            self._update_subs(self.obs_rt, is_forecast=False)
+            self.figure_rt.for_each_trace(lambda trace: trace.update(**self.rt_trace_sub[trace.name])
+                                                         if trace.name in self.rt_trace_sub else ())
+
+        self._update_subs(self.obs_forecast, is_forecast=True)
+        self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.rt_trace_sub[trace.name])
+                                                         if trace.name in self.rt_trace_sub else ())
+
+    def _process_lines_layout(self, parallel_spacing=5.0):
+        """compute pos_or and pos_ex of both the extremity of the powerline and update the self.ids
+        
+        parallel_spacing: float: which angle are used to move parrallel powerlines (in degree)
+            
+        """
         for id_, nm in enumerate(self.grid.name_line):
             self.ids[nm] = id_
+            if f"{nm}_or" in self.layout:
+                # i look for position in grid2op default layout and found them, so I use them
+                # currently unused
+                line_or_pos = self.layout[f"{nm}_or"]
+                line_ex_pos = self.layout[f"{nm}_ex"]
+            else:
+                # positions are not found in grid2op default layout, i build them here
+                sub_id_or = self.grid.line_or_to_subid[id_]
+                sub_id_ex = self.grid.line_ex_to_subid[id_]
 
-            sub_id_or = self.grid.line_or_to_subid[id_]
-            sub_id_ex = self.grid.line_ex_to_subid[id_]
+                nm_subor = self.grid.name_sub[sub_id_or]
+                nm_subex = self.grid.name_sub[sub_id_ex]
 
-            nm_subor = self.grid.name_sub[sub_id_or]
-            nm_subex = self.grid.name_sub[sub_id_ex]
+                pos_sub_or = self.layout[nm_subor]
+                pos_sub_ex = self.layout[nm_subex]
 
-            pos_sub_or = self.layout[nm_subor]
-            pos_sub_ex = self.layout[nm_subex]
+                z_subor = pos_sub_or[0] + 1j*pos_sub_or[1]
+                z_subex = pos_sub_ex[0] + 1j*pos_sub_ex[1]
 
-            z_subor = pos_sub_or[0] + 1j*pos_sub_or[1]
-            z_subex = pos_sub_ex[0] + 1j*pos_sub_ex[1]
+                diff_ = z_subex - z_subor
+                r_diff, theta_diff = cmath.polar(diff_)
 
-            diff_ = z_subex - z_subor
-            r_diff, theta_diff = cmath.polar(diff_)
+                zline_or = z_subor + self._sub_radius * cmath.exp(1j * theta_diff)
+                zline_ex = z_subor + (r_diff - self._sub_radius) * cmath.exp(1j * theta_diff)
 
-            zline_or = z_subor + self._sub_radius * cmath.exp(1j * theta_diff)
-            zline_ex = z_subor + (r_diff - self._sub_radius) * cmath.exp(1j * theta_diff)
-            line_or_pos = zline_or.real, zline_or.imag
-            line_ex_pos = zline_ex.real, zline_ex.imag
+                # handle parallel lines
+                tmp = self.observation_space.get_lines_id(from_=sub_id_or, to_=sub_id_ex)
+                if len(tmp) > 1:
+                    _, theta_or = cmath.polar(zline_or - z_subor)
+                    _, theta_ex = cmath.polar(zline_ex - z_subex)
+                    if id_ == tmp[0]:
+                        zline_or = z_subor + self._sub_radius * cmath.exp(1j * (parallel_spacing / 180. * np.pi + theta_or))
+                        zline_ex = z_subex + self._sub_radius * cmath.exp(1j * (- parallel_spacing / 180. * np.pi + theta_ex))
+                    else:
+                        zline_or = z_subor + self._sub_radius * cmath.exp(1j * (- parallel_spacing / 180. * np.pi + theta_or))
+                        zline_ex = z_subex + self._sub_radius * cmath.exp(1j * (parallel_spacing / 180. * np.pi + theta_ex))
+                    
+                line_or_pos = zline_or.real, zline_or.imag
+                line_ex_pos = zline_ex.real, zline_ex.imag
+                
             self.layout[nm] = (line_or_pos, line_ex_pos)
 
     def _init_loads(self):
@@ -612,7 +659,7 @@ class PlotGrids(PlotParams):
         else:
             # this was the real time
             self.rt_trace_sub = {}
-            traces = self.for_trace_sub
+            traces = self.rt_trace_sub
 
         for nm in self.grid.name_sub:
             self._one_sub(nm, obs, traces)
@@ -702,9 +749,12 @@ class PlotGrids(PlotParams):
 
     def _one_sub(self, name, obs, dict_traces):
         """draw one substation"""
-        pass
-        # plot the topology (circle for the busbars)
-        # TODO
+        id_ = self.ids[name]
+        dict_me = obs.state_of(substation_id=id_)
+        if dict_me["nb_bus"] >= 2:
+            dict_traces[name] = {"marker": {"color": self._sub_fill_color_2buses}}
+        else:
+            dict_traces[name] = {"marker": {"color": self._sub_fill_color_1bus}}
 
     @staticmethod
     def _choose_label_pos(my_pos, sub_pos):
@@ -1014,8 +1064,8 @@ class PlotGrids(PlotParams):
         traces.append(line_trace)
 
         # middle of the line (clickable)
-        line_trace = go.Scatter(x=[int((x_or + x_ex)/2)],  # need to adjust pos_to_object above if you change this
-                                y=[int((y_or + y_ex)/2)],   # need to adjust pos_to_object above if you change this
+        line_trace = go.Scatter(x=[((x_or + x_ex)/2)],  # need to adjust pos_to_object above if you change this
+                                y=[((y_or + y_ex)/2)],   # need to adjust pos_to_object above if you change this
                                 name=name+"_click",
                                 line=line_style,
                                 # hoverinfo='skip',
@@ -1030,7 +1080,7 @@ class PlotGrids(PlotParams):
         pos_subx, pos_suby = self.layout[sub_name]
         to_sub = go.Scatter(x=(x_or, pos_subx),
                             y=(y_or, pos_suby),
-                            name=name+"_bus",
+                            name=name+"_bus_or",
                             hoverinfo='skip',
                             showlegend=False,
                             mode='lines',
@@ -1045,7 +1095,7 @@ class PlotGrids(PlotParams):
         pos_subx, pos_suby = self.layout[sub_name]
         to_sub = go.Scatter(x=(x_ex, pos_subx),
                             y=(y_ex, pos_suby),
-                            name=name+"_bus",
+                            name=name+"_bus_ex",
                             hoverinfo='skip',
                             showlegend=False,
                             mode='lines',
@@ -1127,15 +1177,15 @@ class PlotGrids(PlotParams):
         id_topo_vect = self.grid.line_or_pos_topo_vect[id_]
         this_bus = obs.topo_vect[id_topo_vect]
         color_busor = self._get_bus_color(this_bus)
-        id_topo_vect = self.grid.line_or_pos_topo_vect[id_]
+        id_topo_vect = self.grid.line_ex_pos_topo_vect[id_]
         this_bus = obs.topo_vect[id_topo_vect]
         color_busex = self._get_bus_color(this_bus)
 
         # plot the "arrow" to the substation for origin side
-        dict_traces[name + "_bus"] = {"line": dict(color=color_busor, width=self._line_bus_width)}
+        dict_traces[name + "_bus_or"] = {"line": dict(color=color_busor, width=self._line_bus_width)}
 
         # plot the "arrow" to the substation for extremity side
-        dict_traces[name + "_bus"] = {"line": dict(color=color_busex, width=self._line_bus_width)}
+        dict_traces[name + "_bus_ex"] = {"line": dict(color=color_busex, width=self._line_bus_width)}
 
         # plot texts on the powerline
         # text in the middle
