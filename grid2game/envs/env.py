@@ -270,7 +270,11 @@ class Env(ComputeWrapper):
 
     @property
     def is_done(self):
-        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        if self.env_tree.current_node is not None:
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        else:
+            # this can happen just after a reset
+            done = False
         return done
 
     def take_last_action(self):

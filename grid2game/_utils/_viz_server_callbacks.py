@@ -110,7 +110,8 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("go_till_game_over-button", "className"),
                        dash.dependencies.Output("is_computing_left", "style"),
                        dash.dependencies.Output("is_computing_right", "style"),
-                       dash.dependencies.Output("change_graph_title", "n_clicks")
+                       dash.dependencies.Output("change_graph_title", "n_clicks"),
+                       dash.dependencies.Output("update_progress_bar_from_act", "n_clicks")
                       ],
                       [dash.dependencies.Input("step-button", "n_clicks"),
                        dash.dependencies.Input("simulate-button", "n_clicks"),
@@ -141,15 +142,21 @@ def add_callbacks(dash_app, viz_server):
     dash_app.callback([dash.dependencies.Output("figrt_trigger_temporal_figs", "n_clicks"),
                        dash.dependencies.Output("figrt_trigger_rt_graph", "n_clicks"),
                        dash.dependencies.Output("figrt_trigger_for_graph", "n_clicks"),
-                       dash.dependencies.Output("scenario_progression", "value"),
-                       dash.dependencies.Output("scenario_progression", "label"),
-                       dash.dependencies.Output("scenario_progression", "color"),
                        dash.dependencies.Output("timeline_graph", "figure"),
+                       dash.dependencies.Output("update_progress_bar_from_figs", "n_clicks")
                       ],
                       [dash.dependencies.Input("act_on_env_trigger_rt", "n_clicks")],
                       []
                      )(viz_server.update_rt_fig)
 
+    dash_app.callback([
+                       dash.dependencies.Output("scenario_progression", "value"),
+                       dash.dependencies.Output("scenario_progression", "label"),
+                       dash.dependencies.Output("scenario_progression", "color"),
+                      ],[
+                       dash.dependencies.Input("update_progress_bar_from_act", "n_clicks"),
+                       dash.dependencies.Input("update_progress_bar_from_figs", "n_clicks"),
+                      ])(viz_server.update_progress_bar)
     # handle triggers: refresh of the figures for the forecast
     dash_app.callback([dash.dependencies.Output("figfor_trigger_for_graph", "n_clicks")],
                       [dash.dependencies.Input("act_on_env_trigger_for", "n_clicks")],

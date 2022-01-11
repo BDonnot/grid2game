@@ -11,6 +11,7 @@ Change Log
 
 [0.2.0] - 2022-xx-yy
 ----------------------
+- [IMPROVED] progress bar updates during computation (even if nothing else does)
 - [IMPROVED] illegal actions are now displayed on the GUI (see https://github.com/BDonnot/grid2game/issues/3) 
 - [IMPROVED] when creating a topological action, the graph of the substation is updated "on the fly" (see https://github.com/BDonnot/grid2game/issues/36) 
 - [IMPROVED] buses having 2 or more activated buses are displayed in a different color (see https://github.com/BDonnot/grid2game/issues/35) 

@@ -686,27 +686,19 @@ def setupLayout(viz_server):
                                     )
 
     # triggering the update of the figures
-    act_on_env_trigger_rt = html.Label("",
-                                       id="act_on_env_trigger_rt",
-                                        n_clicks=0)
-    act_on_env_trigger_for = html.Label("",
-                                        id="act_on_env_trigger_for",
-                                        n_clicks=0)
-    clear_assistant_path = html.Label("",
-                                      id="clear_assistant_path",
-                                      n_clicks=0)
-    recompute_rt_from_timeline = html.Label("",
-                                            id="recompute_rt_from_timeline",
-                                            n_clicks=0)
-    update_substation_layout_clicked_from_sub = html.Label("",
-                                                           id="update_substation_layout_clicked_from_sub",
-                                                           n_clicks=0)
+    act_on_env_trigger_rt = html.Label("", id="act_on_env_trigger_rt",  n_clicks=0)
+    act_on_env_trigger_for = html.Label("",  id="act_on_env_trigger_for",  n_clicks=0)
+    clear_assistant_path = html.Label("", id="clear_assistant_path", n_clicks=0)
+    recompute_rt_from_timeline = html.Label("", id="recompute_rt_from_timeline", n_clicks=0)
+    update_substation_layout_clicked_from_sub = html.Label("", id="update_substation_layout_clicked_from_sub", n_clicks=0)
     update_substation_layout_clicked_from_grid = html.Label("", id="update_substation_layout_clicked_from_grid", n_clicks=0)
     trigger_rt_extra_info = html.Label("", id="trigger_rt_extra_info", n_clicks=0)
     trigger_for_extra_info = html.Label("", id="trigger_for_extra_info", n_clicks=0)
     change_graph_title = html.Label("", id="change_graph_title", n_clicks=0)
     chronic_names_dummy_output = html.Label("", id="chronic_names_dummy_output", n_clicks=0)
     set_seed_dummy_output = html.Label("", id="set_seed_dummy_output", n_clicks=0)
+    update_progress_bar_from_act = html.Label("", id="update_progress_bar_from_act", n_clicks=0)
+    update_progress_bar_from_figs = html.Label("", id="update_progress_bar_from_figs", n_clicks=0)
     hidden_interactions = html.Div([figrt_trigger_temporal_figs,
                                     unit_trigger_rt_graph, unit_trigger_for_graph, figrt_trigger_for_graph,
                                     figfor_trigger_for_graph, figrt_trigger_rt_graph,
@@ -722,7 +714,8 @@ def setupLayout(viz_server):
                                     trigger_computation, recompute_rt_from_timeline, change_graph_title,
                                     chronic_names_dummy_output, set_seed_dummy_output,
                                     update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid,
-                                    trigger_rt_extra_info, trigger_for_extra_info
+                                    trigger_rt_extra_info, trigger_for_extra_info,
+                                    update_progress_bar_from_act, update_progress_bar_from_figs
                                    ],
                                    id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})

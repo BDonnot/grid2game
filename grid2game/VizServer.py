@@ -308,6 +308,7 @@ class VizServer:
         self._go_button_shape = "btn btn-secondary"
         self._go_till_go_button_shape = "btn btn-secondary"
         change_graph_title = dash.no_update
+        update_progress_bar = 1
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -409,7 +410,8 @@ class VizServer:
                 self._go_till_go_button_shape,
                 i_am_computing_state,
                 i_am_computing_state,
-                change_graph_title]
+                change_graph_title,
+                update_progress_bar]
 
     def _wait_for_computing_over(self):
         i = 0
@@ -474,19 +476,47 @@ class VizServer:
             trigger_temporal_figs = 1
             trigger_rt_graph = 1
             trigger_for_graph = 1
+        else:
+            raise dash.exceptions.PreventUpdate
+        if trigger_rt_graph == 1:
+            self.fig_timeline = self.env.get_timeline_figure()
 
+        update_progress_bar = 1
+        return [trigger_temporal_figs,
+                trigger_rt_graph,
+                trigger_for_graph,
+                self.fig_timeline,
+                update_progress_bar]
+
+    def update_progress_bar(self, from_act, from_figs):
+        """update the progress bar"""
+        # if from_act is None and from_figs is None:
+            # raise dash.exceptions.PreventUpdate
+        if self.env.env_tree.current_node is None:
+            # A reset has just been called and the grid2op env is not reset yet
+            progress_color = "primary"
+            self._last_step = 0
+            self._last_done = False
+            self._last_max_step = max(self._last_max_step, 1)  # prevent possible division by 0.
+        else:
             # scenario progress bar
             progress_color = "primary"
             if not self.env.is_done:
+                # if from_act == 1:
+                #     self._last_step = max(self.env.obs.current_step, self._last_step)
+                #     self._last_max_step = max(self.env.obs.max_step, self._last_max_step)
+                # elif from_figs == 1:
                 self._last_step = self.env.obs.current_step
                 self._last_max_step = self.env.obs.max_step
                 self._last_done = False
             else:
-                if not self._last_done:
-                    self._last_done = True
-                    if self._last_step != self._last_max_step:
-                        # fail to run the scenario till the end
-                        self._last_step += 1
+                self._last_step = self.env.obs.current_step
+                self._last_max_step = self.env.obs.max_step
+                # if not self._last_done:
+                #     self._last_done = True
+                #     if self._last_step != self._last_max_step:
+                #         # fail to run the scenario till the end
+                #         self._last_step += 1
                 if self._last_step != self._last_max_step:
                     # fail to run the scenario till the end
                     progress_color = "danger"
@@ -494,19 +524,11 @@ class VizServer:
                     # no game over, until the end of the scenario
                     progress_color = "success"
 
-            progress_pct = 100. * self._last_step / self._last_max_step
-            progress_label = f"{self._last_step} / {self._last_max_step}"
-        else:
-            raise dash.exceptions.PreventUpdate
-        if trigger_rt_graph == 1:
-            self.fig_timeline = self.env.get_timeline_figure()
-        return [trigger_temporal_figs,
-                trigger_rt_graph,
-                trigger_for_graph,
-                progress_pct,
+        progress_pct = 100. * self._last_step / self._last_max_step
+        progress_label = f"{self._last_step} / {self._last_max_step}"
+        return [progress_pct,
                 progress_label,
-                progress_color,
-                self.fig_timeline]
+                progress_color]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
