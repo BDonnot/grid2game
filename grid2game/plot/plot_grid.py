@@ -11,6 +11,7 @@ import warnings
 import time
 import copy
 import plotly.graph_objects as go
+import numpy as np
 
 from grid2op.PlotGrid import PlotPlotly
 from grid2op.Space import GridObjects
@@ -29,7 +30,7 @@ class PlotGrids(PlotParams):
         self.grid = GridObjects.init_grid(observation_space)
 
         # process the layout (position of everything)
-        self.layout = self.glop_plot._grid_layout
+        self.layout = copy.deepcopy(self.glop_plot._grid_layout)
         self.ids = {nm: id_ for id_, nm in enumerate(self.grid.name_load)}
         self.ids.update({nm: id_ for id_, nm in enumerate(self.grid.name_gen)})
         if hasattr(self.grid, "name_storage"):
@@ -70,8 +71,8 @@ class PlotGrids(PlotParams):
                 self.pos_to_object[tuple(self.layout[name])] = ("stor", name, stor_id)
         for line_id, name in enumerate(self.grid.name_line):
             (x_or, y_or), (x_ex, y_ex) = self.layout[name]
-            x_mid = int((x_or + x_ex) / 2)
-            y_mid = int((y_or + y_ex) / 2)
+            x_mid = ((x_or + x_ex) / 2)
+            y_mid = ((y_or + y_ex) / 2)
             self.pos_to_object[(x_mid, y_mid)] = ("line", name, line_id)
 
         # need to be initialized
@@ -129,14 +130,14 @@ class PlotGrids(PlotParams):
         dist_center = cmath.sqrt((tmp_x - posx) ** 2 + (tmp_y - posy) ** 2)
         dist_center = dist_center.real
         my_dist = self._dist_zoomed_in * self._r_sub_zoom
-        tmp_x = int(posx + my_dist / dist_center * (tmp_x - posx))
-        tmp_y = int(posy + my_dist / dist_center * (tmp_y - posy))
+        tmp_x = (posx + my_dist / dist_center * (tmp_x - posx))
+        tmp_y = (posy + my_dist / dist_center * (tmp_y - posy))
 
         # compute intersection with the circles representing the buses
-        posx_bus1 = int(posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
-        posy_bus1 = int(posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
-        posx_bus2 = int(posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
-        posy_bus2 = int(posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
+        posx_bus1 = (posx + self._dist_bus_1 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus1 = (posy + self._dist_bus_1 / self._dist_zoomed_in * (tmp_y - posy))
+        posx_bus2 = (posx + self._dist_bus_2 / self._dist_zoomed_in * (tmp_x - posx))
+        posy_bus2 = (posy + self._dist_bus_2 / self._dist_zoomed_in * (tmp_y - posy))
 
         # dict to map coordinate to objects
         pos_obj[(tmp_x, tmp_y)] = (nm_this_obj, "obj", pos_in_sub, pos_in_topo_vect)
@@ -302,7 +303,7 @@ class PlotGrids(PlotParams):
         res = (None, 0)
         if clickData is not None:
             pts = clickData['points'][0]
-            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            pos_clicked = ((pts["x"]), (pts["y"]))
             if pos_clicked in dict_sub:
                 (nm_this_obj, what_clicked, pos_in_sub, pos_in_topo_vect) = dict_sub[pos_clicked]
                 res = (pos_in_topo_vect, -1 if what_clicked == "obj" else (1 if what_clicked == "bus1" else 2))
@@ -404,7 +405,7 @@ class PlotGrids(PlotParams):
         res_type = tuple()
         if clickData is not None:
             pts = clickData['points'][0]
-            pos_clicked = (int(pts["x"]), int(pts["y"]))
+            pos_clicked = ((pts["x"]), (pts["y"]))
             if pos_clicked in self.pos_to_object:
                 (obj_type, obj_name, obj_id) = self.pos_to_object[pos_clicked]
                 if obj_type == "sub":
@@ -554,30 +555,54 @@ class PlotGrids(PlotParams):
         self.figure_forecat.for_each_trace(lambda trace: trace.update(**self.rt_trace_sub[trace.name])
                                                          if trace.name in self.rt_trace_sub else ())
 
-    def _process_lines_layout(self):
-        """compute pos_or and pos_ex of both the extremity of the powerline and update the self.ids"""
+    def _process_lines_layout(self, parallel_spacing=5.0):
+        """compute pos_or and pos_ex of both the extremity of the powerline and update the self.ids
+        
+        parallel_spacing: float: which angle are used to move parrallel powerlines (in degree)
+            
+        """
         for id_, nm in enumerate(self.grid.name_line):
             self.ids[nm] = id_
+            if f"{nm}_or" in self.layout:
+                # i look for position in grid2op default layout and found them, so I use them
+                # currently unused
+                line_or_pos = self.layout[f"{nm}_or"]
+                line_ex_pos = self.layout[f"{nm}_ex"]
+            else:
+                # positions are not found in grid2op default layout, i build them here
+                sub_id_or = self.grid.line_or_to_subid[id_]
+                sub_id_ex = self.grid.line_ex_to_subid[id_]
 
-            sub_id_or = self.grid.line_or_to_subid[id_]
-            sub_id_ex = self.grid.line_ex_to_subid[id_]
+                nm_subor = self.grid.name_sub[sub_id_or]
+                nm_subex = self.grid.name_sub[sub_id_ex]
 
-            nm_subor = self.grid.name_sub[sub_id_or]
-            nm_subex = self.grid.name_sub[sub_id_ex]
+                pos_sub_or = self.layout[nm_subor]
+                pos_sub_ex = self.layout[nm_subex]
 
-            pos_sub_or = self.layout[nm_subor]
-            pos_sub_ex = self.layout[nm_subex]
+                z_subor = pos_sub_or[0] + 1j*pos_sub_or[1]
+                z_subex = pos_sub_ex[0] + 1j*pos_sub_ex[1]
 
-            z_subor = pos_sub_or[0] + 1j*pos_sub_or[1]
-            z_subex = pos_sub_ex[0] + 1j*pos_sub_ex[1]
+                diff_ = z_subex - z_subor
+                r_diff, theta_diff = cmath.polar(diff_)
 
-            diff_ = z_subex - z_subor
-            r_diff, theta_diff = cmath.polar(diff_)
+                zline_or = z_subor + self._sub_radius * cmath.exp(1j * theta_diff)
+                zline_ex = z_subor + (r_diff - self._sub_radius) * cmath.exp(1j * theta_diff)
 
-            zline_or = z_subor + self._sub_radius * cmath.exp(1j * theta_diff)
-            zline_ex = z_subor + (r_diff - self._sub_radius) * cmath.exp(1j * theta_diff)
-            line_or_pos = zline_or.real, zline_or.imag
-            line_ex_pos = zline_ex.real, zline_ex.imag
+                # handle parallel lines
+                tmp = self.observation_space.get_lines_id(from_=sub_id_or, to_=sub_id_ex)
+                if len(tmp) > 1:
+                    _, theta_or = cmath.polar(zline_or - z_subor)
+                    _, theta_ex = cmath.polar(zline_ex - z_subex)
+                    if id_ == tmp[0]:
+                        zline_or = z_subor + self._sub_radius * cmath.exp(1j * (parallel_spacing / 180. * np.pi + theta_or))
+                        zline_ex = z_subex + self._sub_radius * cmath.exp(1j * (- parallel_spacing / 180. * np.pi + theta_ex))
+                    else:
+                        zline_or = z_subor + self._sub_radius * cmath.exp(1j * (- parallel_spacing / 180. * np.pi + theta_or))
+                        zline_ex = z_subex + self._sub_radius * cmath.exp(1j * (parallel_spacing / 180. * np.pi + theta_ex))
+                    
+                line_or_pos = zline_or.real, zline_or.imag
+                line_ex_pos = zline_ex.real, zline_ex.imag
+                
             self.layout[nm] = (line_or_pos, line_ex_pos)
 
     def _init_loads(self):
@@ -1039,8 +1064,8 @@ class PlotGrids(PlotParams):
         traces.append(line_trace)
 
         # middle of the line (clickable)
-        line_trace = go.Scatter(x=[int((x_or + x_ex)/2)],  # need to adjust pos_to_object above if you change this
-                                y=[int((y_or + y_ex)/2)],   # need to adjust pos_to_object above if you change this
+        line_trace = go.Scatter(x=[((x_or + x_ex)/2)],  # need to adjust pos_to_object above if you change this
+                                y=[((y_or + y_ex)/2)],   # need to adjust pos_to_object above if you change this
                                 name=name+"_click",
                                 line=line_style,
                                 # hoverinfo='skip',

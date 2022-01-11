@@ -278,56 +278,56 @@ def setupLayout(viz_server):
 
     save_experiment = html.Div(id='save_expe_box',
                                children=[                  
-                               html.Div(children=[
-                                   dcc.Input(placeholder=save_txt,
-                                             id="save_expe",
-                                             type="text",
-                                             style={
-                                                 'width': '70%',
-                                                 'height': '55px',
-                                                 'lineHeight': '55px',
-                                                 'verticalAlign': 'middle',
-                                                #  "margin-top": 5,
-                                                #  "margin-left": 20
-                                                 }),
-                                    html.P(viz_server.format_path(viz_server.assistant_path),
-                                           id="current_save_path",
-                                           style={'width': '28%',
-                                                  'textAlign': 'center',
-                                                  'height': '55px',
-                                                  'verticalAlign': 'middle',
-                                                  "margin": "0",
-                                                #   "margin-top": 20
-                                                  }
-                                           ),
-                                    dcc.Loading(id="loading_save",
-                                                type="default",
-                                                children=html.Div(id="loading_save_output")
-                                            )
-                                                 ],
-                                        style={
-                                        'borderWidth': '1px',
-                                        'borderStyle': 'dashed',
-                                        'borderRadius': '5px',
-                                        'textAlign': 'center',
-                                        "display": "flex",
-                                        "alignItems":"center",
-                                        # "padding": "2px",
-                                        "paddingTop": "5px",
-                                        "paddingBottom": "5px",
-                                        "paddingLeft": "2px",
-                                        "paddingRight": "2px"
-                                        # 'margin': '10px'
-                                              }
-                                       ),
-                               html.Label("save",
-                                          id="save_expe_button",
-                                          n_clicks=0,
-                                          className=btn_assistant_save,
-                                          style={'height': '35px',
-                                                 'width': '100%',
-                                                }
-                                         ),
+                                    html.Div(children=[
+                                        dcc.Input(placeholder=save_txt,
+                                                    id="save_expe",
+                                                    type="text",
+                                                    style={
+                                                        'width': '70%',
+                                                        'height': '55px',
+                                                        'lineHeight': '55px',
+                                                        'verticalAlign': 'middle',
+                                                        #  "margin-top": 5,
+                                                        #  "margin-left": 20
+                                                        }),
+                                            html.P(viz_server.format_path(viz_server.assistant_path),
+                                                id="current_save_path",
+                                                style={'width': '28%',
+                                                        'textAlign': 'center',
+                                                        'height': '55px',
+                                                        'verticalAlign': 'middle',
+                                                        "margin": "0",
+                                                        #   "margin-top": 20
+                                                        }
+                                                ),
+                                            dcc.Loading(id="loading_save",
+                                                        type="default",
+                                                        children=html.Div(id="loading_save_output")
+                                                    )
+                                                        ],
+                                                style={
+                                                'borderWidth': '1px',
+                                                'borderStyle': 'dashed',
+                                                'borderRadius': '5px',
+                                                'textAlign': 'center',
+                                                "display": "flex",
+                                                "alignItems":"center",
+                                                # "padding": "2px",
+                                                "paddingTop": "5px",
+                                                "paddingBottom": "5px",
+                                                "paddingLeft": "2px",
+                                                "paddingRight": "2px"
+                                                # 'margin': '10px'
+                                                    }
+                                            ),
+                                    html.Label("save",
+                                                id="save_expe_button",
+                                                n_clicks=0,
+                                                className=btn_assistant_save,
+                                                style={'height': '35px',
+                                                        'width': '100%',
+                                                        }
+                                                ),
                                         ]
                                 )
 
