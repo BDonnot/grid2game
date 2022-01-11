@@ -28,7 +28,7 @@ class EnvTree(object):
 
     And also implements the possibility to plot it.
     """
-    def __init__(self):
+    def __init__(self, logger=None):
         self._all_nodes = []
         self._current_node = None
         self._last_action = None
@@ -40,6 +40,12 @@ class EnvTree(object):
 
         self.margin_for_plot = 0.5
 
+        if logger is None:
+            import logging
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger.getChild("EnvTree")
+
     def root(self,
              assistant: Union[BaseAgent, None],
              env: BaseEnv,
@@ -49,7 +55,8 @@ class EnvTree(object):
                     assistant=assistant,
                     glop_env=env.copy(),
                     obs=obs,
-                    reward=None, done=False, info=None)
+                    reward=None, done=False, info=None,
+                    logger=self.logger)
         self._all_nodes.append(node)
         self._current_node = node
         self.__is_init = True
@@ -205,7 +212,8 @@ class EnvTree(object):
                         obs=_obs, reward=_reward, done=_done, info=_info,
                         glop_env=current_env,
                         id_=len(self._all_nodes),
-                        father=self._current_node)
+                        father=self._current_node,
+                        logger=self.logger)
             # TODO check if node exist ! (not using id !)
             self._current_node.add_son(chosen_action, node)
             self._current_node = node
