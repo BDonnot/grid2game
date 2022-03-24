@@ -167,6 +167,21 @@ class EnvTree(object):
                                                hoverinfo='text',
                                                opacity=0.8
                                                ))
+
+        # assistant did action vertices
+        self.fig_timeline.add_trace(go.Scatter(x=[],
+                                               y=[],
+                                               mode='markers',
+                                               name='nodes_assistant_act',
+                                               marker=dict(symbol='star-square',
+                                                           size=15,
+                                                           color='darkmagenta'
+                                                           ),
+                                               text=[],
+                                               hoverinfo='text',
+                                               opacity=0.8
+                                               ))
+        
         # real time vertical bar
         self.fig_timeline.add_trace(go.Scatter(x=[0, 0],
                                                y=[-10, 10],
@@ -176,7 +191,7 @@ class EnvTree(object):
                                                hoverinfo='none',
                                                text=[],
                                                ))
-
+        
         self.fig_timeline.update_xaxes(range=[-self.margin_for_plot,
                                               self._current_node.obs.max_step + self.margin_for_plot],
                                        showgrid=False, visible=False)
@@ -341,6 +356,7 @@ class EnvTree(object):
         node_sucess = []
         node_alert = []
         node_illegal = []
+        node_assistant_act = []
         for node in self._all_nodes:
             if node.done:
                 if node.step != self._current_node.obs.max_step:
@@ -351,6 +367,8 @@ class EnvTree(object):
                 node_illegal.append(node.id)
             elif np.any(node.obs.time_since_last_alarm == 0):
                 node_alert.append(node.id)
+            elif node._assistant_action is not None and node._assistant_action.can_affect_something():
+                node_assistant_act.append(node.id)
             else:
                 node_normal.append(node.id)
 
@@ -375,6 +393,10 @@ class EnvTree(object):
                                         y=self.Yn[node_illegal],
                                         text=[f"{id_}" for id_ in node_illegal],
                                         selector=dict(name="nodes_illegal"))
+        self.fig_timeline.update_traces(x=self.Xn[node_assistant_act],
+                                        y=self.Yn[node_assistant_act],
+                                        text=[f"{id_}" for id_ in node_assistant_act],
+                                        selector=dict(name="nodes_assistant_act"))
         self.fig_timeline.update_traces(x=Xe,
                                         y=Ye,
                                         selector=dict(name="edges"))
