@@ -344,6 +344,7 @@ def setupLayout(viz_server):
     progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
                                                                          value=0.,
                                                                          max=100.,
+                                                                         label="0%",
                                                                          color="danger"),
                                                             ),
                                                     html.Div(dcc.Graph(id="timeline_graph",
