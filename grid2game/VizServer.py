@@ -188,7 +188,9 @@ class VizServer:
         self._last_node_id = -1
 
         # last action taken
-        self._last_action = "assistant"
+        self._last_action = "assistant"      
+        self._do_display_action = True
+        self._dropdown_value = "assistant"
 
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
@@ -262,6 +264,10 @@ class VizServer:
             trigger_for_graph = 1
         return [trigger_rt_graph, trigger_for_graph]
 
+    def _reset_action_to_assistant_if_not_prev(self):
+        if self._last_action != "prev" :
+            self._next_action_is_assistant()
+            
     # handle the interaction with the grid2op environment
     def handle_act_on_env(self,
                           step_butt,
@@ -316,17 +322,20 @@ class VizServer:
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
             self.is_previous_click_end = False
+            print("\t step")
         elif button_id == "go_till_game_over-button":
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
             self.is_previous_click_end = True
+            print("\t go_till_game_over")
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
             self.env.next_computation_kwargs = {"chronics_id": self.chronics_id, "seed": self.seed}
             self.is_previous_click_end = False
             change_graph_title = 1
+            self._next_action_is_assistant()
         elif button_id == "simulate-button":
             self.env.start_computation()
             self.env.next_computation = "simulate"
@@ -376,14 +385,13 @@ class VizServer:
             # in this case, this should be the first call to this function after the "operate the grid until the
             # end" function is called
             # so i need to force update the figures
-            display_new_state = 1
+            display_new_state = 0
             self.is_previous_click_end = False
             # I need that to the proper update of the progress bar
             self._last_step = self.env.obs.current_step
             self._last_max_step = self.env.obs.max_step
 
             i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
-            display_new_state = 1  # I am NOT computing I DO update the graphs
             self._button_shape = "btn btn-primary"
             self._gofast_button_shape = "btn btn-primary"
             self._go_button_shape = "btn btn-primary"
@@ -613,6 +621,19 @@ class VizServer:
         self.plot_grids.update_forecat(self.env.sim_obs, self.env)
         self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
 
+    def _next_action_is_manual(self):
+        self.env.next_action_copy()
+        self.env.next_action_is_manual()
+        self._last_action = "manual"
+        self._do_display_action = True
+        self._dropdown_value = "manual"
+
+    def _next_action_is_assistant(self):
+        self.env.next_action_is_assistant()
+        self._last_action = "assistant"
+        self._do_display_action = True
+        self._dropdown_value = "assistant"
+                
     def display_action_fun(self,
                            which_action_button,
                            do_display,
@@ -640,40 +661,37 @@ class VizServer:
         if button_id == "which_action_button":
             # the "base action" has been modified, so i need to change it here
             if which_action_button == "dn":
+                print("I select the \"dn\" action")
                 self.env.next_action_is_dn()
                 self._last_action = "dn"
-                do_display = False
-                dropdown_value = "dn"
+                self._do_display_action = False
+                self._dropdown_value = "dn"
             elif which_action_button == "assistant":
-                self.env.next_action_is_assistant()
-                self._last_action = "assistant"
-                do_display = False
-                dropdown_value = "assistant"
+                self._next_action_is_assistant()
             elif which_action_button == "prev":
+                print("I select the \"previous\" action")
                 self.env.next_action_is_previous()
                 self._last_action = "prev"
-                do_display = False
-                dropdown_value = "prev"
+                self._do_display_action = False
+                self._dropdown_value = "prev"
             elif which_action_button == "manual":
-                self.env.next_action_copy()
-                self._last_action = "manual"
-                do_display = True
-                dropdown_value = "manual"
+                print("I select the \"manual\" action")
+                self._next_action_is_manual()
             else:
                 # nothing is done
                 pass
             res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
 
-        if not do_display:
+        if not self._do_display_action:
             # i should not display the action
             res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
         
         # i need to display the action
-        self._last_action = "manual"
-        dropdown_value = "manual"
-        self.env.next_action_is_manual()
+        # self._last_action = "manual"
+        # dropdown_value = "manual"
+        # self.env.next_action_is_manual()
         is_modif = False
         if gen_id != "":
             try:
@@ -705,8 +723,9 @@ class VizServer:
 
         if not is_modif:
             raise dash.exceptions.PreventUpdate
+        
         # TODO optim here to save that if not needed because nothing has changed
-        res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+        res = [f"{self.env.current_action}", self._dropdown_value, update_substation_layout_clicked_from_sub]
         return res
 
     def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
@@ -809,6 +828,7 @@ class VizServer:
                 update_substation_layout_clicked_from_grid = 1
             else:
                 raise dash.exceptions.PreventUpdate
+            # self._next_action_is_manual()
         return [do_display_action,
                 style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
                 style_storage_input, storage_id_clicked, *storage_res,
