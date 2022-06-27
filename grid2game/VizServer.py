@@ -12,8 +12,15 @@ import time
 
 import dash
 import dash_bootstrap_components as dbc
+from dash import html, dcc
 
-from grid2game._utils import add_callbacks, setupLayout
+from grid2game._utils import (add_callbacks_temporal, 
+                              setupLayout_temporal, 
+                              add_callbacks, 
+                              setupLayout,
+                              add_callbacks_action_search, 
+                              setupLayout_action_search, 
+                              )
 from grid2game.envs import Env
 from grid2game.plot import PlotGrids, PlotTemporalSeries
 
@@ -179,9 +186,30 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
+        
         # initialize the layout
-        self.my_app.layout = setupLayout(self)
+        tmp_temporal = html.Div(setupLayout_temporal(self),
+                                id="all_temporal")
+        self.layout_temporal = dcc.Tab(label='Tab One',
+                                       value=f'tab-1-example-graph',
+                                       children=tmp_temporal)
+        
+        tmp_action_search = html.Div(setupLayout_action_search(self),
+                                     id="all_action_search")
+        self.layout_action_search = dcc.Tab(label='Tab Two',
+                                            value='tab-2-example-graph',
+                                            children=tmp_action_search)
+        
+        tmp_ = setupLayout(self,
+                           self.layout_temporal,
+                           self.layout_action_search)
+        
+        self.my_app.layout = tmp_
+        
+        add_callbacks_temporal(self.my_app, self)
+        add_callbacks_action_search(self.my_app, self)
         add_callbacks(self.my_app, self)
+        
         self.logger.info("Viz server initialized")
 
         # last node id (to not plot twice the same stuff to gain time)
@@ -486,6 +514,7 @@ class VizServer:
             trigger_for_graph = 1
         else:
             raise dash.exceptions.PreventUpdate
+        
         if trigger_rt_graph == 1:
             self.fig_timeline = self.env.get_timeline_figure()
 
@@ -952,3 +981,13 @@ class VizServer:
         res = self.env.handle_click_timeline(time_line_graph_clicked)
         self.is_previous_click_end = True  # hack to have the progress bar properly recomputed
         return [res]
+
+    def tab_content_display(self, tab):
+        if tab == 'tab-1-example-graph':
+            return [self.layout_temporal]
+        elif tab == 'tab-2-example-graph':
+            return [self.layout_action_search]
+        else:
+            msg_ = f"Unknown tab {tab}"
+            self.logger.error(msg_)
+            raise RuntimeError(msg_)

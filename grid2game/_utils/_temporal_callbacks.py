@@ -8,6 +8,7 @@
 
 import dash
 
+
 def add_callbacks(dash_app, viz_server):
     dash_app.callback([dash.dependencies.Output("gofast-button", "children")],
                       [dash.dependencies.Input("nb_step_go_fast", "value")]
