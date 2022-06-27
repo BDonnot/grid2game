@@ -10,6 +10,17 @@ from .utils_import import html, dcc, dbc
 
 
 def setupLayout(viz_server):
+    step_button = html.Label("Refresh",
+                            id="refresh-button_as",
+                            n_clicks=0,
+                            className="btn btn-primary")
+    
+    explore_button = html.Label("Explore",
+                                id="explore-button_as",
+                                n_clicks=0,
+                                className="btn btn-primary")
+        
+    ##### real time figure
     rt_graph_label = html.H3(viz_server._rt_graph_label ,
                              style={"alignItems": "center",
                                    "justifyContent": "center"})
@@ -62,8 +73,26 @@ def setupLayout(viz_server):
                                                     html.Br(),
                                                     ],
                                             )
+    
+    ### hidden stuff
+    update_state_from_tab_switch = html.Label("",
+                                              id="as_update_state_from_tab_switch",
+                                              n_clicks=0)
+    hideen_output_explore = html.Label("",
+                                       id="hidden_output_explore",
+                                       n_clicks=0)
+    hidden_interactions = html.Div([update_state_from_tab_switch,
+                                    hideen_output_explore],
+                                   id="as_hidden_buttons_for_callbacks",
+                                   style={'display': 'none'})
+    
     graph_tmp = html.Div([
+                html.Div(id="control-buttons_as",
+                         children=[step_button, explore_button],
+                         style={'justifyContent': 'space-between',
+                                "display": "flex"}),
                 progress_bar_for_scenario,
                 rt_graph_div,
+                hidden_interactions
             ])
     return graph_tmp

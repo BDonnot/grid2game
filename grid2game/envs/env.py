@@ -211,6 +211,9 @@ class Env(ComputeWrapper):
         elif self.next_computation == "reset":
             self.stop_computation()  # this is a "one time" call
             return self.reset(**self.next_computation_kwargs)
+        elif self.next_computation == "explore":
+            self.explore()
+            self.stop_computation()
         else:
             msg_ = f"Unknown method to call: {self.next_computation = }"
             self.logger.error(msg_)
@@ -228,6 +231,20 @@ class Env(ComputeWrapper):
         #     self.stop_computation()  # this is a "one time" call
         #     return self.take_last_action()
 
+    def explore(self):
+        all_reco_actions = self.glop_env.action_space.get_all_unitary_line_change(self.glop_env.action_space)
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        res = []
+        for act in all_reco_actions:
+            sim_obs, sim_reward, sim_done, sim_info = obs.simulate(act, time_step=0)
+            sim_reward = sim_obs.rho.max() if not sim_done else 1000.
+            res.append((act, sim_reward))
+        res.sort(key=lambda x: x[1])
+        
+        for act, rew in res[:5]:
+            self.step(act)
+            self.back()
+        
     def _stop_if_alarm(self, obs):
         if self.do_stop_if_alarm:
             if np.any(obs.time_since_last_alarm == 0):

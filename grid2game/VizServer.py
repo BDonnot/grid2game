@@ -171,6 +171,7 @@ class VizServer:
         self._last_step = 0
         self._last_max_step = 1
         self._last_done = False
+        self._progress_color = "primary"
 
         # buttons layout
         self._button_shape = "btn btn-primary"
@@ -531,13 +532,13 @@ class VizServer:
             # raise dash.exceptions.PreventUpdate
         if self.env.env_tree.current_node is None:
             # A reset has just been called and the grid2op env is not reset yet
-            progress_color = "primary"
+            self._progress_color = "primary"
             self._last_step = 0
             self._last_done = False
             self._last_max_step = max(self._last_max_step, 1)  # prevent possible division by 0.
         else:
             # scenario progress bar
-            progress_color = "primary"
+            self._progress_color = "primary"
             if not self.env.is_done:
                 # if from_act == 1:
                 #     self._last_step = max(self.env.obs.current_step, self._last_step)
@@ -556,16 +557,16 @@ class VizServer:
                 #         self._last_step += 1
                 if self._last_step != self._last_max_step:
                     # fail to run the scenario till the end
-                    progress_color = "danger"
+                    self._progress_color = "danger"
                 else:
                     # no game over, until the end of the scenario
-                    progress_color = "success"
+                    self._progress_color = "success"
 
         progress_pct = 100. * self._last_step / self._last_max_step
         progress_label = f"{self._last_step} / {self._last_max_step}"
         return [progress_pct,
                 progress_label,
-                progress_color]
+                self._progress_color]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
@@ -991,3 +992,24 @@ class VizServer:
             msg_ = f"Unknown tab {tab}"
             self.logger.error(msg_)
             raise RuntimeError(msg_)
+
+    def refresh_state_for_as_graph(self, refresh_butt_pressed):
+        progress_pct = 100. * self._last_step / self._last_max_step
+        progress_label = f"{self._last_step} / {self._last_max_step}"
+        self.fig_timeline = self.env.get_timeline_figure()
+        return [progress_pct,
+                progress_label,
+                self._progress_color,
+                self.fig_timeline,
+                self.rt_datetime,
+                self.real_time]
+        
+    def search_topk_actions(self, explore_butt_pressed):
+        if explore_butt_pressed is None:
+            raise dash.exceptions.PreventUpdate
+        if explore_butt_pressed == 0:
+            # at the start it's 0
+            raise dash.exceptions.PreventUpdate
+            
+        self.env.explore()
+        return [1]

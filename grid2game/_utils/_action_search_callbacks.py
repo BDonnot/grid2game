@@ -6,9 +6,22 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
+import dash 
+
 from .utils_import import html, dcc, dbc
 
 
 def add_callbacks(dash_app, viz_server):
-    pass
+    dash_app.callback([dash.dependencies.Output("scenario_progression_as", "value"),
+                       dash.dependencies.Output("scenario_progression_as", "label"),
+                       dash.dependencies.Output("scenario_progression_as", "color"),
+                       dash.dependencies.Output("timeline_graph_as", "figure"),
+                       dash.dependencies.Output("rt_date_time_as", "children"),
+                       dash.dependencies.Output("real-time-graph_as", "figure"),
+                      ],
+                      [dash.dependencies.Input('refresh-button_as', "n_clicks")]
+                     )(viz_server.refresh_state_for_as_graph)   
     
+    dash_app.callback([dash.dependencies.Output("hidden_output_explore", "n_clicks")],
+                      [dash.dependencies.Input('explore-button_as', "n_clicks")]
+                      )(viz_server.search_topk_actions)

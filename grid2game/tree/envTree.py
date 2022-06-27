@@ -204,7 +204,7 @@ class EnvTree(object):
         self.fig_timeline.update_layout(margin=dict(l=0, r=0, t=0, b=0),
                                         # height=int(50),
                                         showlegend=False)
-
+        
     def make_step(self,
                   assistant: Union[BaseAgent, None],  # TODO have a member with this
                   chosen_action: BaseAction):
