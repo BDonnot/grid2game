@@ -93,6 +93,9 @@ class Env(ComputeWrapper):
         # to control which action will be done when
         self.next_computation = None
         self.next_computation_kwargs = {}
+        
+        # actions to explore
+        self.all_topo_actions = None
 
     def is_assistant_illegal(self):
         if "is_illegal" in self._sim_info:
@@ -232,18 +235,28 @@ class Env(ComputeWrapper):
         #     return self.take_last_action()
 
     def explore(self):
-        all_reco_actions = self.glop_env.action_space.get_all_unitary_line_change(self.glop_env.action_space)
+        if self.all_topo_actions is None:
+            self.all_topo_actions = self.glop_env.action_space.get_all_unitary_line_change(self.glop_env.action_space)
+            self.all_topo_actions += self.glop_env.action_space.get_all_unitary_topologies_set(self.glop_env.action_space)
+            
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         res = []
-        for act in all_reco_actions:
+        for act in self.all_topo_actions:
             sim_obs, sim_reward, sim_done, sim_info = obs.simulate(act, time_step=0)
             sim_reward = sim_obs.rho.max() if not sim_done else 1000.
             res.append((act, sim_reward))
         res.sort(key=lambda x: x[1])
         
+        init_node = self.env_tree.current_node
         for act, rew in res[:5]:
             self.step(act)
-            self.back()
+            self._donothing_until_end()
+            self.env_tree.go_to_node(init_node)
+    
+    def _donothing_until_end(self):
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        while not done:
+            obs, reward, done, info = self.step(self.glop_env.action_space())
         
     def _stop_if_alarm(self, obs):
         if self.do_stop_if_alarm:
