@@ -93,6 +93,9 @@ class Env(ComputeWrapper):
         # to control which action will be done when
         self.next_computation = None
         self.next_computation_kwargs = {}
+        
+        # actions to explore
+        self.all_topo_actions = None
 
     def is_assistant_illegal(self):
         if "is_illegal" in self._sim_info:
@@ -211,6 +214,9 @@ class Env(ComputeWrapper):
         elif self.next_computation == "reset":
             self.stop_computation()  # this is a "one time" call
             return self.reset(**self.next_computation_kwargs)
+        elif self.next_computation == "explore":
+            self.explore()
+            self.stop_computation()
         else:
             msg_ = f"Unknown method to call: {self.next_computation = }"
             self.logger.error(msg_)
@@ -228,6 +234,33 @@ class Env(ComputeWrapper):
         #     self.stop_computation()  # this is a "one time" call
         #     return self.take_last_action()
 
+    def explore(self):
+        if self.all_topo_actions is None:
+            self.all_topo_actions = self.glop_env.action_space.get_all_unitary_line_change(self.glop_env.action_space)
+            self.all_topo_actions += self.glop_env.action_space.get_all_unitary_topologies_set(self.glop_env.action_space)
+            
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        res = []
+        for act in self.all_topo_actions:
+            sim_obs, sim_reward, sim_done, sim_info = obs.simulate(act, time_step=0)
+            sim_reward = sim_obs.rho.max() if not sim_done else 1000.
+            res.append((act, sim_reward))
+        res.sort(key=lambda x: x[1])
+        
+        init_node = self.env_tree.current_node
+        till_the_end = False
+        for act, rew in res[:5]:
+            self.step(act)
+            if not till_the_end:
+                till_the_end = self._donothing_until_end()
+            self.env_tree.go_to_node(init_node)
+    
+    def _donothing_until_end(self):
+        obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+        while not done:
+            obs, reward, done, info = self.step(self.glop_env.action_space())
+        return obs.current_step == obs.max_step
+        
     def _stop_if_alarm(self, obs):
         if self.do_stop_if_alarm:
             if np.any(obs.time_since_last_alarm == 0):

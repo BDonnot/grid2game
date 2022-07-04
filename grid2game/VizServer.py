@@ -12,8 +12,15 @@ import time
 
 import dash
 import dash_bootstrap_components as dbc
+from dash import html, dcc
 
-from grid2game._utils import add_callbacks, setupLayout
+from grid2game._utils import (add_callbacks_temporal, 
+                              setupLayout_temporal, 
+                              add_callbacks, 
+                              setupLayout,
+                              add_callbacks_action_search, 
+                              setupLayout_action_search, 
+                              )
 from grid2game.envs import Env
 from grid2game.plot import PlotGrids, PlotTemporalSeries
 
@@ -156,7 +163,7 @@ class VizServer:
         self.reset_clicks = 0
         self.nb_step_gofast = 12  # number of steps made in each frame for the "go_fast" mode
         self.time_refresh = 0.1  # in seconds (time at which the page will be refreshed)
-        self.is_previous_click_end = False  # does the previous click on the button is the button
+        self.need_update_figures = False  # does the previous click on the button is the button
         # that makes it go until the end of the game ? If so i will need to upgrade, at the end of it, the
         # state of the grid
 
@@ -164,6 +171,7 @@ class VizServer:
         self._last_step = 0
         self._last_max_step = 1
         self._last_done = False
+        self._progress_color = "primary"
 
         # buttons layout
         self._button_shape = "btn btn-primary"
@@ -179,9 +187,30 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
+        
         # initialize the layout
-        self.my_app.layout = setupLayout(self)
+        self._layout_temporal = html.Div(setupLayout_temporal(self),
+                                         id="all_temporal")
+        self._layout_temporal_tab = dcc.Tab(label='Temporal view',
+                                            value=f'tab-temporal-view',
+                                            children=self._layout_temporal)
+        
+        self._layout_action_search = html.Div(setupLayout_action_search(self),
+                                              id="all_action_search")
+        self._layout_action_search_tab = dcc.Tab(label='Explore actions',
+                                                 value='tab-explore-action',
+                                                 children=self._layout_action_search)
+        
+        tmp_ = setupLayout(self,
+                           self._layout_temporal_tab,
+                           self._layout_action_search_tab)
+        
+        self.my_app.layout = tmp_
+        
+        add_callbacks_temporal(self.my_app, self)
+        add_callbacks_action_search(self.my_app, self)
         add_callbacks(self.my_app, self)
+        
         self.logger.info("Viz server initialized")
 
         # last node id (to not plot twice the same stuff to gain time)
@@ -321,31 +350,29 @@ class VizServer:
             self.env.start_computation()
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
-            self.is_previous_click_end = False
-            print("\t step")
+            self.need_update_figures = False
         elif button_id == "go_till_game_over-button":
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
-            self.is_previous_click_end = True
-            print("\t go_till_game_over")
+            self.need_update_figures = True
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
             self.env.next_computation_kwargs = {"chronics_id": self.chronics_id, "seed": self.seed}
-            self.is_previous_click_end = False
+            self.need_update_figures = False
             change_graph_title = 1
             self._next_action_is_assistant()
         elif button_id == "simulate-button":
             self.env.start_computation()
             self.env.next_computation = "simulate"
             self.env.next_computation_kwargs = {}
-            self.is_previous_click_end = False
+            self.need_update_figures = False
         elif button_id == "back-button":
             self.env.start_computation()
             self.env.next_computation = "back"
             self.env.next_computation_kwargs = {}
-            self.is_previous_click_end = False
+            self.need_update_figures = False
         elif button_id == "gofast-button":
             # this button is off now !
             self.env.start_computation()
@@ -365,14 +392,14 @@ class VizServer:
                 self._gofast_button_shape = "btn btn-secondary"
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
-            self.is_previous_click_end = False
+            self.need_update_figures = False
             display_new_state = 1  # in this mode, even though I am computing, I need to update the graphs live
         else:
             something_clicked = False
 
         if not self.env.needs_compute():
             # don't start the computation if not needed
-            i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
+            i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
             display_new_state = 1  # I am NOT computing I DO update the graphs
             self._button_shape = "btn btn-primary"
             self._gofast_button_shape = "btn btn-primary"
@@ -381,17 +408,17 @@ class VizServer:
 
         in_go_mode = self.go_clicks % 2 == 0
 
-        if not self.env.needs_compute() and self.is_previous_click_end and not something_clicked and not in_go_mode:
+        if not self.env.needs_compute() and self.need_update_figures and not something_clicked and not in_go_mode:
             # in this case, this should be the first call to this function after the "operate the grid until the
             # end" function is called
             # so i need to force update the figures
             display_new_state = 0
-            self.is_previous_click_end = False
+            self.need_update_figures = False
             # I need that to the proper update of the progress bar
             self._last_step = self.env.obs.current_step
             self._last_max_step = self.env.obs.max_step
 
-            i_am_computing_state = {'display': 'none'}  # activate the "i am computing button"
+            i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
             self._button_shape = "btn btn-primary"
             self._gofast_button_shape = "btn btn-primary"
             self._go_button_shape = "btn btn-primary"
@@ -486,6 +513,7 @@ class VizServer:
             trigger_for_graph = 1
         else:
             raise dash.exceptions.PreventUpdate
+        
         if trigger_rt_graph == 1:
             self.fig_timeline = self.env.get_timeline_figure()
 
@@ -502,13 +530,13 @@ class VizServer:
             # raise dash.exceptions.PreventUpdate
         if self.env.env_tree.current_node is None:
             # A reset has just been called and the grid2op env is not reset yet
-            progress_color = "primary"
+            self._progress_color = "primary"
             self._last_step = 0
             self._last_done = False
             self._last_max_step = max(self._last_max_step, 1)  # prevent possible division by 0.
         else:
             # scenario progress bar
-            progress_color = "primary"
+            self._progress_color = "primary"
             if not self.env.is_done:
                 # if from_act == 1:
                 #     self._last_step = max(self.env.obs.current_step, self._last_step)
@@ -527,16 +555,16 @@ class VizServer:
                 #         self._last_step += 1
                 if self._last_step != self._last_max_step:
                     # fail to run the scenario till the end
-                    progress_color = "danger"
+                    self._progress_color = "danger"
                 else:
                     # no game over, until the end of the scenario
-                    progress_color = "success"
+                    self._progress_color = "success"
 
         progress_pct = 100. * self._last_step / self._last_max_step
         progress_label = f"{self._last_step} / {self._last_max_step}"
         return [progress_pct,
                 progress_label,
-                progress_color]
+                self._progress_color]
 
     def update_simulated_fig(self, env_act):
         """the simulate figures need to updated"""
@@ -661,7 +689,6 @@ class VizServer:
         if button_id == "which_action_button":
             # the "base action" has been modified, so i need to change it here
             if which_action_button == "dn":
-                print("I select the \"dn\" action")
                 self.env.next_action_is_dn()
                 self._last_action = "dn"
                 self._do_display_action = False
@@ -669,13 +696,11 @@ class VizServer:
             elif which_action_button == "assistant":
                 self._next_action_is_assistant()
             elif which_action_button == "prev":
-                print("I select the \"previous\" action")
                 self.env.next_action_is_previous()
                 self._last_action = "prev"
                 self._do_display_action = False
                 self._dropdown_value = "prev"
             elif which_action_button == "manual":
-                print("I select the \"manual\" action")
                 self._next_action_is_manual()
             else:
                 # nothing is done
@@ -950,5 +975,97 @@ class VizServer:
             raise dash.exceptions.PreventUpdate
 
         res = self.env.handle_click_timeline(time_line_graph_clicked)
-        self.is_previous_click_end = True  # hack to have the progress bar properly recomputed
+        self.need_update_figures = True  # hack to have the progress bar properly recomputed
         return [res]
+
+    def tab_content_display(self, tab):
+        res = [self._layout_temporal]
+        
+        if tab == 'tab-temporal-view':
+            self.need_update_figures = True
+            return [self._layout_temporal]
+        elif tab == 'tab-explore-action':
+            self.need_update_figures = True
+            return [self._layout_action_search]
+        else:
+            msg_ = f"Unknown tab {tab}"
+            self.logger.error(msg_)
+        return res
+    
+    def _aux_tab_as_retrieve_updated_figs(self):
+        progress_pct = 100. * self._last_step / self._last_max_step
+        progress_label = f"{self._last_step} / {self._last_max_step}"
+        self.fig_timeline = self.env.get_timeline_figure()
+        self.update_obs_fig()
+        
+        pbar_value = progress_pct
+        pbar_label = progress_label
+        pbar_color = self._progress_color
+        fig_timeline = self.fig_timeline
+        dt_label = self.rt_datetime
+        fig_rt = self.real_time
+        return (pbar_value, pbar_label, pbar_color, fig_timeline,
+                dt_label, fig_rt)
+            
+    def main_action_search(self,
+                           refresh_button,
+                           explore_butt_pressed,
+                           timer):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            # no click have been made yet
+            raise dash.exceptions.PreventUpdate
+        else:
+            button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        something_clicked = True
+        
+        # TODO button color here too !
+        i_am_computing_state = {'display': 'block'}
+        pbar_value = dash.no_update
+        pbar_label = dash.no_update
+        pbar_color = dash.no_update
+        fig_timeline = dash.no_update
+        dt_label = dash.no_update
+        fig_rt = dash.no_update
+        start_computation = 1
+        
+        if button_id == "refresh-button_as":
+            # (pbar_value, pbar_label, pbar_color, fig_timeline,
+            #     dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
+            start_computation = dash.no_update
+            # hack for it to resynch everything
+            self.need_update_figures = True
+        elif button_id == "explore-button_as":        
+            self.env.next_computation = "explore"
+            self.need_update_figures = True
+            self.env.start_computation()
+        else:
+            something_clicked = False
+      
+        if not self.env.needs_compute():
+            # don't start the computation if not needed
+            i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
+            start_computation = dash.no_update  # I am NOT computing I DO update the graphs
+        
+        if not self.env.needs_compute() and self.need_update_figures and not something_clicked:
+            # in this case, this should be the last call to this function after the "explore"
+            # function is finished
+            # so i need to force update the figures
+            start_computation = dash.no_update
+            self.need_update_figures = False
+            i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
+
+            (pbar_value, pbar_label, pbar_color, fig_timeline,
+                dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
+        
+        return [start_computation,
+                pbar_value,
+                pbar_label,
+                pbar_color,
+                fig_timeline,
+                dt_label,
+                fig_rt,
+                1,
+                i_am_computing_state,
+                i_am_computing_state]
