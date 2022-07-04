@@ -7,17 +7,19 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
-from dash import Dash
-
 from .utils_import import html, dcc
 
 
 def setupLayout(viz_server, *tabs):
+    # children = [{"label": tab.label, 'value': tab.value} for tab in tabs]
+    children = [dcc.Tab(label=tab.label, value=tab.value) for tab in tabs]
     layout = html.Div([
         html.H1('Grid2game'),
-        dcc.Tabs(id="tabs-example-graph",
-                 value='tab-1-example-graph',
-                 children=tabs),
-        html.Div(id='tabs-content-example-graph')
+        dcc.Tabs(id="tabs-main-view",
+                 value=tabs[0].value,
+                #  children=tabs
+                 children=children
+                 ),
+        html.Div(id='tabs-content-main-view')
     ])
     return layout

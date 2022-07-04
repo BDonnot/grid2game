@@ -10,7 +10,7 @@ from .utils_import import html, dcc, dbc
 
 
 def setupLayout(viz_server):
-    step_button = html.Label("Refresh",
+    refresh_button = html.Label("Refresh",
                             id="refresh-button_as",
                             n_clicks=0,
                             className="btn btn-primary")
@@ -19,7 +19,15 @@ def setupLayout(viz_server):
                                 id="explore-button_as",
                                 n_clicks=0,
                                 className="btn btn-primary")
-        
+    
+    is_computing_left = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
+                                 id="is_computing_left_as",
+                                 style={'display': 'none'})
+    is_computing_right = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
+                                  id="is_computing_right_as",
+                                  style={'display': 'none'})
+
+
     ##### real time figure
     rt_graph_label = html.H3(viz_server._rt_graph_label ,
                              style={"alignItems": "center",
@@ -75,6 +83,15 @@ def setupLayout(viz_server):
                                             )
     
     ### hidden stuff
+    main_action_search_trigger_rt = html.Label("", id="main_action_search_trigger_rt",  n_clicks=0)
+    main_action_search_trigger_for = html.Label("",  id="main_action_search_trigger_for",  n_clicks=0)
+    trigger_computation_as = html.Label("",  id="trigger_computation_as",  n_clicks=0)
+    recompute_rt_from_timeline_as = html.Label("",  id="recompute_rt_from_timeline_as",  n_clicks=0)
+    
+    timer_callbacks = dcc.Interval(id="timer_as",
+                                   interval=500.  # in ms
+                                   )
+        
     update_state_from_tab_switch = html.Label("",
                                               id="as_update_state_from_tab_switch",
                                               n_clicks=0)
@@ -82,13 +99,21 @@ def setupLayout(viz_server):
                                        id="hidden_output_explore",
                                        n_clicks=0)
     hidden_interactions = html.Div([update_state_from_tab_switch,
-                                    hideen_output_explore],
+                                    hideen_output_explore,
+                                    timer_callbacks,
+                                    main_action_search_trigger_rt,
+                                    main_action_search_trigger_for,
+                                    trigger_computation_as,
+                                    recompute_rt_from_timeline_as],
                                    id="as_hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
     
     graph_tmp = html.Div([
                 html.Div(id="control-buttons_as",
-                         children=[step_button, explore_button],
+                         children=[is_computing_left,
+                                   refresh_button,
+                                   explore_button,
+                                   is_computing_right],
                          style={'justifyContent': 'space-between',
                                 "display": "flex"}),
                 progress_bar_for_scenario,

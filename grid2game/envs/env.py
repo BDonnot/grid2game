@@ -248,15 +248,18 @@ class Env(ComputeWrapper):
         res.sort(key=lambda x: x[1])
         
         init_node = self.env_tree.current_node
+        till_the_end = False
         for act, rew in res[:5]:
             self.step(act)
-            self._donothing_until_end()
+            if not till_the_end:
+                till_the_end = self._donothing_until_end()
             self.env_tree.go_to_node(init_node)
     
     def _donothing_until_end(self):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         while not done:
             obs, reward, done, info = self.step(self.glop_env.action_space())
+        return obs.current_step == obs.max_step
         
     def _stop_if_alarm(self, obs):
         if self.do_stop_if_alarm:

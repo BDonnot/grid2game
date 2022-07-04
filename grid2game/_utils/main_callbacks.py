@@ -9,7 +9,7 @@
 import dash
 
 def add_callbacks(dash_app, viz_server):
-    pass
-    # dash_app.callback([dash.dependencies.Output('tabs-content-example-graph', "children")],
-    #                   [dash.dependencies.Input('tabs-example-graph', "value")]
-    #                   )(viz_server.tab_content_display)
+    # pass
+    dash_app.callback([dash.dependencies.Output('tabs-content-main-view', "children")],
+                      [dash.dependencies.Input('tabs-main-view', "value")]
+                      )(viz_server.tab_content_display)
