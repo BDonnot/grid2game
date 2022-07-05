@@ -6,18 +6,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
 
-try:
-    # newest version of dash
-    from dash import dcc
-except ImportError:
-    import dash_core_components as dcc
-try:
-    # newest version of dash
-    from dash import html
-except ImportError:
-    import dash_html_components as html
-
-import dash_bootstrap_components as dbc
+from .utils_import import html, dcc, dbc
 
 
 def setupLayout(viz_server):
@@ -25,7 +14,7 @@ def setupLayout(viz_server):
     # TODO split that in multiple subfunctions
 
     # Header
-    title = html.H1(children='Grid2Game')
+    title = html.H1(children='Temporal view')
     header = html.Header(id="header", className="row w-100", children=[title])
 
     # App
@@ -380,18 +369,16 @@ def setupLayout(viz_server):
                 "order-last order-sm-last order-md-last order-xl-frist " \
                 "d-md-flex flex-md-grow-1 d-xl-flex flex-xl-grow-1"
     graph_css = "six columns"
-    rt_graph_label = html.H3("Real time observation:", style={'textAlign': 'center'})
+    viz_server._rt_graph_label = "Real time observation:"
+    rt_graph_label = html.H3(viz_server._rt_graph_label , style={'textAlign': 'center'})
     # rt_date_time = html.P(viz_server.rt_datetime, style={'textAlign': 'center'}, id="rt_date_time")
-    rt_date_time = html.Div([# html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_left"),
-                             html.H6(viz_server.rt_datetime, id="rt_date_time"), # , style={'textAlign': 'center'}
-                             # html.H6("illegal", style={'color': 'red'}, id="rt_extra_info_right")
-                            ],
+    rt_date_time = html.Div([html.H6(viz_server.rt_datetime, id="rt_date_time"),],
                             style={"display": "flex",
                                    "alignItems": "center",
                                    "justifyContent": "center"})
     # rt_extra_info = html.P("", style={'textAlign': 'center', 'color': 'red'}, id="extra_info_rt")
-    graph_height = "520px"
-    graph_height = "550px"
+    viz_server._graph_height = "520px"
+    viz_server._graph_height = "550px"
     rt_graph_div = html.Div(id="rt_graph_div",
                             children=[
                                 rt_graph_label,
@@ -401,7 +388,7 @@ def setupLayout(viz_server):
                             ],
                             style={'display': 'inline-block',
                                    'width': '50%',
-                                   "height": graph_height
+                                   "height": viz_server._graph_height
                                   }
                             )
     forecast_graph_label = html.H3("Forecast (t+5mins):", style={'textAlign': 'center'})
@@ -422,7 +409,7 @@ def setupLayout(viz_server):
                                 ],
                                 style={'display': 'inline-block',
                                        'width': '50%',
-                                       "height": graph_height
+                                       "height": viz_server._graph_height
                                        }
                                 )
     scenario_label = html.H3(f"Scenario: {viz_server.env.scenario_id()}",

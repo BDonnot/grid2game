@@ -5,7 +5,16 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of Grid2Game, Grid2Game a gamified platform to interact with grid2op environments.
-__all__ = ["setupLayout", "add_callbacks"]
+__all__ = [
+    "utils_import",
+    "setupLayout", "add_callbacks",
+    "setupLayout_temporal", "add_callbacks_temporal",
+    "setupLayout_action_search", "add_callbacks_action_search",
+           ]
 
-from ._viz_server_layout import setupLayout
-from ._viz_server_callbacks import add_callbacks
+from .main_callbacks import add_callbacks
+from .main_layout import setupLayout
+from ._temporal_layout import setupLayout as setupLayout_temporal
+from ._temporal_callbacks import add_callbacks as add_callbacks_temporal
+from ._action_search_layout import setupLayout as setupLayout_action_search
+from ._action_search_callbacks import add_callbacks as add_callbacks_action_search
