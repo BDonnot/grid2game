@@ -54,6 +54,12 @@ def cli():
                         action="store_true", default=False,
                         help="INTERNAL: do not use (inform that the app is running on the heroku server)")
 
+    # DEBUG
+    parser.add_argument(
+        "--logging_level", required=False, default=20, type=int,
+        help="Python Logging Levels: CRITICAL=50, ERROR=40, WARNING=30, INFO=20 (default), DEBUG=10"
+    )
+
     return parser.parse_args()
 
 

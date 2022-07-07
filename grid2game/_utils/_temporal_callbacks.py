@@ -112,7 +112,8 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Output("is_computing_left", "style"),
                        dash.dependencies.Output("is_computing_right", "style"),
                        dash.dependencies.Output("change_graph_title", "n_clicks"),
-                       dash.dependencies.Output("update_progress_bar_from_act", "n_clicks")
+                       dash.dependencies.Output("update_progress_bar_from_act", "n_clicks"),
+                       dash.dependencies.Output("check_issue", "n_clicks"),
                       ],
                       [dash.dependencies.Input("step-button", "n_clicks"),
                        dash.dependencies.Input("simulate-button", "n_clicks"),
@@ -123,11 +124,11 @@ def add_callbacks(dash_app, viz_server):
                        dash.dependencies.Input("go_till_game_over-button", "n_clicks"),
                        dash.dependencies.Input("untilgo_butt_call_act_on_env", "value"),
                        dash.dependencies.Input("selfloop_call_act_on_env", "value"),
-                       dash.dependencies.Input("timer", "n_intervals")
+                       dash.dependencies.Input("timer", "n_intervals"),
                       ],
                       [dash.dependencies.State("act_on_env_trigger_rt", "n_clicks"),
                        dash.dependencies.State("act_on_env_trigger_for", "n_clicks"),
-                       dash.dependencies.State("act_on_env_call_selfloop", "value")
+                       dash.dependencies.State("act_on_env_call_selfloop", "value"),
                       ]
                      )(viz_server.handle_act_on_env)
 
@@ -252,3 +253,13 @@ def add_callbacks(dash_app, viz_server):
     # set the seed
     dash_app.callback([dash.dependencies.Output("set_seed_dummy_output", "n_clicks")],
                       [dash.dependencies.Input("set_seed", "value")])(viz_server.set_seed)
+
+    # trigger the modal issue
+    dash_app.callback(
+        [
+            dash.dependencies.Output("modal_issue", "is_open"),
+            dash.dependencies.Output("modal_issue_text", "children")
+        ],
+        [dash.dependencies.Input("check_issue", "n_clicks")],
+        [dash.dependencies.State("modal_issue", "is_open")]
+    )(viz_server.check_issue)

@@ -14,12 +14,12 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import html, dcc
 
-from grid2game._utils import (add_callbacks_temporal, 
-                              setupLayout_temporal, 
-                              add_callbacks, 
+from grid2game._utils import (add_callbacks_temporal,
+                              setupLayout_temporal,
+                              add_callbacks,
                               setupLayout,
-                              add_callbacks_action_search, 
-                              setupLayout_action_search, 
+                              add_callbacks_action_search,
+                              setupLayout_action_search,
                               )
 from grid2game.envs import Env
 from grid2game.plot import PlotGrids, PlotTemporalSeries
@@ -82,6 +82,20 @@ class VizServer:
             os.path.join(os.path.dirname(__file__), "assets")
         )
 
+        # create the dash app
+        self.my_app = dash.Dash(__name__,
+                                server=server if server is not None else True,
+                                meta_tags=meta_tags,
+                                assets_folder=assets_dir,
+                                external_stylesheets=external_stylesheets,
+                                external_scripts=external_scripts)
+
+        # Configure logging after dash initialization.
+        # Otherwise dash is resetting logging level to INFO
+
+        if not logging_level and build_args.logging_level:
+            logging_level = build_args.logging_level
+
         if logger is None:
             import logging
             self.logger = logging.getLogger(__name__)
@@ -94,19 +108,14 @@ class VizServer:
             if logging_level is not None:
                 fh.setLevel(logging_level)
                 ch.setLevel(logging_level)
+                self.logger.setLevel(logging_level)
             self.logger.addHandler(fh)
             self.logger.addHandler(ch)
         else:
             self.logger = logger.getChild("VizServer")
 
-        # create the dash app
-        self.my_app = dash.Dash(__name__,
-                                server=server if server is not None else True,
-                                meta_tags=meta_tags,
-                                assets_folder=assets_dir,
-                                external_stylesheets=external_stylesheets,
-                                external_scripts=external_scripts)
         self.logger.info("Dash app initialized")
+
         # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
@@ -187,37 +196,37 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
-        
+
         # initialize the layout
         self._layout_temporal = html.Div(setupLayout_temporal(self),
                                          id="all_temporal")
         self._layout_temporal_tab = dcc.Tab(label='Temporal view',
                                             value=f'tab-temporal-view',
                                             children=self._layout_temporal)
-        
+
         self._layout_action_search = html.Div(setupLayout_action_search(self),
                                               id="all_action_search")
         self._layout_action_search_tab = dcc.Tab(label='Explore actions',
                                                  value='tab-explore-action',
                                                  children=self._layout_action_search)
-        
+
         tmp_ = setupLayout(self,
                            self._layout_temporal_tab,
                            self._layout_action_search_tab)
-        
+
         self.my_app.layout = tmp_
-        
+
         add_callbacks_temporal(self.my_app, self)
         add_callbacks_action_search(self.my_app, self)
         add_callbacks(self.my_app, self)
-        
+
         self.logger.info("Viz server initialized")
 
         # last node id (to not plot twice the same stuff to gain time)
         self._last_node_id = -1
 
         # last action taken
-        self._last_action = "assistant"      
+        self._last_action = "assistant"
         self._do_display_action = True
         self._dropdown_value = "assistant"
 
@@ -254,11 +263,11 @@ class VizServer:
 
     def change_nb_step_go_fast(self, nb_step_go_fast):
         if nb_step_go_fast is None:
-            return dash.no_update, 
+            return dash.no_update,
 
         nb = int(nb_step_go_fast)
         self.nb_step_gofast = nb
-        return f"+ {self.nb_step_gofast}", 
+        return f"+ {self.nb_step_gofast}",
 
     def unit_clicked(self, line_unit, line_side, load_unit, gen_unit, stor_unit,
                      trigger_rt_graph, trigger_for_graph):
@@ -296,22 +305,24 @@ class VizServer:
     def _reset_action_to_assistant_if_not_prev(self):
         if self._last_action != "prev" :
             self._next_action_is_assistant()
-            
+
     # handle the interaction with the grid2op environment
-    def handle_act_on_env(self,
-                          step_butt,
-                          simulate_butt,
-                          back_butt,
-                          reset_butt,
-                          go_butt,
-                          gofast_clicks,
-                          until_game_over,
-                          untilgo_butt,
-                          self_loop,
-                          state_trigger_rt,
-                          state_trigger_for,
-                          state_trigger_self_loop,
-                          timer):
+    def handle_act_on_env(
+        self,
+        step_butt,
+        simulate_butt,
+        back_butt,
+        reset_butt,
+        go_butt,
+        gofast_clicks,
+        until_game_over,
+        untilgo_butt,
+        self_loop,
+        state_trigger_rt,
+        state_trigger_for,
+        state_trigger_self_loop,
+        timer
+    ):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
         however, grid2op environments are not "thread safe": accessing them from different "thread"
@@ -344,6 +355,7 @@ class VizServer:
         self._go_till_go_button_shape = "btn btn-secondary"
         change_graph_title = dash.no_update
         update_progress_bar = 1
+        check_issue = dash.no_update
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -351,11 +363,13 @@ class VizServer:
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
+            check_issue = 1
         elif button_id == "go_till_game_over-button":
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = True
+            check_issue = 1
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
@@ -378,6 +392,7 @@ class VizServer:
             self.env.start_computation()
             self.env.next_computation = "step_rec_fast"
             self.env.next_computation_kwargs = {"nb_step_gofast": self.nb_step_gofast}
+            check_issue = 1
         elif button_id == "go-button":
             self.go_clicks += 1
             if self.go_clicks % 2:
@@ -390,6 +405,7 @@ class VizServer:
                 self.env.start_computation()
                 self._button_shape = "btn btn-secondary"
                 self._gofast_button_shape = "btn btn-secondary"
+                check_issue = 1
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
@@ -434,7 +450,7 @@ class VizServer:
             self._go_till_go_button_shape = "btn btn-secondary"
             self._gofast_button_shape = "btn btn-secondary"
             self._button_shape = "btn btn-secondary"
-            
+
         return [display_new_state,
                 self._button_shape,
                 self._button_shape,
@@ -446,7 +462,8 @@ class VizServer:
                 i_am_computing_state,
                 i_am_computing_state,
                 change_graph_title,
-                update_progress_bar]
+                update_progress_bar,
+                check_issue]
 
     def _wait_for_computing_over(self):
         i = 0
@@ -457,6 +474,29 @@ class VizServer:
                 # in this case, the environment has not finished running for 2s, I stop here
                 # in this case the user should probably call reset another time !
                 raise dash.exceptions.PreventUpdate
+
+    def check_issue(self, n1, n_clicks):
+        # make sure the environment has nothing to compute
+        while self.env.needs_compute():
+            time.sleep(0.1)
+
+        issues = self.env._current_issues
+        if issues:
+            len_issues = len(issues)
+            if len_issues == 1:
+                issue_text = f"There is {len_issues} issue: "
+            else:
+                issue_text = f"There are {len_issues} issues: "
+            for issue in issues:
+                issue_text += f"{issue}, "
+            # Replace last ', ' by '.' to end the sentence
+            issue_text = '.'.join(issue_text.rsplit(', ', 1))
+            is_open = True
+        else:
+            issue_text = dash.no_update
+            is_open = False
+
+        return [is_open, issue_text]
 
     def change_graph_title(self, change_graph_title):
         # make sure that the environment has done computing
@@ -483,7 +523,7 @@ class VizServer:
         # simulate a "state" of the application that depends on the computation
         if not self.env.is_computing():
             self.env.heavy_compute()
-        
+
         if self.env.is_computing() and display_new_state != type(self).GO_MODE:
             # environment is computing I do not update anything
             raise dash.exceptions.PreventUpdate
@@ -513,7 +553,7 @@ class VizServer:
             trigger_for_graph = 1
         else:
             raise dash.exceptions.PreventUpdate
-        
+
         if trigger_rt_graph == 1:
             self.fig_timeline = self.env.get_timeline_figure()
 
@@ -661,7 +701,7 @@ class VizServer:
         self._last_action = "assistant"
         self._do_display_action = True
         self._dropdown_value = "assistant"
-                
+
     def display_action_fun(self,
                            which_action_button,
                            do_display,
@@ -712,7 +752,7 @@ class VizServer:
             # i should not display the action
             res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
             return res
-        
+
         # i need to display the action
         # self._last_action = "manual"
         # dropdown_value = "manual"
@@ -748,7 +788,7 @@ class VizServer:
 
         if not is_modif:
             raise dash.exceptions.PreventUpdate
-        
+
         # TODO optim here to save that if not needed because nothing has changed
         res = [f"{self.env.current_action}", self._dropdown_value, update_substation_layout_clicked_from_sub]
         return res
@@ -821,7 +861,7 @@ class VizServer:
                 button_id == "go-button" or button_id == "gofast-button" or\
                 button_id == "back-button":
             # i never clicked on simulate, step, go, gofast or back
-            do_display_action = 0 
+            do_display_action = 0
             self._last_sub_id = None
         else:
             # I clicked on the graph of the grid
@@ -980,7 +1020,7 @@ class VizServer:
 
     def tab_content_display(self, tab):
         res = [self._layout_temporal]
-        
+
         if tab == 'tab-temporal-view':
             self.need_update_figures = True
             return [self._layout_temporal]
@@ -991,13 +1031,13 @@ class VizServer:
             msg_ = f"Unknown tab {tab}"
             self.logger.error(msg_)
         return res
-    
+
     def _aux_tab_as_retrieve_updated_figs(self):
         progress_pct = 100. * self._last_step / self._last_max_step
         progress_label = f"{self._last_step} / {self._last_max_step}"
         self.fig_timeline = self.env.get_timeline_figure()
         self.update_obs_fig()
-        
+
         pbar_value = progress_pct
         pbar_label = progress_label
         pbar_color = self._progress_color
@@ -1006,7 +1046,7 @@ class VizServer:
         fig_rt = self.real_time
         return (pbar_value, pbar_label, pbar_color, fig_timeline,
                 dt_label, fig_rt)
-            
+
     def main_action_search(self,
                            refresh_button,
                            explore_butt_pressed,
@@ -1017,9 +1057,9 @@ class VizServer:
             raise dash.exceptions.PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
+
         something_clicked = True
-        
+
         # TODO button color here too !
         i_am_computing_state = {'display': 'block'}
         pbar_value = dash.no_update
@@ -1029,25 +1069,25 @@ class VizServer:
         dt_label = dash.no_update
         fig_rt = dash.no_update
         start_computation = 1
-        
+
         if button_id == "refresh-button_as":
             # (pbar_value, pbar_label, pbar_color, fig_timeline,
             #     dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
             start_computation = dash.no_update
             # hack for it to resynch everything
             self.need_update_figures = True
-        elif button_id == "explore-button_as":        
+        elif button_id == "explore-button_as":
             self.env.next_computation = "explore"
             self.need_update_figures = True
             self.env.start_computation()
         else:
             something_clicked = False
-      
+
         if not self.env.needs_compute():
             # don't start the computation if not needed
             i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
             start_computation = dash.no_update  # I am NOT computing I DO update the graphs
-        
+
         if not self.env.needs_compute() and self.need_update_figures and not something_clicked:
             # in this case, this should be the last call to this function after the "explore"
             # function is finished
@@ -1058,7 +1098,7 @@ class VizServer:
 
             (pbar_value, pbar_label, pbar_color, fig_timeline,
                 dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
-        
+
         return [start_computation,
                 pbar_value,
                 pbar_label,

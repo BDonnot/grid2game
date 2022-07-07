@@ -23,7 +23,6 @@ except ImportError:
     # TODO: logger here
     bkClass = PandaPowerBackend
 
-
 from grid2game.agents import load_assistant
 from grid2game.envs.computeWrapper import ComputeWrapper
 from grid2game.tree import EnvTree
@@ -75,6 +74,7 @@ class Env(ComputeWrapper):
         self._sim_done = None
         self._sim_info = None
         self._current_assistant_action = None
+        self._current_issues = None
 
         # define variables
         self._should_display = True
@@ -93,7 +93,7 @@ class Env(ComputeWrapper):
         # to control which action will be done when
         self.next_computation = None
         self.next_computation_kwargs = {}
-        
+
         # actions to explore
         self.all_topo_actions = None
 
@@ -167,12 +167,15 @@ class Env(ComputeWrapper):
             return self.seed(**self.next_computation_kwargs)
         elif self.next_computation == "step":
             res = self.step(**self.next_computation_kwargs)
+            obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
+            if self._stop_if_issue(obs):
+                self.logger.info("step_end: An alarm is raised, I stop")
             self.stop_computation()  # this is a "one time" call
             return res
         elif self.next_computation == "step_rec":  # this is the "go" button
             res = self.step()
             obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-            if self._stop_if_alarm(obs):
+            if self._stop_if_issue(obs):
                 # I stop the computation if the agent sends an alarm
                 self.logger.info("step_rec: An alarm is raised, I stop")
                 self.stop_computation()
@@ -184,7 +187,7 @@ class Env(ComputeWrapper):
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
                 # print(f"do_computation: {self._assistant_action.raise_alarm}")
-                if self._stop_if_alarm(obs):
+                if self._stop_if_issue(obs):
                     self.logger.info("step_rec_fast: An alarm is raised, I stop")
                     break
             self.stop_computation()  # this is a "one time" call
@@ -196,7 +199,7 @@ class Env(ComputeWrapper):
             while not done:
                 res = self.step()
                 obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
-                if self._stop_if_alarm(obs):
+                if self._stop_if_issue(obs):
                     self.logger.info("step_end: An alarm is raised, I stop")
                     break
             self.stop_computation()  # this is a "one time" call
@@ -238,7 +241,7 @@ class Env(ComputeWrapper):
         if self.all_topo_actions is None:
             self.all_topo_actions = self.glop_env.action_space.get_all_unitary_line_change(self.glop_env.action_space)
             self.all_topo_actions += self.glop_env.action_space.get_all_unitary_topologies_set(self.glop_env.action_space)
-            
+
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         res = []
         for act in self.all_topo_actions:
@@ -246,7 +249,7 @@ class Env(ComputeWrapper):
             sim_reward = sim_obs.rho.max() if not sim_done else 1000.
             res.append((act, sim_reward))
         res.sort(key=lambda x: x[1])
-        
+
         init_node = self.env_tree.current_node
         till_the_end = False
         for act, rew in res[:5]:
@@ -254,17 +257,55 @@ class Env(ComputeWrapper):
             if not till_the_end:
                 till_the_end = self._donothing_until_end()
             self.env_tree.go_to_node(init_node)
-    
+
     def _donothing_until_end(self):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         while not done:
             obs, reward, done, info = self.step(self.glop_env.action_space())
         return obs.current_step == obs.max_step
-        
+
+    def _get_current_action(self):
+        res = None
+        current_id = self.env_tree.current_node.id
+        for el in self.env_tree.current_node.father._act_to_sons:
+            if el.son.id == current_id:
+                res = el.action
+        return res
+
     def _stop_if_alarm(self, obs):
-        if self.do_stop_if_alarm:
-            if np.any(obs.time_since_last_alarm == 0):
-                return True
+        if np.any(obs.time_since_last_alarm == 0):
+            self.logger.info("Assistant raised an alarm")
+            return True
+        return False
+
+    def _stop_if_action(self, act):
+        if act.can_affect_something():
+            self.logger.info("The current action has a chance to change the grid")
+            return True
+        return False
+
+    def _stop_if_bad_kpi(self, obs):
+        # Check if overload
+        if obs.rho.max() >= 1.0:
+            self.logger.info("Overload")
+            return True
+        return False
+
+    def _stop_if_issue(self, obs):
+        issues = []
+        self._current_issues = None
+        act = self._get_current_action()
+        self.logger.debug(act)
+        self.logger.debug(type(act))
+        if self._stop_if_alarm(obs):
+            issues.append("Assistant raised an alarm")
+        if self._stop_if_action(act):
+            issues.append("The current action has a chance to change the grid")
+        if self._stop_if_bad_kpi(obs):
+            issues.append("Overload")
+        if len(issues) > 0:
+            self._current_issues = issues
+            return True
         return False
 
     @property
@@ -369,7 +410,7 @@ class Env(ComputeWrapper):
             self._sim_reward = self.glop_env.reward_range[0]
             self._sim_info = {}
             self._sim_obs.set_game_over(self.glop_env)
-        # print(f"step: {np.any(self._assistant_action.raise_alarm)}") 
+        # print(f"step: {np.any(self._assistant_action.raise_alarm)}")
         return obs, reward, done, info
 
     def choose_next_assistant_action(self):
@@ -399,7 +440,7 @@ class Env(ComputeWrapper):
 
     def reset(self, chronics_id=None, seed=None):
         if chronics_id is not None:
-            
+
             chron = self.glop_env.chronics_handler
             if hasattr(chron, "available_chronics"):  # "proxy" for "grid2op >= 1.6.5"
                 self.glop_env.set_id(chronics_id)
@@ -412,7 +453,7 @@ class Env(ComputeWrapper):
 
     def init_state(self):
         self.env_tree.clear()
-        obs = self.glop_env.reset()            
+        obs = self.glop_env.reset()
         self.env_tree.root(assistant=self.assistant, obs=obs, env=self.glop_env)
 
         self._current_action = self.glop_env.action_space()
@@ -470,7 +511,7 @@ class Env(ComputeWrapper):
         self.is_computing()
         res = self.env_tree.move_from_click(time_line_graph_clcked)
         self._current_action = copy.deepcopy(self.env_tree.get_last_action())
-        
+
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         if not done:
             self.choose_next_assistant_action()

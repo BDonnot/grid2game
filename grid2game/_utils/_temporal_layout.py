@@ -29,7 +29,7 @@ def setupLayout(viz_server):
                                    html.Div([# html.P("Chronics: ", style={"marginRight": 5, "marginLeft": 5}),
                                              html.Div([dcc.Dropdown(id="chronic_names",
                                                                     placeholder="Select a chronic",
-                                                                    options=[{"value": el, "label": el} 
+                                                                    options=[{"value": el, "label": el}
                                                                              for el in viz_server.env.list_chronics()])
                                                       ],
                                                       id="chronics_dropdown",
@@ -41,7 +41,7 @@ def setupLayout(viz_server):
                                               dcc.Input(id="set_seed",
                                                         type="number",
                                                         placeholder="Select a seed",
-                                                       ),        
+                                                       ),
                                              ],
                                              id="seed_selector")
                                   ],
@@ -71,7 +71,7 @@ def setupLayout(viz_server):
         id="nb_step_go_fast",
         type="number",
         placeholder="steps",
-    )                     
+    )
     go_fast = html.Label(children =f"+ {viz_server.nb_step_gofast}",
                          id="gofast-button",
                          n_clicks=0,
@@ -266,7 +266,7 @@ def setupLayout(viz_server):
                                )
 
     save_experiment = html.Div(id='save_expe_box',
-                               children=[                  
+                               children=[
                                     html.Div(children=[
                                         dcc.Input(placeholder=save_txt,
                                                     id="save_expe",
@@ -538,7 +538,7 @@ def setupLayout(viz_server):
                           children=[current_action],
                           style={'width': '39%'}
                           )
-    
+
     # combine both
     interaction_and_action = html.Div([action_widget_title,
                                        html.Div([layout_click,
@@ -682,6 +682,7 @@ def setupLayout(viz_server):
                                     )
 
     # triggering the update of the figures
+    check_issue = html.Label("", id="check_issue",  n_clicks=0)
     act_on_env_trigger_rt = html.Label("", id="act_on_env_trigger_rt",  n_clicks=0)
     act_on_env_trigger_for = html.Label("",  id="act_on_env_trigger_for",  n_clicks=0)
     clear_assistant_path = html.Label("", id="clear_assistant_path", n_clicks=0)
@@ -711,7 +712,8 @@ def setupLayout(viz_server):
                                     chronic_names_dummy_output, set_seed_dummy_output,
                                     update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid,
                                     trigger_rt_extra_info, trigger_for_extra_info,
-                                    update_progress_bar_from_act, update_progress_bar_from_figs
+                                    update_progress_bar_from_act, update_progress_bar_from_figs,
+                                    check_issue
                                    ],
                                    id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
@@ -720,6 +722,22 @@ def setupLayout(viz_server):
     timer_callbacks = dcc.Interval(id="timer",
                                    interval=500.  # in ms
                                   )
+
+    modal_issue = dbc.Modal(
+            [
+                dbc.ModalHeader(
+                    dbc.ModalTitle("There is an issue"),
+                    close_button=True
+                ),
+                dbc.ModalBody(dbc.Label("", id='modal_issue_text')),
+                dbc.ModalFooter(
+                    dbc.Button("Show more", id="show_more_issue", className="ml-auto")
+                ),
+            ],
+            id="modal_issue",
+            size="lg",
+            is_open=False,
+    )
 
     # Final page
     layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
@@ -740,7 +758,8 @@ def setupLayout(viz_server):
                             temporal_graphs,
                             interval_object,
                             hidden_interactions,
-                            timer_callbacks
+                            timer_callbacks,
+                            modal_issue
                         ])
 
     return layout
