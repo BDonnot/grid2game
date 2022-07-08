@@ -527,3 +527,27 @@ class Env(ComputeWrapper):
     def get_current_action_list(self):
         """return the list of actions from the current point in the tree up to the root"""
         return self.env_tree.get_current_action_list()
+
+    def step_variant(self, env_tree, action=None):
+        # Step used to compute holding time of recommandations
+        obs, reward, done, info = env_tree.current_node.get_obs_rewar_done_info()
+        if done:
+            self.stop_computation()
+            obs, reward, done, info = env_tree.current_node.get_obs_rewar_done_info()
+            return obs, reward, done, info
+
+        # Do nothing action
+        action = self.glop_env.action_space()
+
+        env_tree.make_step(assistant=self.assistant, chosen_action=action)
+        obs, reward, done, info = env_tree.current_node.get_obs_rewar_done_info()
+
+        return obs, reward, done, info
+
+    def nb_steps_from_node_until_end(self, node, env_tree):
+        obs, reward, done, info = node.get_obs_rewar_done_info()
+        steps = 0
+        while not done:
+            obs, reward, done, info = self.step_variant(env_tree=env_tree)
+            steps += 1
+        return steps

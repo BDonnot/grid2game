@@ -731,13 +731,102 @@ def setupLayout(viz_server):
                 ),
                 dbc.ModalBody(dbc.Label("", id='modal_issue_text')),
                 dbc.ModalFooter(
-                    dbc.Button("Show more", id="show_more_issue", className="ml-auto")
+                    dbc.Button("Show more", id="show_more_issue", className="ml-auto", n_clicks=0)
                 ),
             ],
             id="modal_issue",
             size="lg",
             is_open=False,
     )
+
+    recommandations_container = dbc.Collapse(
+        html.Div(
+            children=[
+                dbc.Button(
+                    "Close",
+                    id="close_recommandations_button",
+                    className="ml-auto",
+                    n_clicks=0,
+                    style={
+                        "display": "flex"
+                    }
+                ),
+                dbc.Container([
+                    dbc.Label(
+                        'Recommandations',
+                        style={
+                            "padding": "5px"
+                        }
+                    ),
+                    html.Div(
+                        children=[
+                            html.Div(
+                                # Recommandations DataTable is loaded here from the callback
+                                children = [],
+                                id="recommandations_div",
+                                style={
+                                    "padding": "10px"
+                                }
+                            ),
+                            html.Div(
+                                children=[
+                                    dbc.Button("Show details", id="show_recommandation_details_button", className="ml-auto"),
+                                    dbc.Button("To Knowledge Base", id="add_to_knowledge_base_button", className="ml-auto"),
+                                    dbc.Button("Add to variant trees", id="add_to_variant_trees_button", className="ml-auto"),
+                                    dbc.Button("Apply", id="apply_recommandation", className="ml-auto"),
+                                ],
+                                style={
+                                    "alignItems":"left",
+                                    "display": "flex",
+                                    "padding": "2px",
+                                    "justifyContent": "space-between",
+                                    "width": "50%"
+                                }
+                            )
+                        ],
+                        style={
+                            'borderWidth': '1px',
+                            'borderStyle': 'solid',
+                            'borderRadius': '5px',
+                            'width': '100%',
+                            "padding": "10px"
+                        }
+                    ),
+                    html.Div(
+                        children=[
+                            dbc.Button("Explore", id="show_details", className="ml-auto")
+                        ],
+                        style={
+                            "alignItems": "end",
+                            "display": "flex",
+                            "padding": "4px"
+                        }
+                    )
+                ])
+            ],
+            style={
+                    'borderWidth': '1px',
+                    'borderStyle': 'solid',
+                    'borderRadius': '5px',
+                    'width': '80%',
+                    "alignItems":"center",
+                    "marginLeft": "auto",
+                    "marginRight": "auto"
+                }
+        ),
+        id="recommandations_container",
+        is_open=False,
+        style={
+            "paddingBottom": "20px"
+        }
+    )
+
+    loading_recommandations = dcc.Loading(
+        id="loading_recommandations",
+        type="default",
+        children=html.Div(id="loading_recommandations_output"),
+    )
+
 
     # Final page
     layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
@@ -749,6 +838,9 @@ def setupLayout(viz_server):
                             controls_row,
                             html.Br(),
                             progress_bar_for_scenario,
+                            html.Br(),
+                            loading_recommandations,
+                            recommandations_container,
                             html.Br(),
                             # state_row,  # the two graphs of the grid
                             graph_col,  # the two graphs of the grid

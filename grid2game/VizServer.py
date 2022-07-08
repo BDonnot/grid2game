@@ -9,10 +9,13 @@
 import os
 import sys
 import time
+import pandas as pd
+import copy
 
 import dash
 import dash_bootstrap_components as dbc
 from dash import html, dcc
+from dash.dash_table import DataTable
 
 from grid2game._utils import (add_callbacks_temporal,
                               setupLayout_temporal,
@@ -475,7 +478,15 @@ class VizServer:
                 # in this case the user should probably call reset another time !
                 raise dash.exceptions.PreventUpdate
 
-    def check_issue(self, n1, n_clicks):
+    def check_issue(
+        self,
+        n_check_issue,
+        n_show_more,
+        is_open
+    ):
+        # Close modal when clicking on Show more
+        if n_show_more:
+            return [not is_open, ""]
         # make sure the environment has nothing to compute
         while self.env.needs_compute():
             time.sleep(0.1)
@@ -1109,3 +1120,63 @@ class VizServer:
                 1,
                 i_am_computing_state,
                 i_am_computing_state]
+
+    def show_recommandations(self, n_show_more, n_close, is_open):
+
+        if n_close:
+            return [dash.no_update, not is_open]
+
+        if n_show_more:
+
+            self.env.start_recommandations_computation()
+
+            agent_name = self.format_path(os.path.abspath(self.assistant_path))
+            agent_action = self.env._assistant_action
+            variant_env_tree = copy.deepcopy(self.env.env_tree)
+            current_node = variant_env_tree.current_node
+            obs, reward, done, info = current_node.get_obs_rewar_done_info()
+            overloads = (obs.rho[obs.rho > 1.0]).tolist()
+            max_rho = obs.rho.max()
+            holding_steps = self.env.nb_steps_from_node_until_end(current_node, variant_env_tree)
+
+            self.env.stop_recommandations_computation()
+
+            d = {
+                'Agent': [agent_name],
+                'Overload': [str(overloads)],
+                'Max Overload': [max_rho],
+                'Holding Time': [holding_steps]
+            }
+
+            recommandations = pd.DataFrame(data=d)
+            return [
+                DataTable(
+                    id="recommandations_table",
+                    columns=[
+                        {"name": i, "id": i} for i in recommandations.columns
+                    ],
+                    data=recommandations.to_dict("records"),
+                    style_table={"overflowX": "auto"},
+                    row_selectable="single",
+                    style_cell={
+                        "overflow": "hidden",
+                        "textOverflow": "ellipsis",
+                        "maxWidth": 0,
+                    },
+                    tooltip_data=[
+                        {
+                            column: {"value": str(value), "type": "markdown"}
+                            for column, value in row.items()
+                        }
+                        for row in recommandations.to_dict("rows")
+                    ],
+                ),
+                not is_open,
+            ]
+        return [dash.no_update, is_open]
+
+    def loading_recommandations_table(self, n_clicks):
+        time.sleep(0.1)
+        while self.env.is_computing_recommandations():
+            time.sleep(0.1)
+        return [""]

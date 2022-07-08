@@ -17,6 +17,7 @@ class ComputeWrapper(ABC):
     def __init__(self):
         self.__is_computing = False  # whether or not something is being computed
         self.__computation_started = False  # whether or not something needs to be computed
+        self.__is_computing_recommandations = False # whether or not variant trees are being computed
         self.count = 0
 
     @abstractmethod
@@ -32,6 +33,15 @@ class ComputeWrapper(ABC):
         res = self.do_computation()
         self.__is_computing = False
         return res
+
+    def is_computing_recommandations(self):
+        return self.__is_computing_recommandations
+
+    def start_recommandations_computation(self):
+        self.__is_computing_recommandations = True
+
+    def stop_recommandations_computation(self):
+        self.__is_computing_recommandations = False
 
     def is_computing(self):
         return self.__is_computing
