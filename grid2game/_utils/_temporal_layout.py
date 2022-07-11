@@ -24,31 +24,62 @@ def setupLayout(viz_server):
                               n_clicks=0,
                               className="btn btn-primary")
     # reset_button_dummy = html.P("", style={'display': 'none'})
-    reset_col = html.Div(id="reset-col",
-                         children=[reset_button,
-                                   html.Div([# html.P("Chronics: ", style={"marginRight": 5, "marginLeft": 5}),
-                                             html.Div([dcc.Dropdown(id="chronic_names",
-                                                                    placeholder="Select a chronic",
-                                                                    options=[{"value": el, "label": el}
-                                                                             for el in viz_server.env.list_chronics()])
-                                                      ],
-                                                      id="chronics_dropdown",
-                                                      style={"width": "100%"}),
-                                           ],
-                                           id="chronics_selector",
-                                           style={"display": "flex", "minWidth": "20%", "marginRight": "10", "marginLeft": "10"}),
-                                    html.Div([
-                                              dcc.Input(id="set_seed",
-                                                        type="number",
-                                                        placeholder="Select a seed",
-                                                       ),
-                                             ],
-                                             id="seed_selector")
-                                  ],
-                         style={"display": "flex",
-                                # 'justify-content': 'space-between'
-                                }
-                         )
+    reset_col = html.Div(
+        id="reset-col",
+        children=[
+            reset_button,
+            html.Div([# html.P("Chronics: ", style={"marginRight": 5, "marginLeft": 5}),
+                html.Div(
+                    [
+                        dcc.Dropdown(
+                            id="chronic_names",
+                            placeholder="Select a chronic",
+                            options=[
+                                {"value": el, "label": el}
+                                for el in viz_server.env.list_chronics()
+                            ]
+                        )
+                    ],
+                    id="chronics_dropdown",
+                    style={"width": "100%"}),
+                ],
+                id="chronics_selector",
+                style={"display": "flex", "minWidth": "20%", "marginRight": "10", "marginLeft": "10"}
+            ),
+            html.Div([
+                        dcc.Input(id="set_seed",
+                                type="number",
+                                placeholder="Select a seed",
+                                ),
+                        ],
+                        id="seed_selector"),
+            html.Div([
+                html.Div(
+                    [
+                        dcc.Dropdown(
+                            id="mode_names",
+                            placeholder="Select a mode",
+                            options=[
+                                {"value": value, "label": label}
+                                for value, label in viz_server.env.list_modes()
+                            ],
+                            # Default value
+                            value=viz_server.env.default_mode,
+                        )
+                    ],
+                    id="mode_dropdown",
+                    style={"width": "100%"}),
+                ],
+                style={
+                    "display": "flex",
+                    "min-width": "20%"
+                }
+            )
+        ],
+        style={"display": "flex",
+            # 'justify-content': 'space-between'
+            }
+        )
 
     # Controls widget (step, reset etc.)
     step_button = html.Label("Step",
@@ -92,7 +123,7 @@ def setupLayout(viz_server):
                                   id="is_computing_right",
                                   style={'display': 'none'})
 
-    controls_row = html.Div(id="control-buttons",
+    controls_manual_row = html.Div(id="control-buttons",
                             # className="row",
                             children=[
                                 is_computing_left,
@@ -104,6 +135,17 @@ def setupLayout(viz_server):
                                           go_fast],
                                           id="control_nb_step_fast",
                                           style= {"display": "flex"}),
+                                go_till_game_over,
+                                is_computing_right
+                            ],
+                            style={'justifyContent': 'space-between',
+                                   "display": "flex"}
+                            )
+
+    controls_auto_row = html.Div(id="control-buttons",
+                            # className="row",
+                            children=[
+                                is_computing_left,
                                 go_till_game_over,
                                 is_computing_right
                             ],
@@ -200,18 +242,23 @@ def setupLayout(viz_server):
     storinfo_col = html.Div(id="storinfo-col", className=button_css_class, children=[stor_info_label, stor_info], style=style_button)
 
     # general layout
-    change_units = html.Div(id="change_units",
-                            children=[
-                                lineinfo_col,
-                                lineside_col,
-                                loadinfo_col,
-                                geninfo_col,
-                                storinfo_col,
-                                # show_temporal_graph
-                                     ],
-                            style={"display": "flex",
-                                   'justifyContent': 'space-between'},
-                            )
+    change_units = html.Div(
+        id="change_units",
+        children=[
+            lineinfo_col,
+            lineside_col,
+            loadinfo_col,
+            geninfo_col,
+            storinfo_col,
+            # show_temporal_graph
+        ],
+        style={
+            "display": "flex",
+            'justifyContent': 'space-between',
+            "paddingBottom": "20px",
+            "paddingTop": "5px"
+        },
+    )
     if viz_server._app_heroku:
         assistant_txt = "Feature currently unavailable on heroku"
         save_txt = "Feature currently unavailable on heroku"
@@ -320,14 +367,24 @@ def setupLayout(viz_server):
                                         ]
                                 )
 
-    controls_row = html.Div(id="controls-row",
-                            children=[
-                                reset_col,
-                                controls_row,
-                                select_assistant,
-                                save_experiment,
-                                change_units
-                            ])
+    controls_row = html.Div(
+        id="controls-row",
+        children=[
+            reset_col,
+            dbc.Collapse(
+                controls_manual_row,
+                id="controls_manual_collapse",
+                is_open=False,
+            ),
+            dbc.Collapse(
+                controls_auto_row,
+                id="controls_auto_collapse",
+                is_open=False,
+            ),
+            select_assistant,
+            save_experiment,
+        ]
+    )
 
     # progress in the scenario (progress bar and timeline)
     progress_bar_for_scenario = html.Div(children=[html.Div(dbc.Progress(id="scenario_progression",
@@ -880,6 +937,8 @@ def setupLayout(viz_server):
                             html.Br(),
                             loading_recommandations,
                             recommandations_container,
+                            html.Br(),
+                            change_units,
                             html.Br(),
                             # state_row,  # the two graphs of the grid
                             graph_col,  # the two graphs of the grid

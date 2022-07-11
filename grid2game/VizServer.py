@@ -1149,9 +1149,7 @@ class VizServer:
             return [dash.no_update, not is_open, dash.no_update]
 
         if n_show_more:
-
             self.env.start_recommandations_computation()
-
             self.variant_env_trees = []
 
             agent_name = self.format_path(os.path.abspath(self.assistant_path))
@@ -1160,6 +1158,8 @@ class VizServer:
             variant_env_tree = copy.deepcopy(self.env.env_tree)
 
             current_node = variant_env_tree.current_node
+            variant_node = copy.deepcopy(current_node)
+            current_node.father.add_son(agent_action, variant_node)
 
             obs, reward, done, info = current_node.get_obs_rewar_done_info()
             overloads = (obs.rho[obs.rho > 1.0]).tolist()
@@ -1291,3 +1291,17 @@ class VizServer:
             recommandations_added_to_variant_trees,
             1,
         ]
+
+    def dropdown_mode(self, mode, manual_is_open, auto_is_open):
+
+        self.env.mode = mode
+
+        if mode in [self.env.MODE_MANUAL]:
+            manual_is_open = True
+            auto_is_open = False
+
+        elif mode in [self.env.MODE_RECOMMAND, self.env.MODE_ASSISTANT]:
+            manual_is_open = False
+            auto_is_open = True
+
+        return [manual_is_open, auto_is_open]

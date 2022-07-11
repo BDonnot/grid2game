@@ -38,6 +38,10 @@ class Env(ComputeWrapper):
     LIKE_PREVIOUS = 2
     MANUAL = 3
 
+    MODE_MANUAL = 0 # operator full-control
+    MODE_RECOMMAND = 1 # agent stops on any issue
+    MODE_ASSISTANT = 2 # agent stops only when raising alarm
+
     def __init__(self,
                  env_name,
                  assistant_path=None,
@@ -97,6 +101,9 @@ class Env(ComputeWrapper):
         # actions to explore
         self.all_topo_actions = None
 
+        self.default_mode = self.MODE_RECOMMAND
+        self.mode = self.default_mode
+
     def is_assistant_illegal(self):
         if "is_illegal" in self._sim_info:
             return self._sim_info["is_illegal"]
@@ -131,6 +138,13 @@ class Env(ComputeWrapper):
                 res = chron.subpaths[chron._order]
             res = [os.path.split(el)[-1] for el in res]
         return res
+
+    def list_modes(self):
+        return [
+            (self.MODE_MANUAL, "Full Control"),
+            (self.MODE_RECOMMAND, "Assisted"),
+            (self.MODE_ASSISTANT, "Delegated"),
+        ]
 
     def load_assistant(self, assistant_path):
         self.logger.info(f"attempt to load assistant with path : \"{assistant_path}\"")
@@ -294,13 +308,19 @@ class Env(ComputeWrapper):
     def _stop_if_issue(self, obs):
         issues = []
         self._current_issues = None
-        act = self._get_current_action()
-        if self._stop_if_alarm(obs):
-            issues.append("Assistant raised an alarm")
-        if self._stop_if_action(act):
-            issues.append("The current action has a chance to change the grid")
-        if self._stop_if_bad_kpi(obs):
-            issues.append("Overload")
+
+        if self.mode in [self.MODE_RECOMMAND, self.MODE_MANUAL]:
+            act = self._get_current_action()
+            if self._stop_if_alarm(obs):
+                issues.append("Assistant raised an alarm")
+            if self._stop_if_action(act):
+                issues.append("The current action has a chance to change the grid")
+            if self._stop_if_bad_kpi(obs):
+                issues.append("Overload")
+        elif self.mode == self.MODE_ASSISTANT:
+            if self._stop_if_alarm(obs):
+                issues.append("Assistant raised an alarm")
+
         if len(issues) > 0:
             self._current_issues = issues
             return True
@@ -379,7 +399,10 @@ class Env(ComputeWrapper):
             return obs, reward, done, info
 
         if self._assistant_action is None:
+            self.logger.debug("step: self._assistant_action is None")
             self.choose_next_assistant_action()
+            if self._assistant_action is None:
+                self.logger.debug("step: self._assistant_action is still None")
 
         if action is None:
             self.choose_next_action()
@@ -387,6 +410,8 @@ class Env(ComputeWrapper):
         else:
             # TODO is this correct ? I never really tested that
             self._current_action = action
+
+
 
         self.env_tree.make_step(assistant=self.assistant, chosen_action=action)
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
@@ -397,7 +422,7 @@ class Env(ComputeWrapper):
 
         if not done:
             self.choose_next_assistant_action()
-            self.logger.info("step: done is False")
+            #self.logger.info("step: done is False")
             try:
                 self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:
@@ -412,9 +437,11 @@ class Env(ComputeWrapper):
         return obs, reward, done, info
 
     def choose_next_assistant_action(self):
+        self.logger.debug("choose_next_assistant_action")
         self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
 
     def choose_next_action(self):
+        self.logger.debug(f"choose_next_action self.next_action_from={self.next_action_from}")
         if self.next_action_from == self.ASSISTANT:
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
@@ -513,7 +540,7 @@ class Env(ComputeWrapper):
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         if not done:
             self.choose_next_assistant_action()
-            self.logger.info("step: done is False")
+            self.logger.info("handle_click_timeline: done is False")
             try:
                 self._sim_obs, self._sim_reward, self._sim_done, self._sim_info = obs.simulate(self._assistant_action)
             except NoForecastAvailable:

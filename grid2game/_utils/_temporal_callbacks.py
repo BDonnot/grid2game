@@ -324,3 +324,18 @@ def add_callbacks(dash_app, viz_server):
             State("recommandations_store", "data"),
         ],
     )(viz_server.select_recommandation)
+
+    # dropdown mode
+    dash_app.callback(
+        [
+            Output("controls_manual_collapse", "is_open"),
+            Output("controls_auto_collapse", "is_open"),
+        ],
+        [
+            Input("mode_names", "value"),
+        ],
+        [
+            State("controls_manual_collapse", "is_open"),
+            State("controls_auto_collapse", "is_open"),
+        ]
+    )(viz_server.dropdown_mode)
