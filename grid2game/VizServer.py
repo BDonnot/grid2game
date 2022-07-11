@@ -12,10 +12,12 @@ import time
 import pandas as pd
 import copy
 
+
 import dash
 import dash_bootstrap_components as dbc
 from dash import html, dcc
 from dash.dash_table import DataTable
+from dash.exceptions import PreventUpdate
 
 from grid2game._utils import (add_callbacks_temporal,
                               setupLayout_temporal,
@@ -233,6 +235,10 @@ class VizServer:
         self._do_display_action = True
         self._dropdown_value = "assistant"
 
+        # Variant trees
+        self.variant_env_trees = []
+        self._variant_tree_added = False
+
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
         cont_ = True
@@ -343,7 +349,7 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -379,6 +385,7 @@ class VizServer:
             self.env.next_computation_kwargs = {"chronics_id": self.chronics_id, "seed": self.seed}
             self.need_update_figures = False
             change_graph_title = 1
+            check_issue = 0
             self._next_action_is_assistant()
         elif button_id == "simulate-button":
             self.env.start_computation()
@@ -390,6 +397,7 @@ class VizServer:
             self.env.next_computation = "back"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
+            check_issue = 0
         elif button_id == "gofast-button":
             # this button is off now !
             self.env.start_computation()
@@ -476,7 +484,7 @@ class VizServer:
             if i >= 20:
                 # in this case, the environment has not finished running for 2s, I stop here
                 # in this case the user should probably call reset another time !
-                raise dash.exceptions.PreventUpdate
+                raise PreventUpdate
 
     def check_issue(
         self,
@@ -485,14 +493,14 @@ class VizServer:
         is_open
     ):
         # Close modal when clicking on Show more
-        if n_show_more:
-            return [not is_open, ""]
+        if n_show_more and is_open:
+            return [False, ""]
         # make sure the environment has nothing to compute
         while self.env.needs_compute():
             time.sleep(0.1)
 
         issues = self.env._current_issues
-        if issues:
+        if n_check_issue and issues and not is_open:
             len_issues = len(issues)
             if len_issues == 1:
                 issue_text = f"There is {len_issues} issue: "
@@ -502,12 +510,10 @@ class VizServer:
                 issue_text += f"{issue}, "
             # Replace last ', ' by '.' to end the sentence
             issue_text = '.'.join(issue_text.rsplit(', ', 1))
-            is_open = True
+            return [True, issue_text]
         else:
-            issue_text = dash.no_update
-            is_open = False
+            raise PreventUpdate
 
-        return [is_open, issue_text]
 
     def change_graph_title(self, change_graph_title):
         # make sure that the environment has done computing
@@ -530,28 +536,38 @@ class VizServer:
             self.seed = int(seed)
         return [1]
 
-    def computation_wrapper(self, display_new_state, recompute_rt_from_timeline):
-        # simulate a "state" of the application that depends on the computation
-        if not self.env.is_computing():
-            self.env.heavy_compute()
-
-        if self.env.is_computing() and display_new_state != type(self).GO_MODE:
-            # environment is computing I do not update anything
-            raise dash.exceptions.PreventUpdate
-
-        if display_new_state == 1 or display_new_state == type(self).GO_MODE:
+    def computation_wrapper(
+        self,
+        display_new_state,
+        recompute_rt_from_timeline,
+        variant_tree_added,
+    ):
+        if self._variant_tree_added:
+            self._variant_tree_added = False
             trigger_rt = 1
-            trigger_for = 1
-
-            # update the state only if needed
-            if self.env.get_current_node_id() == self._last_node_id:
-                # the state did not change, i do not update anything
-                raise dash.exceptions.PreventUpdate
-            else:
-                self._last_node_id = self.env.get_current_node_id()
-        else:
-            trigger_rt = dash.no_update
             trigger_for = dash.no_update
+        else:
+            # simulate a "state" of the application that depends on the computation
+            if not self.env.is_computing():
+                self.env.heavy_compute()
+
+            if self.env.is_computing() and display_new_state != type(self).GO_MODE:
+                # environment is computing I do not update anything
+                raise PreventUpdate
+
+            if display_new_state == 1 or display_new_state == type(self).GO_MODE:
+                trigger_rt = 1
+                trigger_for = 1
+
+                # update the state only if needed
+                if self.env.get_current_node_id() == self._last_node_id:
+                    # the state did not change, i do not update anything
+                    raise PreventUpdate
+                else:
+                    self._last_node_id = self.env.get_current_node_id()
+            else:
+                trigger_rt = dash.no_update
+                trigger_for = dash.no_update
         return [trigger_rt, trigger_for]
 
     # handle the layout
@@ -563,7 +579,7 @@ class VizServer:
             trigger_rt_graph = 1
             trigger_for_graph = 1
         else:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         if trigger_rt_graph == 1:
             self.fig_timeline = self.env.get_timeline_figure()
@@ -578,7 +594,7 @@ class VizServer:
     def update_progress_bar(self, from_act, from_figs):
         """update the progress bar"""
         # if from_act is None and from_figs is None:
-            # raise dash.exceptions.PreventUpdate
+            # raise PreventUpdate
         if self.env.env_tree.current_node is None:
             # A reset has just been called and the grid2op env is not reset yet
             self._progress_color = "primary"
@@ -624,13 +640,13 @@ class VizServer:
             self.plot_grids.update_forecat(self.env.sim_obs, self.env)
             self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
         else:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [trigger_for_graph]
 
     def show_temporal_graphs(self, show_temporal_graph):
         """handles the action that displays (or not) the time series graphs"""
         if (show_temporal_graph is None or show_temporal_graph.empty()):
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [1]
 
     # define the style of the temporal graph, whether is how it or not
@@ -646,7 +662,7 @@ class VizServer:
     def update_temporal_figs(self, figrt_trigger, showhide_trigger):
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (showhide_trigger is None or showhide_trigger == 0):
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace(self.env, self.env.env_tree)
         return [self.fig_load_gen, self.fig_line_cap]
 
@@ -654,7 +670,7 @@ class VizServer:
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self._wait_for_computing_over()
         if self.env.env_tree.current_node.prev_action_is_illegal:
             is_illegal = 1
@@ -671,7 +687,7 @@ class VizServer:
                 (figfor_trigger is None or figfor_trigger == 0) and \
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self._wait_for_computing_over()
         if self.env.is_assistant_illegal():
             is_illegal = 1
@@ -798,7 +814,7 @@ class VizServer:
                     self.env._current_action.set_bus = [(obj_id, new_bus)]
 
         if not is_modif:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         # TODO optim here to save that if not needed because nothing has changed
         res = [f"{self.env.current_action}", self._dropdown_value, update_substation_layout_clicked_from_sub]
@@ -807,14 +823,14 @@ class VizServer:
     def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
         """update the figure of the substation (when zoomed in)"""
         if update_substation_layout_clicked_from_sub != 1 and update_substation_layout_clicked_from_grid != 1:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         if update_substation_layout_clicked_from_sub is None and update_substation_layout_clicked_from_grid is None:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         # update "in real time" the topology of the substation (https://github.com/BDonnot/grid2game/issues/36)
         if self._last_sub_id is None:
             self.logger.error("display_click_data: Unable to update the substatin plot: no know last substation id")
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         sub_res = self.plot_grids.update_sub_figure(self.env._current_action, self._last_sub_id)
         return [sub_res[-1]]
 
@@ -903,7 +919,7 @@ class VizServer:
                 self._last_sub_id = obj_id
                 update_substation_layout_clicked_from_grid = 1
             else:
-                raise dash.exceptions.PreventUpdate
+                raise PreventUpdate
             # self._next_action_is_manual()
         return [do_display_action,
                 style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
@@ -925,7 +941,7 @@ class VizServer:
         """loads an assistant and display the right things"""
         loader_state = ""
         if assistant_path is None:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self.assistant_path = assistant_path.rstrip().lstrip()
         try:
             properly_loaded = self.env.load_assistant(self.assistant_path)
@@ -944,7 +960,7 @@ class VizServer:
     def clear_loading(self, need_clearing):
         """once an assistant has been """
         if need_clearing == 0:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [""]
 
     def save_expe(self, button, save_expe_path):
@@ -959,7 +975,7 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         if self.env.is_computing():
             # cannot save while an experiment is running
@@ -1019,11 +1035,11 @@ class VizServer:
     def timeline_set_time(self, time_line_graph_clicked):
         if self.env.is_computing():
             # nothing is updated if i am doing a computation
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         if time_line_graph_clicked is None:
             # I did no click on anything
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         res = self.env.handle_click_timeline(time_line_graph_clicked)
         self.need_update_figures = True  # hack to have the progress bar properly recomputed
@@ -1065,7 +1081,7 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -1121,30 +1137,51 @@ class VizServer:
                 i_am_computing_state,
                 i_am_computing_state]
 
-    def show_recommandations(self, n_show_more, n_close, is_open):
+    def show_recommandations(
+        self,
+        n_show_more,
+        n_close,
+        is_open
+    ):
 
         if n_close:
-            return [dash.no_update, not is_open]
+            self.env._current_issues = None
+            return [dash.no_update, not is_open, dash.no_update]
 
         if n_show_more:
 
             self.env.start_recommandations_computation()
 
+            self.variant_env_trees = []
+
             agent_name = self.format_path(os.path.abspath(self.assistant_path))
             agent_action = self.env._assistant_action
+            # TODO: handle the tree in a better way
             variant_env_tree = copy.deepcopy(self.env.env_tree)
+
             current_node = variant_env_tree.current_node
+
             obs, reward, done, info = current_node.get_obs_rewar_done_info()
             overloads = (obs.rho[obs.rho > 1.0]).tolist()
             max_rho = obs.rho.max()
             holding_steps = self.env.nb_steps_from_node_until_end(current_node, variant_env_tree)
+
+            # Go back to current_node
+            variant_env_tree.go_to_node(current_node)
+
+            self.variant_env_trees.append(
+                {
+                    "agent_name": agent_name,
+                    "variant_env_tree": variant_env_tree,
+                }
+            )
 
             self.env.stop_recommandations_computation()
 
             d = {
                 'Agent': [agent_name],
                 'Overload': [str(overloads)],
-                'Max Overload': [max_rho],
+                'Max Rho': [max_rho],
                 'Holding Time': [holding_steps]
             }
 
@@ -1172,11 +1209,85 @@ class VizServer:
                     ],
                 ),
                 not is_open,
+                recommandations.to_dict(),
             ]
-        return [dash.no_update, is_open]
+
+        raise PreventUpdate
 
     def loading_recommandations_table(self, n_clicks):
         time.sleep(0.1)
         while self.env.is_computing_recommandations():
             time.sleep(0.1)
         return [""]
+
+    def select_recommandation(
+        self,
+        selected_rows,
+        recommandations,
+    ):
+        if not selected_rows:
+            raise PreventUpdate
+        recommandations = pd.DataFrame.from_dict(recommandations)
+        selected_recommandation_index = selected_rows[0]
+        selected_recommandation = recommandations.iloc[selected_recommandation_index]
+        return [selected_recommandation.to_dict()]
+
+    def add_to_variant_trees(
+        self,
+        n_clicks,
+        selected_recommandation,
+        recommandations_added_to_variant_trees,
+    ):
+        if not n_clicks:
+            raise PreventUpdate
+
+        if not selected_recommandation:
+            return [
+                "Please choose a recommandation",
+                dash.no_update,
+                dash.no_update,
+            ]
+
+        if not recommandations_added_to_variant_trees:
+            recommandations_added_to_variant_trees = []
+
+        selected_recommandation_df = pd.DataFrame(selected_recommandation, index=[0])
+        selected_agent_name = selected_recommandation_df['Agent'].item()
+        self.logger.debug(f"selected_agent_name={selected_agent_name}")
+
+        for recommandation_added in recommandations_added_to_variant_trees:
+            recommandation_added_df = pd.DataFrame.from_dict(recommandation_added)
+            # TODO: test on more columns to handle multi recommandations by same agent
+            added_agent_name = recommandation_added_df['Agent'].item()
+            self.logger.debug(f"added_agent_name={added_agent_name}")
+            if added_agent_name == selected_agent_name:
+                return [
+                    "Recommandation already added to variant trees",
+                    dash.no_update,
+                    dash.no_update,
+                ]
+
+        selected_variant_tree = None
+        for variant_tree_dict in self.variant_env_trees:
+            variant_agent_name = variant_tree_dict.get("agent_name")
+            self.logger.debug(f"variant_agent_name={variant_agent_name}")
+            if variant_agent_name == selected_agent_name:
+                selected_variant_tree = variant_tree_dict.get("variant_env_tree")
+
+        if not selected_variant_tree:
+            return [
+                "Variant tree not found",
+                dash.no_update,
+                dash.no_update,
+            ]
+
+        recommandations_added_to_variant_trees.append(selected_recommandation)
+        # Replace current env_tree by variant tree
+        self.env.env_tree = selected_variant_tree
+        self._variant_tree_added = True
+
+        return [
+            "Variant tree added !",
+            recommandations_added_to_variant_trees,
+            1,
+        ]

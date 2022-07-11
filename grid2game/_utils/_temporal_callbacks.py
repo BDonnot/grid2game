@@ -137,7 +137,8 @@ def add_callbacks(dash_app, viz_server):
                        Output("act_on_env_trigger_for", "n_clicks")
                       ],
                       [Input("trigger_computation", "value"),
-                       Input("recompute_rt_from_timeline", "n_clicks")
+                       Input("recompute_rt_from_timeline", "n_clicks"),
+                       Input("variant_tree_added", "n_clicks"),
                       ]
                       )(viz_server.computation_wrapper)
 
@@ -276,6 +277,7 @@ def add_callbacks(dash_app, viz_server):
         [
             Output("recommandations_div", "children"),
             Output("recommandations_container", "is_open"),
+            Output("recommandations_store", "data"),
         ],
         [
             Input("show_more_issue", "n_clicks"),
@@ -287,6 +289,38 @@ def add_callbacks(dash_app, viz_server):
     )(viz_server.show_recommandations)
 
     dash_app.callback(
-        [Output("loading_recommandations_output", "children")],
-        [Input("show_more_issue", "n_clicks")]
+        [
+            Output("loading_recommandations_output", "children"),
+        ],
+        [
+            Input("show_more_issue", "n_clicks"),
+        ]
     )(viz_server.loading_recommandations_table)
+
+    dash_app.callback(
+        [
+            # TODO confirmation message
+            Output("added_to_variant_trees_message", "children"),
+            Output("recommandations_added_to_variant_trees_store", "data"),
+            Output("variant_tree_added", "n_clicks"),
+        ],
+        [
+            Input("add_to_variant_trees_button", "n_clicks"),
+        ],
+        [
+            State("selected_recommandation_store", "data"),
+            State("recommandations_added_to_variant_trees_store", "data"),
+        ]
+    )(viz_server.add_to_variant_trees)
+
+    dash_app.callback(
+        [
+            Output("selected_recommandation_store", "data"),
+        ],
+        [
+            Input("recommandations_table", "selected_rows"),
+        ],
+        [
+            State("recommandations_store", "data"),
+        ],
+    )(viz_server.select_recommandation)

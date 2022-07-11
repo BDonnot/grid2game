@@ -295,8 +295,6 @@ class Env(ComputeWrapper):
         issues = []
         self._current_issues = None
         act = self._get_current_action()
-        self.logger.debug(act)
-        self.logger.debug(type(act))
         if self._stop_if_alarm(obs):
             issues.append("Assistant raised an alarm")
         if self._stop_if_action(act):

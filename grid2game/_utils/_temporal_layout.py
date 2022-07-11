@@ -683,6 +683,7 @@ def setupLayout(viz_server):
 
     # triggering the update of the figures
     check_issue = html.Label("", id="check_issue",  n_clicks=0)
+    variant_tree_added = html.Label("", id="variant_tree_added",  n_clicks=0)
     act_on_env_trigger_rt = html.Label("", id="act_on_env_trigger_rt",  n_clicks=0)
     act_on_env_trigger_for = html.Label("",  id="act_on_env_trigger_for",  n_clicks=0)
     clear_assistant_path = html.Label("", id="clear_assistant_path", n_clicks=0)
@@ -713,7 +714,8 @@ def setupLayout(viz_server):
                                     update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid,
                                     trigger_rt_extra_info, trigger_for_extra_info,
                                     update_progress_bar_from_act, update_progress_bar_from_figs,
-                                    check_issue
+                                    check_issue,
+                                    variant_tree_added,
                                    ],
                                    id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
@@ -770,10 +772,29 @@ def setupLayout(viz_server):
                             ),
                             html.Div(
                                 children=[
-                                    dbc.Button("Show details", id="show_recommandation_details_button", className="ml-auto"),
-                                    dbc.Button("To Knowledge Base", id="add_to_knowledge_base_button", className="ml-auto"),
-                                    dbc.Button("Add to variant trees", id="add_to_variant_trees_button", className="ml-auto"),
-                                    dbc.Button("Apply", id="apply_recommandation", className="ml-auto"),
+                                    dbc.Button(
+                                        "Show details",
+                                        id="show_recommandation_details_button",
+                                        className="ml-auto",
+                                        n_clicks=0
+                                    ),
+                                    dbc.Button(
+                                        "To Knowledge Base",
+                                        id="add_to_knowledge_base_button",
+                                        className="ml-auto"
+                                    ),
+                                    dbc.Button(
+                                        "Add to variant trees",
+                                        id="add_to_variant_trees_button",
+                                        className="ml-auto",
+                                        n_clicks=0
+                                    ),
+                                    dbc.Button(
+                                        "Apply",
+                                        id="apply_recommandation",
+                                        className="ml-auto",
+                                        n_clicks=0
+                                    ),
                                 ],
                                 style={
                                     "alignItems":"left",
@@ -792,9 +813,18 @@ def setupLayout(viz_server):
                             "padding": "10px"
                         }
                     ),
+                    dbc.Label(
+                        "",
+                        id="added_to_variant_trees_message",
+                    ),
                     html.Div(
                         children=[
-                            dbc.Button("Explore", id="show_details", className="ml-auto")
+                            dbc.Button(
+                                "Explore",
+                                id="show_details",
+                                className="ml-auto",
+                                n_clicks=0
+                            )
                         ],
                         style={
                             "alignItems": "end",
@@ -827,6 +857,15 @@ def setupLayout(viz_server):
         children=html.Div(id="loading_recommandations_output"),
     )
 
+    recommandations_store = dcc.Store(
+        id="recommandations_store"
+    )
+    selected_recommandation_store = dcc.Store(
+        id="selected_recommandation_store"
+    )
+    recommandations_added_to_variant_trees_store = dcc.Store(
+        id="recommandations_added_to_variant_trees_store"
+    )
 
     # Final page
     layout_css = "container-fluid h-100 d-md-flex d-xl-flex flex-md-column flex-xl-column"
@@ -851,7 +890,10 @@ def setupLayout(viz_server):
                             interval_object,
                             hidden_interactions,
                             timer_callbacks,
-                            modal_issue
+                            modal_issue,
+                            recommandations_store,
+                            selected_recommandation_store,
+                            recommandations_added_to_variant_trees_store,
                         ])
 
     return layout
