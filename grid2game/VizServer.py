@@ -15,7 +15,7 @@ import copy
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import html, dcc
+from dash import html, dcc, ctx
 from dash.dash_table import DataTable
 from dash.exceptions import PreventUpdate
 
@@ -202,6 +202,11 @@ class VizServer:
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
 
+        # Variant trees
+        self.variant_env_trees = []
+        self._variant_tree_added = 0
+        self._check_issue = 0
+
         # initialize the layout
         self._layout_temporal = html.Div(setupLayout_temporal(self),
                                          id="all_temporal")
@@ -235,9 +240,6 @@ class VizServer:
         self._do_display_action = True
         self._dropdown_value = "assistant"
 
-        # Variant trees
-        self.variant_env_trees = []
-        self._variant_tree_added = False
 
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
@@ -372,20 +374,21 @@ class VizServer:
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
-            check_issue = 1
+            self._check_issue += 1
+            check_issue = self._check_issue
         elif button_id == "go_till_game_over-button":
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = True
-            check_issue = 1
+            self._check_issue += 1
+            check_issue = self._check_issue
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
             self.env.next_computation_kwargs = {"chronics_id": self.chronics_id, "seed": self.seed}
             self.need_update_figures = False
             change_graph_title = 1
-            check_issue = 0
             self._next_action_is_assistant()
         elif button_id == "simulate-button":
             self.env.start_computation()
@@ -397,13 +400,13 @@ class VizServer:
             self.env.next_computation = "back"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
-            check_issue = 0
         elif button_id == "gofast-button":
             # this button is off now !
             self.env.start_computation()
             self.env.next_computation = "step_rec_fast"
             self.env.next_computation_kwargs = {"nb_step_gofast": self.nb_step_gofast}
-            check_issue = 1
+            self._check_issue += 1
+            check_issue = self._check_issue
         elif button_id == "go-button":
             self.go_clicks += 1
             if self.go_clicks % 2:
@@ -416,7 +419,8 @@ class VizServer:
                 self.env.start_computation()
                 self._button_shape = "btn btn-secondary"
                 self._gofast_button_shape = "btn btn-secondary"
-                check_issue = 1
+                self._check_issue += 1
+                check_issue = self._check_issue
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
@@ -492,15 +496,20 @@ class VizServer:
         n_show_more,
         is_open
     ):
+        button_id = ctx.triggered_id
+        self.logger.debug(f"check_issue: triggered_id = {button_id}")
+
+        if not button_id:
+            raise PreventUpdate
         # Close modal when clicking on Show more
-        if n_show_more and is_open:
+        if button_id == "show_more_issue":
             return [False, ""]
         # make sure the environment has nothing to compute
         while self.env.needs_compute():
             time.sleep(0.1)
 
         issues = self.env._current_issues
-        if n_check_issue and issues and not is_open:
+        if button_id == "check_issue" and issues and not is_open:
             len_issues = len(issues)
             if len_issues == 1:
                 issue_text = f"There is {len_issues} issue: "
@@ -542,8 +551,9 @@ class VizServer:
         recompute_rt_from_timeline,
         variant_tree_added,
     ):
-        if self._variant_tree_added:
-            self._variant_tree_added = False
+        button_id = ctx.triggered_id
+
+        if button_id == "variant_tree_added":
             trigger_rt = 1
             trigger_for = dash.no_update
         else:
@@ -1137,24 +1147,52 @@ class VizServer:
                 i_am_computing_state,
                 i_am_computing_state]
 
-    def show_recommandations(
+    def handle_recommendations(
         self,
+        # buttons
         n_show_more,
         n_close,
-        is_open
+        n_add_to_variants,
+        n_apply,
+        # recommendation container
+        is_open,
+        # stores
+        selected_recommendation,
+        recommendations_added_to_variant_trees,
     ):
+        button_id = ctx.triggered_id
+        self.logger.debug(f"handle_recommendations: triggered_id = {button_id}")
 
-        if n_close:
+        if not button_id:
+            raise PreventUpdate
+
+        recommendations_div = dash.no_update
+        recommendations_container_open = dash.no_update
+        recommendations_store = dash.no_update
+        recommendations_message = None
+        variant_tree_added = dash.no_update
+
+        if button_id == "close_recommendations_button":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            # Reset issues
             self.env._current_issues = None
-            return [dash.no_update, not is_open, dash.no_update]
+            # Collapse recommendations
+            recommendations_container_open = False
 
-        if n_show_more:
-            self.env.start_recommandations_computation()
+        elif button_id == "show_more_issue":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            # Enable dash loading
+            self.env.start_recommendations_computation()
+
             self.variant_env_trees = []
 
             agent_name = self.format_path(os.path.abspath(self.assistant_path))
             agent_action = self.env._assistant_action
-            # TODO: handle the tree in a better way
+            # TODO: Handle the tree in a better way:
+            # Do not copy the env_tree, but instead add attributes to the Node and TemporalNodeData
+            # of the variant_node to control their visibility in the timeline graph
             variant_env_tree = copy.deepcopy(self.env.env_tree)
 
             current_node = variant_env_tree.current_node
@@ -1176,7 +1214,8 @@ class VizServer:
                 }
             )
 
-            self.env.stop_recommandations_computation()
+            # Disable dash loading
+            self.env.stop_recommendations_computation()
 
             d = {
                 'Agent': [agent_name],
@@ -1185,118 +1224,176 @@ class VizServer:
                 'Holding Time': [holding_steps]
             }
 
-            recommandations = pd.DataFrame(data=d)
-            return [
-                DataTable(
-                    id="recommandations_table",
-                    columns=[
-                        {"name": i, "id": i} for i in recommandations.columns
-                    ],
-                    data=recommandations.to_dict("records"),
-                    style_table={"overflowX": "auto"},
-                    row_selectable="single",
-                    style_cell={
-                        "overflow": "hidden",
-                        "textOverflow": "ellipsis",
-                        "maxWidth": 0,
-                    },
-                    tooltip_data=[
-                        {
-                            column: {"value": str(value), "type": "markdown"}
-                            for column, value in row.items()
-                        }
-                        for row in recommandations.to_dict("rows")
-                    ],
-                ),
-                not is_open,
-                recommandations.to_dict(),
-            ]
+            recommendations = pd.DataFrame(data=d)
 
-        raise PreventUpdate
+            recommendations_div = DataTable(
+                id="recommendations_table",
+                columns=[
+                    {"name": i, "id": i} for i in recommendations.columns
+                ],
+                data=recommendations.to_dict("records"),
+                style_table={"overflowX": "auto"},
+                row_selectable="single",
+                style_cell={
+                    "overflow": "hidden",
+                    "textOverflow": "ellipsis",
+                    "maxWidth": 0,
+                },
+                tooltip_data=[
+                    {
+                        column: {"value": str(value), "type": "markdown"}
+                        for column, value in row.items()
+                    }
+                    for row in recommendations.to_dict("rows")
+                ],
+            )
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
 
-    def loading_recommandations_table(self, n_clicks):
+        elif button_id == "add_to_variant_trees_button":
+
+            if not selected_recommendation:
+                recommendations_message = "Please choose a recommendation"
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            if not recommendations_added_to_variant_trees:
+                recommendations_added_to_variant_trees = []
+
+            selected_recommendation_df = pd.DataFrame(selected_recommendation, index=[0])
+            selected_agent_name = selected_recommendation_df['Agent'].item()
+            self.logger.debug(f"selected_agent_name={selected_agent_name}")
+
+            for recommendation_added in recommendations_added_to_variant_trees:
+                recommendation_added_df = pd.DataFrame.from_dict(recommendation_added)
+                # TODO: test on more columns than agent's name to handle multi recommendations by same agent
+                added_agent_name = recommendation_added_df['Agent'].item()
+                self.logger.debug(f"added_agent_name={added_agent_name}")
+                if added_agent_name == selected_agent_name:
+                    recommendations_message = "recommendation already added to variant trees",
+                    recommendations_added_to_variant_trees = dash.no_update
+                    return [
+                        recommendations_div, recommendations_container_open,
+                        recommendations_store, recommendations_message,
+                        recommendations_added_to_variant_trees, variant_tree_added
+                    ]
+
+            selected_variant_tree = None
+            for variant_tree_dict in self.variant_env_trees:
+                variant_agent_name = variant_tree_dict.get("agent_name")
+                self.logger.debug(f"variant_agent_name={variant_agent_name}")
+                if variant_agent_name == selected_agent_name:
+                    selected_variant_tree = variant_tree_dict.get("variant_env_tree")
+
+            if not selected_variant_tree:
+                recommendations_message = "Variant tree not found",
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            recommendations_added_to_variant_trees.append(selected_recommendation)
+            # Replace current env_tree by variant tree
+            # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree,
+            # and enable the visibility of the selected variant tree on the timeline graph
+            self.env.env_tree = selected_variant_tree
+
+            recommendations_message = "Variant tree added !"
+            self._variant_tree_added += 1
+            variant_tree_added = self._variant_tree_added
+
+        elif button_id == "apply_recommendation_button":
+            # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree
+            # and remove the variant nodes that haven't been added by the user.
+
+            if not selected_recommendation:
+                recommendations_message = "Please choose a recommendation"
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            selected_recommendation_df = pd.DataFrame(selected_recommendation, index=[0])
+            selected_agent_name = selected_recommendation_df['Agent'].item()
+            self.logger.debug(f"selected_agent_name={selected_agent_name}")
+
+            selected_variant_tree = None
+            for variant_tree_dict in self.variant_env_trees:
+                variant_agent_name = variant_tree_dict.get("agent_name")
+                self.logger.debug(f"variant_agent_name={variant_agent_name}")
+                if variant_agent_name == selected_agent_name:
+                    selected_variant_tree = variant_tree_dict.get("variant_env_tree")
+
+            if not selected_variant_tree:
+                recommendations_message = "Variant tree not found",
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            # Replace current env_tree by variant tree
+            self.env.env_tree = selected_variant_tree
+
+            # Reset message
+            recommendations_message = ""
+            # Reset stores
+            recommendations_store = None
+            recommendations_added_to_variant_trees = None
+            # Reset issues
+            self.env._current_issues = None
+            # Collapse recommendations
+            recommendations_container_open = False
+
+        else:
+            raise PreventUpdate
+
+        return [
+            recommendations_div,
+            recommendations_container_open,
+            recommendations_store,
+            recommendations_message,
+            recommendations_added_to_variant_trees,
+            variant_tree_added,
+        ]
+
+    def loading_recommendations_table(self, n_clicks):
+        button_id = ctx.triggered_id
+
+        if not button_id:
+            raise PreventUpdate
+
         time.sleep(0.1)
-        while self.env.is_computing_recommandations():
+        while self.env.is_computing_recommendations():
             time.sleep(0.1)
         return [""]
 
-    def select_recommandation(
+    def select_recommendation(
         self,
         selected_rows,
-        recommandations,
+        recommendations,
     ):
         if not selected_rows:
             raise PreventUpdate
-        recommandations = pd.DataFrame.from_dict(recommandations)
-        selected_recommandation_index = selected_rows[0]
-        selected_recommandation = recommandations.iloc[selected_recommandation_index]
-        return [selected_recommandation.to_dict()]
-
-    def add_to_variant_trees(
-        self,
-        n_clicks,
-        selected_recommandation,
-        recommandations_added_to_variant_trees,
-    ):
-        if not n_clicks:
-            raise PreventUpdate
-
-        if not selected_recommandation:
-            return [
-                "Please choose a recommandation",
-                dash.no_update,
-                dash.no_update,
-            ]
-
-        if not recommandations_added_to_variant_trees:
-            recommandations_added_to_variant_trees = []
-
-        selected_recommandation_df = pd.DataFrame(selected_recommandation, index=[0])
-        selected_agent_name = selected_recommandation_df['Agent'].item()
-        self.logger.debug(f"selected_agent_name={selected_agent_name}")
-
-        for recommandation_added in recommandations_added_to_variant_trees:
-            recommandation_added_df = pd.DataFrame.from_dict(recommandation_added)
-            # TODO: test on more columns to handle multi recommandations by same agent
-            added_agent_name = recommandation_added_df['Agent'].item()
-            self.logger.debug(f"added_agent_name={added_agent_name}")
-            if added_agent_name == selected_agent_name:
-                return [
-                    "Recommandation already added to variant trees",
-                    dash.no_update,
-                    dash.no_update,
-                ]
-
-        selected_variant_tree = None
-        for variant_tree_dict in self.variant_env_trees:
-            variant_agent_name = variant_tree_dict.get("agent_name")
-            self.logger.debug(f"variant_agent_name={variant_agent_name}")
-            if variant_agent_name == selected_agent_name:
-                selected_variant_tree = variant_tree_dict.get("variant_env_tree")
-
-        if not selected_variant_tree:
-            return [
-                "Variant tree not found",
-                dash.no_update,
-                dash.no_update,
-            ]
-
-        recommandations_added_to_variant_trees.append(selected_recommandation)
-        # Replace current env_tree by variant tree
-        self.env.env_tree = selected_variant_tree
-        self._variant_tree_added = True
-
-        return [
-            "Variant tree added !",
-            recommandations_added_to_variant_trees,
-            1,
-        ]
+        recommendations = pd.DataFrame.from_dict(recommendations)
+        selected_recommendation_index = selected_rows[0]
+        selected_recommendation = recommendations.iloc[selected_recommendation_index]
+        return [selected_recommendation.to_dict()]
 
     def dropdown_mode(self, mode, manual_is_open, auto_is_open):
 
         self.env.mode = mode
 
-        if mode in [self.env.MODE_MANUAL]:
+        if mode in [self.env.MODE_MANUAL, self.env.MODE_LEGACY]:
             manual_is_open = True
             auto_is_open = False
 

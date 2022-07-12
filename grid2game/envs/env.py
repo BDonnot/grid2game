@@ -41,6 +41,7 @@ class Env(ComputeWrapper):
     MODE_MANUAL = 0 # operator full-control
     MODE_RECOMMAND = 1 # agent stops on any issue
     MODE_ASSISTANT = 2 # agent stops only when raising alarm
+    MODE_LEGACY = 3
 
     def __init__(self,
                  env_name,
@@ -101,7 +102,7 @@ class Env(ComputeWrapper):
         # actions to explore
         self.all_topo_actions = None
 
-        self.default_mode = self.MODE_RECOMMAND
+        self.default_mode = self.MODE_LEGACY
         self.mode = self.default_mode
 
     def is_assistant_illegal(self):
@@ -144,6 +145,7 @@ class Env(ComputeWrapper):
             (self.MODE_MANUAL, "Full Control"),
             (self.MODE_RECOMMAND, "Assisted"),
             (self.MODE_ASSISTANT, "Delegated"),
+            (self.MODE_LEGACY, "Legacy")
         ]
 
     def load_assistant(self, assistant_path):
@@ -269,14 +271,16 @@ class Env(ComputeWrapper):
         for act, rew in res[:5]:
             self.step(act)
             if not till_the_end:
-                till_the_end = self._donothing_until_end()
+                till_the_end, nb_steps = self._donothing_until_end()
             self.env_tree.go_to_node(init_node)
 
     def _donothing_until_end(self):
+        steps = 0
         obs, reward, done, info = self.env_tree.current_node.get_obs_rewar_done_info()
         while not done:
             obs, reward, done, info = self.step(self.glop_env.action_space())
-        return obs.current_step == obs.max_step
+            steps += 1
+        return (obs.current_step == obs.max_step, steps)
 
     def _get_current_action(self):
         res = None
@@ -317,9 +321,10 @@ class Env(ComputeWrapper):
                 issues.append("The current action has a chance to change the grid")
             if self._stop_if_bad_kpi(obs):
                 issues.append("Overload")
-        elif self.mode == self.MODE_ASSISTANT:
+        elif self.mode in [self.MODE_ASSISTANT, self.MODE_LEGACY]:
             if self._stop_if_alarm(obs):
-                issues.append("Assistant raised an alarm")
+                if self.mode == self.MODE_ASSISTANT:
+                    issues.append("Assistant raised an alarm")
 
         if len(issues) > 0:
             self._current_issues = issues
@@ -399,10 +404,7 @@ class Env(ComputeWrapper):
             return obs, reward, done, info
 
         if self._assistant_action is None:
-            self.logger.debug("step: self._assistant_action is None")
             self.choose_next_assistant_action()
-            if self._assistant_action is None:
-                self.logger.debug("step: self._assistant_action is still None")
 
         if action is None:
             self.choose_next_action()
@@ -437,11 +439,9 @@ class Env(ComputeWrapper):
         return obs, reward, done, info
 
     def choose_next_assistant_action(self):
-        self.logger.debug("choose_next_assistant_action")
         self._assistant_action = copy.deepcopy(self.env_tree.current_node.assistant_action)
 
     def choose_next_action(self):
-        self.logger.debug(f"choose_next_action self.next_action_from={self.next_action_from}")
         if self.next_action_from == self.ASSISTANT:
             self._current_action = copy.deepcopy(self._assistant_action)
         elif self.next_action_from == self.LIKE_PREVIOUS or self.next_action_from == self.MANUAL:
@@ -554,7 +554,7 @@ class Env(ComputeWrapper):
         return self.env_tree.get_current_action_list()
 
     def step_variant(self, env_tree, action=None):
-        # Step used to compute holding time of recommandations
+        # Step used to compute holding time of recommendations
         obs, reward, done, info = env_tree.current_node.get_obs_rewar_done_info()
         if done:
             self.stop_computation()

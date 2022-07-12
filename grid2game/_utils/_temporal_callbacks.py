@@ -272,58 +272,61 @@ def add_callbacks(dash_app, viz_server):
         ]
     )(viz_server.check_issue)
 
-    # show the recommandations table
+    # show the recommendations table
     dash_app.callback(
         [
-            Output("recommandations_div", "children"),
-            Output("recommandations_container", "is_open"),
-            Output("recommandations_store", "data"),
-        ],
-        [
-            Input("show_more_issue", "n_clicks"),
-            Input("close_recommandations_button", "n_clicks"),
-        ],
-        [
-            State("recommandations_container", "is_open"),
-        ]
-    )(viz_server.show_recommandations)
-
-    dash_app.callback(
-        [
-            Output("loading_recommandations_output", "children"),
-        ],
-        [
-            Input("show_more_issue", "n_clicks"),
-        ]
-    )(viz_server.loading_recommandations_table)
-
-    dash_app.callback(
-        [
-            # TODO confirmation message
-            Output("added_to_variant_trees_message", "children"),
-            Output("recommandations_added_to_variant_trees_store", "data"),
+            Output("recommendations_div", "children"),
+            Output("recommendations_container", "is_open"),
+            Output("recommendations_store", "data"),
+            Output("recommendations_message", "children"),
+            Output("recommendations_added_to_variant_trees_store", "data"),
             Output("variant_tree_added", "n_clicks"),
         ],
         [
+            Input("show_more_issue", "n_clicks"),
+            Input("close_recommendations_button", "n_clicks"),
             Input("add_to_variant_trees_button", "n_clicks"),
+            Input("apply_recommendation_button", "n_clicks"),
         ],
         [
-            State("selected_recommandation_store", "data"),
-            State("recommandations_added_to_variant_trees_store", "data"),
+            State("recommendations_container", "is_open"),
+            State("selected_recommendation_store", "data"),
+            State("recommendations_added_to_variant_trees_store", "data"),
         ]
-    )(viz_server.add_to_variant_trees)
+    )(viz_server.handle_recommendations)
 
     dash_app.callback(
         [
-            Output("selected_recommandation_store", "data"),
+            Output("loading_recommendations_output", "children"),
         ],
         [
-            Input("recommandations_table", "selected_rows"),
+            Input("show_more_issue", "n_clicks"),
+        ]
+    )(viz_server.loading_recommendations_table)
+
+    # dash_app.callback(
+    #     [
+    #         Output("recommendations_message", "children"),
+    #     ],
+    #     [
+    #         Input("apply_recommendation_button", "n_clicks"),
+    #     ],
+    #     [
+    #         State("selected_recommendation_store", "data"),
+    #     ],
+    # )(viz_server.apply_recommendation)
+
+    dash_app.callback(
+        [
+            Output("selected_recommendation_store", "data"),
         ],
         [
-            State("recommandations_store", "data"),
+            Input("recommendations_table", "selected_rows"),
         ],
-    )(viz_server.select_recommandation)
+        [
+            State("recommendations_store", "data"),
+        ],
+    )(viz_server.select_recommendation)
 
     # dropdown mode
     dash_app.callback(

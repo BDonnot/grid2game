@@ -108,7 +108,7 @@ def setupLayout(viz_server):
                          n_clicks=0,
                          className="btn btn-primary",
                         )
-    go_till_game_over = html.Label("End",
+    go_till_game_over = html.Label("Go to End",
                                    id="go_till_game_over-button",
                                    n_clicks=0,
                                    className="btn btn-primary",
@@ -122,36 +122,6 @@ def setupLayout(viz_server):
     is_computing_right = html.Div(children=[html.P("⏳ Computing ⏳", style={'color': 'red', "fontSize": "x-large"})],
                                   id="is_computing_right",
                                   style={'display': 'none'})
-
-    controls_manual_row = html.Div(id="control-buttons",
-                            # className="row",
-                            children=[
-                                is_computing_left,
-                                back_button,  # TODO display back only if its possible in the viz_server.env
-                                step_button,
-                                simulate_button,
-                                go_butt,
-                                html.Div([nb_step_go_fast,
-                                          go_fast],
-                                          id="control_nb_step_fast",
-                                          style= {"display": "flex"}),
-                                go_till_game_over,
-                                is_computing_right
-                            ],
-                            style={'justifyContent': 'space-between',
-                                   "display": "flex"}
-                            )
-
-    controls_auto_row = html.Div(id="control-buttons",
-                            # className="row",
-                            children=[
-                                is_computing_left,
-                                go_till_game_over,
-                                is_computing_right
-                            ],
-                            style={'justifyContent': 'space-between',
-                                   "display": "flex"}
-                            )
 
     # Units displayed control
     # TODO add a button "trust assistant up to" that will play the actions suggested by the
@@ -367,19 +337,53 @@ def setupLayout(viz_server):
                                         ]
                                 )
 
+    controls_manual_row = html.Div(id="control-manual-buttons",
+                            # className="row",
+                            children=[
+                                back_button,  # TODO display back only if its possible in the viz_server.env
+                                step_button,
+                                simulate_button,
+                                go_butt,
+                                html.Div([nb_step_go_fast,
+                                          go_fast],
+                                          id="control_nb_step_fast",
+                                          style= {"display": "flex"}),
+                                go_till_game_over,
+                            ],
+                            style={'justifyContent': 'space-between',
+                                   "display": "flex"}
+                            )
+
+    controls_auto_row = html.Div(id="control-auto-buttons",
+                            # className="row",
+                            children=[
+                                go_till_game_over,
+                            ],
+                            style={'justifyContent': 'space-between',
+                                   "display": "flex"}
+                            )
+
     controls_row = html.Div(
         id="controls-row",
         children=[
             reset_col,
-            dbc.Collapse(
-                controls_manual_row,
-                id="controls_manual_collapse",
-                is_open=False,
-            ),
-            dbc.Collapse(
-                controls_auto_row,
-                id="controls_auto_collapse",
-                is_open=False,
+            html.Div(
+                id="control-buttons",
+                # className="row",
+                children=[
+                    is_computing_left,
+                    dbc.Collapse(
+                        controls_auto_row,
+                        id="controls_auto_collapse",
+                        is_open=False,
+                    ),
+                    dbc.Collapse(
+                        controls_manual_row,
+                        id="controls_manual_collapse",
+                        is_open=False,
+                    ),
+                    is_computing_right
+                ]
             ),
             select_assistant,
             save_experiment,
@@ -798,12 +802,12 @@ def setupLayout(viz_server):
             is_open=False,
     )
 
-    recommandations_container = dbc.Collapse(
+    recommendations_container = dbc.Collapse(
         html.Div(
             children=[
                 dbc.Button(
                     "Close",
-                    id="close_recommandations_button",
+                    id="close_recommendations_button",
                     className="ml-auto",
                     n_clicks=0,
                     style={
@@ -812,7 +816,7 @@ def setupLayout(viz_server):
                 ),
                 dbc.Container([
                     dbc.Label(
-                        'Recommandations',
+                        'recommendations',
                         style={
                             "padding": "5px"
                         }
@@ -820,9 +824,9 @@ def setupLayout(viz_server):
                     html.Div(
                         children=[
                             html.Div(
-                                # Recommandations DataTable is loaded here from the callback
+                                # recommendations DataTable is loaded here from the callback
                                 children = [],
-                                id="recommandations_div",
+                                id="recommendations_div",
                                 style={
                                     "padding": "10px"
                                 }
@@ -831,7 +835,7 @@ def setupLayout(viz_server):
                                 children=[
                                     dbc.Button(
                                         "Show details",
-                                        id="show_recommandation_details_button",
+                                        id="show_recommendation_details_button",
                                         className="ml-auto",
                                         n_clicks=0
                                     ),
@@ -848,7 +852,7 @@ def setupLayout(viz_server):
                                     ),
                                     dbc.Button(
                                         "Apply",
-                                        id="apply_recommandation",
+                                        id="apply_recommendation_button",
                                         className="ml-auto",
                                         n_clicks=0
                                     ),
@@ -872,7 +876,7 @@ def setupLayout(viz_server):
                     ),
                     dbc.Label(
                         "",
-                        id="added_to_variant_trees_message",
+                        id="recommendations_message",
                     ),
                     html.Div(
                         children=[
@@ -901,27 +905,27 @@ def setupLayout(viz_server):
                     "marginRight": "auto"
                 }
         ),
-        id="recommandations_container",
+        id="recommendations_container",
         is_open=False,
         style={
             "paddingBottom": "20px"
         }
     )
 
-    loading_recommandations = dcc.Loading(
-        id="loading_recommandations",
+    loading_recommendations = dcc.Loading(
+        id="loading_recommendations",
         type="default",
-        children=html.Div(id="loading_recommandations_output"),
+        children=html.Div(id="loading_recommendations_output"),
     )
 
-    recommandations_store = dcc.Store(
-        id="recommandations_store"
+    recommendations_store = dcc.Store(
+        id="recommendations_store"
     )
-    selected_recommandation_store = dcc.Store(
-        id="selected_recommandation_store"
+    selected_recommendation_store = dcc.Store(
+        id="selected_recommendation_store"
     )
-    recommandations_added_to_variant_trees_store = dcc.Store(
-        id="recommandations_added_to_variant_trees_store"
+    recommendations_added_to_variant_trees_store = dcc.Store(
+        id="recommendations_added_to_variant_trees_store"
     )
 
     # Final page
@@ -935,8 +939,8 @@ def setupLayout(viz_server):
                             html.Br(),
                             progress_bar_for_scenario,
                             html.Br(),
-                            loading_recommandations,
-                            recommandations_container,
+                            loading_recommendations,
+                            recommendations_container,
                             html.Br(),
                             change_units,
                             html.Br(),
@@ -950,9 +954,9 @@ def setupLayout(viz_server):
                             hidden_interactions,
                             timer_callbacks,
                             modal_issue,
-                            recommandations_store,
-                            selected_recommandation_store,
-                            recommandations_added_to_variant_trees_store,
+                            recommendations_store,
+                            selected_recommendation_store,
+                            recommendations_added_to_variant_trees_store,
                         ])
 
     return layout
