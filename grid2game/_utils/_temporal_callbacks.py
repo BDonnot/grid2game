@@ -63,8 +63,6 @@ def add_callbacks(dash_app, viz_server):
                        Output("sub-id-clicked", "children"),
                     #    Output("graph_clicked_sub", "figure"),
                        Output("update_substation_layout_clicked_from_grid", "n_clicks"),
-
-                       Output("action_buttons", "style"),
                       ],
                       [Input('real-time-graph', 'clickData'),
                        Input("back-button", "n_clicks"),
@@ -78,7 +76,8 @@ def add_callbacks(dash_app, viz_server):
     # handle display of the action, if needed
     dash_app.callback([Output("current_action", "children"),
                        Output("which_action_button", "value"),
-                       Output("update_substation_layout_clicked_from_sub", "n_clicks")
+                       Output("update_substation_layout_clicked_from_sub", "n_clicks"),
+                       Output("action_buttons", "style"),
                       ],
                       [Input("which_action_button", "value"),
                        Input("do_display_action", "value"),
@@ -90,8 +89,11 @@ def add_callbacks(dash_app, viz_server):
                        Input("line-id-hidden", "children"),
                        Input('line-status-input', "value"),
                        Input('sub-id-hidden', "children"),
-                       Input("graph_clicked_sub", "clickData")
-                      ])(viz_server.display_action_fun)
+                       Input("graph_clicked_sub", "clickData"),
+                       Input('real-time-graph', 'clickData'),
+                      ],
+                      [State("recommendations_container", "is_open")]
+    )(viz_server.display_action_fun)
 
     # plot the substation that changes when we click
     dash_app.callback([Output("graph_clicked_sub", "figure")],
@@ -289,9 +291,11 @@ def add_callbacks(dash_app, viz_server):
             Input("close_recommendations_button", "n_clicks"),
             Input("add_to_variant_trees_button", "n_clicks"),
             Input("apply_recommendation_button", "n_clicks"),
+            Input("integrate_manual_action", "n_clicks"),
         ],
         [
             State("recommendations_container", "is_open"),
+            State("recommendations_store", "data"),
             State("selected_recommendation_store", "data"),
             State("recommendations_added_to_variant_trees_store", "data"),
         ]
@@ -303,6 +307,7 @@ def add_callbacks(dash_app, viz_server):
         ],
         [
             Input("show_more_issue", "n_clicks"),
+            Input("integrate_manual_action", "n_clicks"),
         ]
     )(viz_server.loading_recommendations_table)
 

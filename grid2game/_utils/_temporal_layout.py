@@ -599,7 +599,7 @@ def setupLayout(viz_server):
         children=[
             dbc.Button(
                 "Simulate",
-                id="simulate_manual_action",
+                id="simulate-button",
                 className="ml-auto",
                 n_clicks=0
             ),
@@ -855,7 +855,7 @@ def setupLayout(viz_server):
                 ),
                 dbc.Container([
                     dbc.Label(
-                        'recommendations',
+                        'Recommendations',
                         style={
                             "padding": "5px"
                         }

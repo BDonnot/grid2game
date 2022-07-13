@@ -747,19 +747,28 @@ class VizServer:
                            redisp,
                            stor_id, storage_p,
                            line_id, line_status,
-                           sub_id, clicked_sub_fig):
+                           sub_id, clicked_sub_fig,
+                           clicked_real_fig,
+                           recommendations_is_open):
         """
         modify the action taken based on the inputs,
         then displays the action (as text)
         """
         # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
+        style_action_buttons = dash.no_update
+
         ctx = dash.callback_context
         dropdown_value = self._last_action
         update_substation_layout_clicked_from_sub = 0
         if not ctx.triggered:
             # no click have been made yet
-            return [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            return [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -770,24 +779,52 @@ class VizServer:
                 self._last_action = "dn"
                 self._do_display_action = False
                 self._dropdown_value = "dn"
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "assistant":
                 self._next_action_is_assistant()
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "prev":
                 self.env.next_action_is_previous()
                 self._last_action = "prev"
                 self._do_display_action = False
                 self._dropdown_value = "prev"
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "manual":
                 self._next_action_is_manual()
+                if self.env.mode != self.env.MODE_LEGACY and recommendations_is_open:
+                    # Show the buttons only not in legacy mode, and if the
+                    # recommendations table is open
+                    style_action_buttons = {'display': 'flex', "width": "70%"}
             else:
                 # nothing is done
                 pass
-            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            res = [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
             return res
+
+        if button_id == "real-time-graph":
+            if self.env.mode != self.env.MODE_LEGACY and recommendations_is_open:
+                style_action_buttons = {'display': 'flex', "width": "70%"}
+                return [
+                    dash.no_update,
+                    dash.no_update,
+                    dash.no_update,
+                    style_action_buttons
+                ]
+
 
         if not self._do_display_action:
             # i should not display the action
-            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            res = [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
             return res
 
         # i need to display the action
@@ -827,7 +864,12 @@ class VizServer:
             raise PreventUpdate
 
         # TODO optim here to save that if not needed because nothing has changed
-        res = [f"{self.env.current_action}", self._dropdown_value, update_substation_layout_clicked_from_sub]
+        res = [
+            f"{self.env.current_action}",
+            self._dropdown_value,
+            update_substation_layout_clicked_from_sub,
+            style_action_buttons
+        ]
         return res
 
     def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
@@ -872,8 +914,6 @@ class VizServer:
         sub_res = ["", self.plot_grids.sub_fig]
         update_substation_layout_clicked_from_grid = 0
 
-        style_action_buttons = {'display': 'none', "width": "70%"}
-
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
         # section "Determining which Input has fired with dash.callback_context"
@@ -886,8 +926,7 @@ class VizServer:
                     style_storage_input, storage_id_clicked, *storage_res,
                     style_line_input, line_id_clicked, *line_res,
                     style_sub_input, sub_id_clicked, *sub_res[:-1],
-                    update_substation_layout_clicked_from_grid,
-                    style_action_buttons
+                    update_substation_layout_clicked_from_grid
                     ]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -905,10 +944,6 @@ class VizServer:
             self._last_sub_id = None
         else:
             # I clicked on the graph of the grid
-
-            if self.env.mode != self.env.MODE_LEGACY:
-                style_action_buttons = {'display': 'flex', "width": "70%"}
-
             self._last_sub_id = None
             obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
             if obj_type == "gen":
@@ -943,8 +978,7 @@ class VizServer:
                 style_storage_input, storage_id_clicked, *storage_res,
                 style_line_input, line_id_clicked, *line_res,
                 style_sub_input, sub_id_clicked, *sub_res[:-1],
-                update_substation_layout_clicked_from_grid,
-                style_action_buttons
+                update_substation_layout_clicked_from_grid
                 ]
 
     def format_path(self, path):
@@ -1155,6 +1189,105 @@ class VizServer:
                 i_am_computing_state,
                 i_am_computing_state]
 
+    def add_recommendation(
+        self,
+        recommendations_store,
+        agent_name,
+        agent_action,
+    ):
+        # Enable dash loading
+        self.env.start_recommendations_computation()
+
+        # TODO: Handle the tree in a better way:
+        # Do not copy the env_tree, but instead add attributes to the Node and TemporalNodeData
+        # of the variant_node to control their visibility in the timeline graph
+        variant_env_tree = copy.deepcopy(self.env.env_tree)
+
+        current_node = variant_env_tree.current_node
+        variant_node = copy.deepcopy(current_node)
+        current_node.father.add_son(agent_action, variant_node)
+
+        obs, reward, done, info = current_node.get_obs_rewar_done_info()
+        overloads = (obs.rho[obs.rho > 1.0]).tolist()
+        max_rho = obs.rho.max()
+        holding_steps = self.env.nb_steps_from_node_until_end(current_node, variant_env_tree)
+
+        # Go back to current_node
+        variant_env_tree.go_to_node(current_node)
+
+        self.variant_env_trees.append(
+            {
+                "agent_name": agent_name,
+                "variant_env_tree": variant_env_tree,
+            }
+        )
+
+        # Disable dash loading
+        self.env.stop_recommendations_computation()
+
+        d = {
+            'Agent': [agent_name],
+            'Overload': [str(overloads)],
+            'Max Rho': [max_rho],
+            'Holding Time': [holding_steps]
+        }
+
+        new_recommendation = pd.DataFrame(data=d)
+
+        if not recommendations_store:
+            # First recommendation
+            recommendations = new_recommendation
+        else:
+            # Add recommendation to stored recommendations
+            recommendations = pd.DataFrame.from_dict(recommendations_store)
+            recommendations = pd.concat(
+                [recommendations, new_recommendation], axis=0, ignore_index=True
+            )
+
+        # Return dataframe to fill the table
+        return recommendations
+
+
+    def fill_recommendations_table(self, recommendations):
+        recommendations_div = DataTable(
+            id="recommendations_table",
+            columns=[
+                {"name": i, "id": i} for i in recommendations.columns
+            ],
+            data=recommendations.to_dict("records"),
+            style_table={"overflowX": "auto"},
+            row_selectable="single",
+            style_cell={
+                "overflow": "hidden",
+                "textOverflow": "ellipsis",
+                "maxWidth": 0,
+            },
+            tooltip_data=[
+                {
+                    column: {"value": str(value), "type": "markdown"}
+                    for column, value in row.items()
+                }
+                for row in recommendations.to_dict("rows")
+            ],
+        )
+        return recommendations_div
+
+    def get_selected_agent_name(self, selected_recommendation):
+        df = pd.DataFrame(selected_recommendation, index=[0])
+        agent_name = df['Agent'].item()
+        self.logger.debug(f"selected_agent_name={agent_name}")
+        return agent_name
+
+    def get_variant_tree(self, agent_name):
+        variant_tree = None
+        for variant_tree_dict in self.variant_env_trees:
+            variant_agent_name = variant_tree_dict.get("agent_name")
+
+            if variant_agent_name == agent_name:
+                variant_tree = variant_tree_dict.get("variant_env_tree")
+        return variant_tree
+
+
     def handle_recommendations(
         self,
         # buttons
@@ -1162,9 +1295,11 @@ class VizServer:
         n_close,
         n_add_to_variants,
         n_apply,
+        n_integrate_manual_action,
         # recommendation container
         is_open,
         # stores
+        recommendations_store,
         selected_recommendation,
         recommendations_added_to_variant_trees,
     ):
@@ -1176,12 +1311,12 @@ class VizServer:
 
         recommendations_div = dash.no_update
         recommendations_container_open = dash.no_update
-        recommendations_store = dash.no_update
         recommendations_message = None
         variant_tree_added = dash.no_update
 
         if button_id == "close_recommendations_button":
             recommendations_added_to_variant_trees = dash.no_update
+            recommendations_store = dash.no_update
 
             # Reset issues
             self.env._current_issues = None
@@ -1191,75 +1326,25 @@ class VizServer:
         elif button_id == "show_more_issue":
             recommendations_added_to_variant_trees = dash.no_update
 
-            # Enable dash loading
-            self.env.start_recommendations_computation()
-
             self.variant_env_trees = []
 
             agent_name = self.format_path(os.path.abspath(self.assistant_path))
             agent_action = self.env._assistant_action
-            # TODO: Handle the tree in a better way:
-            # Do not copy the env_tree, but instead add attributes to the Node and TemporalNodeData
-            # of the variant_node to control their visibility in the timeline graph
-            variant_env_tree = copy.deepcopy(self.env.env_tree)
 
-            current_node = variant_env_tree.current_node
-            variant_node = copy.deepcopy(current_node)
-            current_node.father.add_son(agent_action, variant_node)
-
-            obs, reward, done, info = current_node.get_obs_rewar_done_info()
-            overloads = (obs.rho[obs.rho > 1.0]).tolist()
-            max_rho = obs.rho.max()
-            holding_steps = self.env.nb_steps_from_node_until_end(current_node, variant_env_tree)
-
-            # Go back to current_node
-            variant_env_tree.go_to_node(current_node)
-
-            self.variant_env_trees.append(
-                {
-                    "agent_name": agent_name,
-                    "variant_env_tree": variant_env_tree,
-                }
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
             )
 
-            # Disable dash loading
-            self.env.stop_recommendations_computation()
-
-            d = {
-                'Agent': [agent_name],
-                'Overload': [str(overloads)],
-                'Max Rho': [max_rho],
-                'Holding Time': [holding_steps]
-            }
-
-            recommendations = pd.DataFrame(data=d)
-
-            recommendations_div = DataTable(
-                id="recommendations_table",
-                columns=[
-                    {"name": i, "id": i} for i in recommendations.columns
-                ],
-                data=recommendations.to_dict("records"),
-                style_table={"overflowX": "auto"},
-                row_selectable="single",
-                style_cell={
-                    "overflow": "hidden",
-                    "textOverflow": "ellipsis",
-                    "maxWidth": 0,
-                },
-                tooltip_data=[
-                    {
-                        column: {"value": str(value), "type": "markdown"}
-                        for column, value in row.items()
-                    }
-                    for row in recommendations.to_dict("rows")
-                ],
-            )
+            recommendations_div = self.fill_recommendations_table(recommendations)
             recommendations_container_open = True
             recommendations_store = recommendations.to_dict()
 
         elif button_id == "add_to_variant_trees_button":
+            recommendations_store = dash.no_update
 
+            # User didn't select a recommendation
             if not selected_recommendation:
                 recommendations_message = "Please choose a recommendation"
                 recommendations_added_to_variant_trees = dash.no_update
@@ -1269,13 +1354,13 @@ class VizServer:
                     recommendations_added_to_variant_trees, variant_tree_added
                 ]
 
+            # User first selection, init the selected list
             if not recommendations_added_to_variant_trees:
                 recommendations_added_to_variant_trees = []
 
-            selected_recommendation_df = pd.DataFrame(selected_recommendation, index=[0])
-            selected_agent_name = selected_recommendation_df['Agent'].item()
-            self.logger.debug(f"selected_agent_name={selected_agent_name}")
+            selected_agent_name = self.get_selected_agent_name(selected_recommendation)
 
+            # Check if selection has already been added
             for recommendation_added in recommendations_added_to_variant_trees:
                 recommendation_added_df = pd.DataFrame.from_dict(recommendation_added)
                 # TODO: test on more columns than agent's name to handle multi recommendations by same agent
@@ -1290,14 +1375,12 @@ class VizServer:
                         recommendations_added_to_variant_trees, variant_tree_added
                     ]
 
-            selected_variant_tree = None
-            for variant_tree_dict in self.variant_env_trees:
-                variant_agent_name = variant_tree_dict.get("agent_name")
-                self.logger.debug(f"variant_agent_name={variant_agent_name}")
-                if variant_agent_name == selected_agent_name:
-                    selected_variant_tree = variant_tree_dict.get("variant_env_tree")
+            # Retrieve the variant tree linked to the selected recommendation
+            selected_variant_tree = self.get_variant_tree(selected_agent_name)
 
+            # This shouldn't happen, log the error and inform the user
             if not selected_variant_tree:
+                self.logger.error(f"Variant tree not found")
                 recommendations_message = "Variant tree not found",
                 recommendations_added_to_variant_trees = dash.no_update
                 return [
@@ -1306,6 +1389,7 @@ class VizServer:
                     recommendations_added_to_variant_trees, variant_tree_added
                 ]
 
+            # Add selection to added recommandations
             recommendations_added_to_variant_trees.append(selected_recommendation)
             # Replace current env_tree by variant tree
             # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree,
@@ -1313,13 +1397,17 @@ class VizServer:
             self.env.env_tree = selected_variant_tree
 
             recommendations_message = "Variant tree added !"
+
+            # Trigger the chain: computation_wrapper > update_rt_fig to update the timeline_graph
             self._variant_tree_added += 1
             variant_tree_added = self._variant_tree_added
 
         elif button_id == "apply_recommendation_button":
+            recommendations_store = dash.no_update
             # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree
             # and remove the variant nodes that haven't been added by the user.
 
+            # User didn't select a recommendation
             if not selected_recommendation:
                 recommendations_message = "Please choose a recommendation"
                 recommendations_added_to_variant_trees = dash.no_update
@@ -1329,18 +1417,14 @@ class VizServer:
                     recommendations_added_to_variant_trees, variant_tree_added
                 ]
 
-            selected_recommendation_df = pd.DataFrame(selected_recommendation, index=[0])
-            selected_agent_name = selected_recommendation_df['Agent'].item()
-            self.logger.debug(f"selected_agent_name={selected_agent_name}")
+            selected_agent_name = self.get_selected_agent_name(selected_recommendation)
 
-            selected_variant_tree = None
-            for variant_tree_dict in self.variant_env_trees:
-                variant_agent_name = variant_tree_dict.get("agent_name")
-                self.logger.debug(f"variant_agent_name={variant_agent_name}")
-                if variant_agent_name == selected_agent_name:
-                    selected_variant_tree = variant_tree_dict.get("variant_env_tree")
+            # Retrieve the variant tree linked to the selected recommendation
+            selected_variant_tree = self.get_variant_tree(selected_agent_name)
 
+            # This shouldn't happen, log the error and inform the user
             if not selected_variant_tree:
+                self.logger.error(f"Variant tree not found")
                 recommendations_message = "Variant tree not found",
                 recommendations_added_to_variant_trees = dash.no_update
                 return [
@@ -1362,6 +1446,26 @@ class VizServer:
             # Collapse recommendations
             recommendations_container_open = False
 
+        elif button_id == "integrate_manual_action":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            # Add only if the recommandations are open
+            if not is_open:
+                self.logger.error("Recommandations aren't open !")
+
+            agent_name = "Human"
+            agent_action = self.env.current_action
+
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
+            )
+
+            recommendations_div = self.fill_recommendations_table(recommendations)
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
+
         else:
             raise PreventUpdate
 
@@ -1374,7 +1478,7 @@ class VizServer:
             variant_tree_added,
         ]
 
-    def loading_recommendations_table(self, n_clicks):
+    def loading_recommendations_table(self, n_show_more, n_integrate_manual_action):
         button_id = ctx.triggered_id
 
         if not button_id:
