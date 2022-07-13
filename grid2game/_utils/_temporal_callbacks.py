@@ -63,6 +63,8 @@ def add_callbacks(dash_app, viz_server):
                        Output("sub-id-clicked", "children"),
                     #    Output("graph_clicked_sub", "figure"),
                        Output("update_substation_layout_clicked_from_grid", "n_clicks"),
+
+                       Output("action_buttons", "style"),
                       ],
                       [Input('real-time-graph', 'clickData'),
                        Input("back-button", "n_clicks"),

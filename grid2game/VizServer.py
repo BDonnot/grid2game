@@ -872,6 +872,8 @@ class VizServer:
         sub_res = ["", self.plot_grids.sub_fig]
         update_substation_layout_clicked_from_grid = 0
 
+        style_action_buttons = {'display': 'none', "width": "70%"}
+
         # check which call backs triggered this calls
         # see https://dash.plotly.com/advanced-callbacks
         # section "Determining which Input has fired with dash.callback_context"
@@ -884,7 +886,8 @@ class VizServer:
                     style_storage_input, storage_id_clicked, *storage_res,
                     style_line_input, line_id_clicked, *line_res,
                     style_sub_input, sub_id_clicked, *sub_res[:-1],
-                    update_substation_layout_clicked_from_grid
+                    update_substation_layout_clicked_from_grid,
+                    style_action_buttons
                     ]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
@@ -902,6 +905,10 @@ class VizServer:
             self._last_sub_id = None
         else:
             # I clicked on the graph of the grid
+
+            if self.env.mode != self.env.MODE_LEGACY:
+                style_action_buttons = {'display': 'flex', "width": "70%"}
+
             self._last_sub_id = None
             obj_type, obj_id, res_type = self.plot_grids.get_object_clicked(clickData)
             if obj_type == "gen":
@@ -936,7 +943,8 @@ class VizServer:
                 style_storage_input, storage_id_clicked, *storage_res,
                 style_line_input, line_id_clicked, *line_res,
                 style_sub_input, sub_id_clicked, *sub_res[:-1],
-                update_substation_layout_clicked_from_grid
+                update_substation_layout_clicked_from_grid,
+                style_action_buttons
                 ]
 
     def format_path(self, path):

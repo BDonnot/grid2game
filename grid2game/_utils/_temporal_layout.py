@@ -583,9 +583,8 @@ def setupLayout(viz_server):
 
     # Title
     action_widget_title = html.Div(id="action_widget_title",
-                                   children=[html.P("Action:  "),
-                                             which_action_button],
-                                   style={},
+                                   children=[html.P("Action:  ")],
+                                   style={"width": "30%"},
                                   )
     # display the action
     layout_click = html.Div(id="action_clicked",
@@ -594,22 +593,62 @@ def setupLayout(viz_server):
                                       line_clicked,
                                       sub_clicked],
                             style={"width": "59%",})
+
+    action_buttons = html.Div(
+        id="action_buttons",
+        children=[
+            dbc.Button(
+                "Simulate",
+                id="simulate_manual_action",
+                className="ml-auto",
+                n_clicks=0
+            ),
+            dbc.Button(
+                "Integrate Manual Action",
+                id="integrate_manual_action",
+                className="ml-auto",
+                n_clicks=0
+            )
+        ],
+        style={'display': 'none', "width": "70%"}
+    )
+
     # action as text
     action_col = html.Div(id="action_widget",
                           children=[current_action],
                           style={'width': '39%'}
                           )
 
+
     # combine both
-    interaction_and_action = html.Div([action_widget_title,
-                                       html.Div([layout_click,
-                                                 action_col],
-                                                 id="action_display",
-                                                 style={"width": "100%", "display": "flex"})
-                                      ],
-                                      id="action_select_and_print",
-                                      style={"width": "100%"},
-                                     )
+    interaction_and_action = html.Div(
+        [
+            html.Div(
+                [
+                    action_widget_title,
+                    action_buttons,
+                ],
+                id="action_header",
+                style={"width": "100%", "display": "flex"}
+            ),
+            html.Div(
+                [
+                    which_action_button,
+                ],
+                id="which_action_dropdown"
+            ),
+            html.Div(
+                [
+                    layout_click,
+                    action_col
+                ],
+                id="action_display",
+                style={"width": "100%", "display": "flex"}
+            )
+        ],
+        id="action_select_and_print",
+        style={"width": "100%"},
+    )
 
     ## temporal graphs
     graph_gen_load = dcc.Graph(id="graph_gen_load",
