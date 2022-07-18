@@ -329,10 +329,12 @@ class VizServer:
         until_game_over,
         untilgo_butt,
         self_loop,
+        timer,
         state_trigger_rt,
         state_trigger_for,
         state_trigger_self_loop,
-        timer
+        recommendations_container_is_open,
+        selected_recommendation,
     ):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
@@ -395,6 +397,13 @@ class VizServer:
             self.env.next_computation = "simulate"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
+
+            if self.env.mode != self.env.MODE_LEGACY:
+                if recommendations_container_is_open:
+                    selected_agent_name = self.get_selected_agent_name(selected_recommendation)
+                    selected_action = self.get_variant_action(selected_agent_name)
+                    self.logger.debug(f"Simulate selected action from agent {selected_agent_name}: {selected_action}")
+                    self.env._current_action = selected_action
         elif button_id == "back-button":
             self.env.start_computation()
             self.env.next_computation = "back"
@@ -1215,9 +1224,11 @@ class VizServer:
         # Go back to current_node
         variant_env_tree.go_to_node(current_node)
 
+        # TODO: handle several human recommendations
         self.variant_env_trees.append(
             {
                 "agent_name": agent_name,
+                "agent_action": agent_action,
                 "variant_env_tree": variant_env_tree,
             }
         )
@@ -1278,11 +1289,20 @@ class VizServer:
         self.logger.debug(f"selected_agent_name={agent_name}")
         return agent_name
 
+    def get_variant_action(self, agent_name):
+        variant_action = None
+        for variant_tree_dict in self.variant_env_trees:
+            variant_agent_name = variant_tree_dict.get("agent_name")
+            # TODO: handle several human recommendations, this will retrieve the first human recommendation
+            if variant_agent_name == agent_name:
+                variant_action = variant_tree_dict.get("agent_action")
+        return variant_action
+
     def get_variant_tree(self, agent_name):
         variant_tree = None
         for variant_tree_dict in self.variant_env_trees:
             variant_agent_name = variant_tree_dict.get("agent_name")
-
+            # TODO: handle several human recommendations, this will retrieve the first human recommendation
             if variant_agent_name == agent_name:
                 variant_tree = variant_tree_dict.get("variant_env_tree")
         return variant_tree
@@ -1315,9 +1335,14 @@ class VizServer:
         variant_tree_added = dash.no_update
 
         if button_id == "close_recommendations_button":
-            recommendations_added_to_variant_trees = dash.no_update
-            recommendations_store = dash.no_update
 
+            # TODO: restore self._current_action in case of simulations
+
+            # Reset message
+            recommendations_message = ""
+            # Reset stores
+            recommendations_store = None
+            recommendations_added_to_variant_trees = None
             # Reset issues
             self.env._current_issues = None
             # Collapse recommendations
@@ -1465,6 +1490,17 @@ class VizServer:
             recommendations_div = self.fill_recommendations_table(recommendations)
             recommendations_container_open = True
             recommendations_store = recommendations.to_dict()
+
+            # User didn't select a recommendation
+            if not selected_recommendation:
+                recommendations_message = "Please choose a recommendation"
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
 
         else:
             raise PreventUpdate

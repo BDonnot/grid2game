@@ -873,8 +873,8 @@ def setupLayout(viz_server):
                             html.Div(
                                 children=[
                                     dbc.Button(
-                                        "Show details",
-                                        id="show_recommendation_details_button",
+                                        "Simulate",
+                                        id="simulate-button",
                                         className="ml-auto",
                                         n_clicks=0
                                     ),
@@ -921,7 +921,7 @@ def setupLayout(viz_server):
                         children=[
                             dbc.Button(
                                 "Explore",
-                                id="show_details",
+                                id="expert_agent_button",
                                 className="ml-auto",
                                 n_clicks=0
                             )

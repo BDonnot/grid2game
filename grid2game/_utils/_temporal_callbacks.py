@@ -134,6 +134,8 @@ def add_callbacks(dash_app, viz_server):
                       [State("act_on_env_trigger_rt", "n_clicks"),
                        State("act_on_env_trigger_for", "n_clicks"),
                        State("act_on_env_call_selfloop", "value"),
+                       State("recommendations_container", "is_open"),
+                       State("selected_recommendation_store", "data"),
                       ]
                      )(viz_server.handle_act_on_env)
 
