@@ -14,6 +14,7 @@ pkgs = {
         "plotly",
         "dash",
         "dash_bootstrap_components>=1.0",
+        "dash-antd-components",
         "grid2op>=1.6.4",
         "imageio",
         "orjson",

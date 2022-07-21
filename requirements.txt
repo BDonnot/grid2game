@@ -1,8 +1,10 @@
 plotly
 dash
 dash_bootstrap_components
+dash-antd-components
 grid2op>=1.6.4
 imageio
 orjson
 lightsim2grid
 gunicorn
+pandas

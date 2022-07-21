@@ -8,7 +8,7 @@ It allows human and possibly an "assistant" (aka an "agent", for example develop
 ## Disclaimer
 This package is still in "early alpha" mode.
 
-Performances are not that great and some useful features are still missing. The layout is also relatively "ugly" 
+Performances are not that great and some useful features are still missing. The layout is also relatively "ugly"
 at the moment.
 
 
@@ -16,7 +16,7 @@ at the moment.
 To install the package, you need to install it from source:
 ```commandline
 python3 -m pip install git+https://github.com/BDonnot/grid2game.git
-``` 
+```
 
 An alternative is to clone the repository, and then install it from there:
 ```commandline
@@ -24,6 +24,12 @@ git clone https://github.com/BDonnot/grid2game.git
 cd grid2game
 python3 install -e .
 ```
+
+To enable Expert Assistance, you need to install ExpertOp4Grid from source:
+```commandline
+python3 -m pip install https://github.com/marota/ExpertOp4Grid.git
+```
+
 
 **IMPORTANT** In all cases, we highly recommend to perform these modifications inside a python virtual environment (for example using `conda create -n grid2game_env; conda activate grid2game_env` or `python -m virtualenv grid2game_env; source/grid2game_env/bin/activate`).
 
@@ -42,7 +48,7 @@ grid2game --dev --env_name educ_case14_storage --is_test
 - `--dev` specifies that the dash server will run in "dev" mode, we recommend you to use it
 - `--env_name educ_case14_storage` specifies that the application will run the `educ_case14_storage`
   environment
-- `--is_test` specifies that the grid2op environment will be built with `test=True` (so in this 
+- `--is_test` specifies that the grid2op environment will be built with `test=True` (so in this
   case `grid2op.make("educ_case14_storage", test=True))
 
 You can also add more parameters:
@@ -56,10 +62,10 @@ You can also add more parameters:
   assistant can be loaded after the interface is started.
 - `--assistant_seed SEED` allows you to specify the seed used by your agent (for reproductibility)
   Depending on how you agent is coded, this might not work. This only calls `your_agent.seed(SEED)`.
-- `--g2op_param ./g2op_params.json` set of parameters used to update the environment (this should be compatible 
+- `--g2op_param ./g2op_params.json` set of parameters used to update the environment (this should be compatible
   with `param.init_from_json` from grid2op)
 - `--g2op_config ./g2op_env_customization.py` how to configure the grid2op environment, this file should contain
-  a dictionnary named `env_config` and it will be used to initialize the grid2Op environment with : 
+  a dictionnary named `env_config` and it will be used to initialize the grid2Op environment with :
   `env.make(..., **env_config)`
 
 For example, a more complete command line would be:

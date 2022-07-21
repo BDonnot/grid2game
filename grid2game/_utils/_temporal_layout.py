@@ -37,7 +37,8 @@ def setupLayout(viz_server):
                             options=[
                                 {"value": el, "label": el}
                                 for el in viz_server.env.list_chronics()
-                            ]
+                            ],
+                            persistence=True,
                         )
                     ],
                     id="chronics_dropdown",
@@ -46,13 +47,17 @@ def setupLayout(viz_server):
                 id="chronics_selector",
                 style={"display": "flex", "minWidth": "20%", "marginRight": "10", "marginLeft": "10"}
             ),
-            html.Div([
-                        dcc.Input(id="set_seed",
-                                type="number",
-                                placeholder="Select a seed",
-                                ),
-                        ],
-                        id="seed_selector"),
+            html.Div(
+                [
+                    dcc.Input(
+                        id="set_seed",
+                        type="number",
+                        placeholder="Select a seed",
+                        persistence=True,
+                    ),
+                ],
+                id="seed_selector",
+            ),
             html.Div([
                 html.Div(
                     [
@@ -63,8 +68,9 @@ def setupLayout(viz_server):
                                 {"value": value, "label": label}
                                 for value, label in viz_server.env.list_modes()
                             ],
-                            # Default value
-                            value=viz_server.env.default_mode,
+                            value=viz_server.env.mode,
+                            # Persist user choice to tab switch or page reload
+                            persistence=True,
                         )
                     ],
                     id="mode_dropdown",
@@ -113,6 +119,12 @@ def setupLayout(viz_server):
                                    n_clicks=0,
                                    className="btn btn-primary",
                                   )
+    # Button for MODE_RECOMMAND and MODE_ASSISTANT
+    go_till_game_over_auto = html.Label("Go to End",
+                                   id="go_till_game_over_auto-button",
+                                   n_clicks=0,
+                                   className="btn btn-primary",
+                                  )
     # html display
     # see https://dash.plotly.com/dash-core-components/loading
     # [dcc.Loading(id="loading_go_fast_", type="circle", children=html.Div(id="loading_go_fast_output"))]
@@ -133,72 +145,87 @@ def setupLayout(viz_server):
 
     # TODO make that disapearing / appearing based on a button "show options" for example
     line_info_label = html.Label("Line unit:")
-    line_info = dcc.Dropdown(id='line-info-dropdown',
-                             options=[
-                                    {'label': 'Capacity', 'value': 'rho'},
-                                    {'label': 'A', 'value': 'a'},
-                                    {'label': 'MW', 'value': 'p'},
-                                    {'label': 'kV', 'value': 'v'},
-                                    {'label': 'MVAr', 'value': 'q'},
-                                    {'label': 'thermal limit', 'value': 'th_lim'},
-                                    {'label': 'cooldown', 'value': 'cooldown'},
-                                    {'label': '# step overflow', 'value': 'timestep_overflow'},
-                                    {'label': 'name', 'value': 'name'},
-                                    {'label': 'None', 'value': 'none'},
-                             ],
-                             value='none',
-                             clearable=False)
+    line_info = dcc.Dropdown(
+        id='line-info-dropdown',
+        options=[
+            {'label': 'Capacity', 'value': 'rho'},
+            {'label': 'A', 'value': 'a'},
+            {'label': 'MW', 'value': 'p'},
+            {'label': 'kV', 'value': 'v'},
+            {'label': 'MVAr', 'value': 'q'},
+            {'label': 'thermal limit', 'value': 'th_lim'},
+            {'label': 'cooldown', 'value': 'cooldown'},
+            {'label': '# step overflow', 'value': 'timestep_overflow'},
+            {'label': 'name', 'value': 'name'},
+            {'label': 'None', 'value': 'none'},
+        ],
+        value='none',
+        clearable=False,
+        persistence=True,
+    )
 
     line_side_label = html.Label("Line side:")
-    line_side = dcc.Dropdown(id='line-side-dropdown',
-                             options=[
-                                    {'label': 'Origin', 'value': 'or'},
-                                    {'label': 'Extremity', 'value': 'ex'},
-                                    {'label': 'Both', 'value': 'both'},
-                                    {'label': 'None', 'value': 'none'},
-                             ],
-                             value='or',
-                             clearable=False)
+    line_side = dcc.Dropdown(
+        id='line-side-dropdown',
+        options=[
+            {'label': 'Origin', 'value': 'or'},
+            {'label': 'Extremity', 'value': 'ex'},
+            {'label': 'Both', 'value': 'both'},
+            {'label': 'None', 'value': 'none'},
+        ],
+        value='or',
+        clearable=False,
+        persistence=True,
+    )
 
     load_info_label = html.Label("Load unit:")
-    load_info = dcc.Dropdown(id='load-info-dropdown',
-                             options=[
-                                    {'label': 'MW', 'value': 'p'},
-                                    {'label': 'kV', 'value': 'v'},
-                                    {'label': 'MVar', 'value': 'q'},
-                                    {'label': 'name', 'value': 'name'},
-                                    {'label': 'None', 'value': 'none'},
-                             ],
-                             value='none',
-                             clearable=False)
+    load_info = dcc.Dropdown(
+        id='load-info-dropdown',
+        options=[
+            {'label': 'MW', 'value': 'p'},
+            {'label': 'kV', 'value': 'v'},
+            {'label': 'MVar', 'value': 'q'},
+            {'label': 'name', 'value': 'name'},
+            {'label': 'None', 'value': 'none'},
+        ],
+        value='none',
+        clearable=False,
+        persistence=True,
+    )
     # load_info_div = html.Div(id="load-info", children=[load_info_label, load_info])
 
     gen_info_label = html.Label("Gen. unit:")
-    gen_info = dcc.Dropdown(id='gen-info-dropdown',
-                            options=[
-                                {'label': 'MW', 'value': 'p'},
-                                {'label': 'kV', 'value': 'v'},
-                                {'label': 'MVar', 'value': 'q'},
-                                {'label': 'name', 'value': 'name'},
-                                {'label': 'type', 'value': 'type'},
-                                {'label': 'ramp_down', 'value': 'ramp_down'},
-                                {'label': 'ramp_up', 'value': 'ramp_up'},
-                                {'label': 'target_dispatch', 'value': 'target_dispatch'},
-                                {'label': 'actual_dispatch', 'value': 'actual_dispatch'},
-                                {'label': 'None', 'value': 'none'},
-                            ],
-                            value='none',
-                            clearable=False)
+    gen_info = dcc.Dropdown(
+        id='gen-info-dropdown',
+        options=[
+            {'label': 'MW', 'value': 'p'},
+            {'label': 'kV', 'value': 'v'},
+            {'label': 'MVar', 'value': 'q'},
+            {'label': 'name', 'value': 'name'},
+            {'label': 'type', 'value': 'type'},
+            {'label': 'ramp_down', 'value': 'ramp_down'},
+            {'label': 'ramp_up', 'value': 'ramp_up'},
+            {'label': 'target_dispatch', 'value': 'target_dispatch'},
+            {'label': 'actual_dispatch', 'value': 'actual_dispatch'},
+            {'label': 'None', 'value': 'none'},
+        ],
+        value='none',
+        clearable=False,
+        persistence=True,
+    )
 
     stor_info_label = html.Label("Stor. unit:")
-    stor_info = dcc.Dropdown(id='stor-info-dropdown',
-                             options=[
-                                 {'label': 'MW', 'value': 'p'},
-                                 {'label': 'MWh', 'value': 'MWh'},
-                                 {'label': 'None', 'value': 'none'},
-                             ],
-                             value='none',
-                             clearable=False)
+    stor_info = dcc.Dropdown(
+        id='stor-info-dropdown',
+        options=[
+            {'label': 'MW', 'value': 'p'},
+            {'label': 'MWh', 'value': 'MWh'},
+            {'label': 'None', 'value': 'none'},
+        ],
+        value='none',
+        clearable=False,
+        persistence=True,
+    )
     button_css_class = "unit_buttons"
     style_button = {"minWidth": "15%"}
     lineinfo_col = html.Div(id="lineinfo-col",
@@ -238,104 +265,124 @@ def setupLayout(viz_server):
         save_txt = 'Where do you want to save the current experiment?'
         btn_assistant_save = "btn btn-primary"
 
-    select_assistant = html.Div(id='select_assistant_box',
-                                children=[html.Div(children=[dcc.Input(placeholder=assistant_txt,
-                                                                       id="select_assistant",
-                                                                       type="text",
-                                                                       style={
-                                                                        'width': '70%',
-                                                                        'lineHeight': '55px',
-                                                                        'verticalAlign': 'middle',
-                                                                             }
-                                                                       ),
-                                                             html.P(viz_server.format_path(viz_server.assistant_path),
-                                                                    id="current_assistant_path",
-                                                                    style={'width': '28%',
-                                                                           'textAlign': 'center',
-                                                                           'verticalAlign': 'middle',
-                                                                           "margin": "0",
-                                                                           }
-                                                                   ),
-                                                             dcc.Loading(id="loading_assistant",
-                                                                         type="default",
-                                                                         children=html.Div(id="loading_assistant_output")
-                                                                        )
-                                                            ],
-                                                   style={'borderWidth': '1px',
-                                                          'borderStyle': 'dashed',
-                                                          'borderRadius': '5px',
-                                                          'width': '100%',
-                                                          "display": "flex",
-                                                          "alignItems":"center",
-                                                          "paddingTop": "5px",
-                                                          "paddingBottom": "5px",
-                                                          "paddingLeft": "2px",
-                                                          "paddingRight": "2px"
-                                                         }
-                                                  ),
-                                          html.Label("load",
-                                                     id="load_assistant_button",
-                                                     n_clicks=0,
-                                                     className=btn_assistant_save,
-                                                     style={ 'width': '100%', }
-                                                    ),
-                                         ]
-                               )
+    select_assistant = html.Div(
+        id='select_assistant_box',
+        children=[
+            html.Div(
+                children=[
+                    dcc.Input(
+                        placeholder=assistant_txt,
+                        id="select_assistant",
+                        type="text",
+                        style={
+                            'width': '70%',
+                            'lineHeight': '55px',
+                            'verticalAlign': 'middle',
+                        },
+                        persistence=True,
+                    ),
+                    html.P(
+                        viz_server.format_path(viz_server.assistant_path),
+                        id="current_assistant_path",
+                        style={'width': '28%',
+                        'textAlign': 'center',
+                        'verticalAlign': 'middle',
+                        "margin": "0",
+                        }
+                    ),
+                    dcc.Loading(
+                        id="loading_assistant",
+                        type="default",
+                        children=html.Div(id="loading_assistant_output")
+                    )
+                ],
+                style={
+                    'borderWidth': '1px',
+                    'borderStyle': 'dashed',
+                    'borderRadius': '5px',
+                    'width': '100%',
+                    "display": "flex",
+                    "alignItems":"center",
+                    "paddingTop": "5px",
+                    "paddingBottom": "5px",
+                    "paddingLeft": "2px",
+                    "paddingRight": "2px"
+                }
+            ),
+            html.Label(
+                "load",
+                id="load_assistant_button",
+                n_clicks=0,
+                className=btn_assistant_save,
+                style={ 'width': '100%', }
+            ),
+        ]
+    )
 
-    save_experiment = html.Div(id='save_expe_box',
-                               children=[
-                                    html.Div(children=[
-                                        dcc.Input(placeholder=save_txt,
-                                                    id="save_expe",
-                                                    type="text",
-                                                    style={
-                                                        'width': '70%',
-                                                        'height': '55px',
-                                                        'lineHeight': '55px',
-                                                        'verticalAlign': 'middle',
-                                                        #  "margin-top": 5,
-                                                        #  "margin-left": 20
-                                                        }),
-                                            html.P(viz_server.format_path(viz_server.assistant_path),
-                                                id="current_save_path",
-                                                style={'width': '28%',
-                                                        'textAlign': 'center',
-                                                        'height': '55px',
-                                                        'verticalAlign': 'middle',
-                                                        "margin": "0",
-                                                        #   "margin-top": 20
-                                                        }
-                                                ),
-                                            dcc.Loading(id="loading_save",
-                                                        type="default",
-                                                        children=html.Div(id="loading_save_output")
-                                                    )
-                                                        ],
-                                                style={
-                                                'borderWidth': '1px',
-                                                'borderStyle': 'dashed',
-                                                'borderRadius': '5px',
-                                                'textAlign': 'center',
-                                                "display": "flex",
-                                                "alignItems":"center",
-                                                # "padding": "2px",
-                                                "paddingTop": "5px",
-                                                "paddingBottom": "5px",
-                                                "paddingLeft": "2px",
-                                                "paddingRight": "2px"
-                                                # 'margin': '10px'
-                                                    }
-                                            ),
-                                    html.Label("save",
-                                                id="save_expe_button",
-                                                n_clicks=0,
-                                                className=btn_assistant_save,
-                                                style={'height': '35px',
-                                                        'width': '100%',
-                                                        }
-                                                ),
-                                        ]
-                                )
+    save_experiment = html.Div(
+        id='save_expe_box',
+        children=[
+            html.Div(
+                children=[
+                    dcc.Input(
+                        placeholder=save_txt,
+                        id="save_expe",
+                        type="text",
+                        style={
+                            'width': '70%',
+                            'height': '55px',
+                            'lineHeight': '55px',
+                            'verticalAlign': 'middle',
+                            #  "margin-top": 5,
+                            #  "margin-left": 20
+                        },
+                        persistence=True,
+                    ),
+                    html.P(
+                        viz_server.format_path(viz_server.assistant_path),
+                        id="current_save_path",
+                        style={
+                            'width': '28%',
+                            'textAlign': 'center',
+                            'height': '55px',
+                            'verticalAlign': 'middle',
+                            "margin": "0",
+                            #   "margin-top": 20
+                        }
+                    ),
+                    dcc.Loading(
+                        id="loading_save",
+                        type="default",
+                        children=html.Div(id="loading_save_output")
+                    )
+                ],
+                style={
+                    'borderWidth': '1px',
+                    'borderStyle': 'dashed',
+                    'borderRadius': '5px',
+                    'textAlign': 'center',
+                    "display": "flex",
+                    "alignItems":"center",
+                    # "padding": "2px",
+                    "paddingTop": "5px",
+                    "paddingBottom": "5px",
+                    "paddingLeft": "2px",
+                    "paddingRight": "2px"
+                    # 'margin': '10px'
+                }
+            ),
+            html.Label(
+                "save",
+                id="save_expe_button",
+                n_clicks=0,
+                className=btn_assistant_save,
+                style={
+                    'height': '35px',
+                    'width': '100%',
+                }
+            ),
+        ]
+    )
 
     controls_manual_row = html.Div(id="control-manual-buttons",
                             # className="row",
@@ -357,7 +404,7 @@ def setupLayout(viz_server):
     controls_auto_row = html.Div(id="control-auto-buttons",
                             # className="row",
                             children=[
-                                go_till_game_over,
+                                go_till_game_over_auto,
                             ],
                             style={'justifyContent': 'space-between',
                                    "display": "flex"}
@@ -489,15 +536,18 @@ def setupLayout(viz_server):
 
     # ### Action widget
     current_action = html.Pre(id="current_action")
-    which_action_button = dcc.Dropdown(id='which_action_button',
-                                       options=[
-                                           {'label': 'do nothing', 'value': 'dn'},
-                                           {'label': 'previous', 'value': 'prev'},
-                                           {'label': 'assistant', 'value': 'assistant'},
-                                           {'label': 'manual', 'value': 'manual'},
-                                              ],
-                                       value='assistant',
-                                       clearable=False)
+    which_action_button = dcc.Dropdown(
+        id='which_action_button',
+        options=[
+            {'label': 'do nothing', 'value': 'dn'},
+            {'label': 'previous', 'value': 'prev'},
+            {'label': 'assistant', 'value': 'assistant'},
+            {'label': 'manual', 'value': 'manual'},
+        ],
+        value='assistant',
+        clearable=False,
+        persistence=True,
+    )
     action_css = "col-12 col-sm-12 col-md-12 col-lg-12 col-xl-5 " \
                     "order-first order-sm-first order-md-first order-xl-last"
     action_css = "six columns"
@@ -782,7 +832,9 @@ def setupLayout(viz_server):
                                     )
 
     # triggering the update of the figures
+    add_expert_recommendation = html.Label("", id="add_expert_recommendation",  n_clicks=0)
     check_issue = html.Label("", id="check_issue",  n_clicks=0)
+    show_more_issue = html.Label("", id="show_more_issue",  n_clicks=0)
     variant_tree_added = html.Label("", id="variant_tree_added",  n_clicks=0)
     act_on_env_trigger_rt = html.Label("", id="act_on_env_trigger_rt",  n_clicks=0)
     act_on_env_trigger_for = html.Label("",  id="act_on_env_trigger_for",  n_clicks=0)
@@ -815,7 +867,9 @@ def setupLayout(viz_server):
                                     trigger_rt_extra_info, trigger_for_extra_info,
                                     update_progress_bar_from_act, update_progress_bar_from_figs,
                                     check_issue,
+                                    show_more_issue,
                                     variant_tree_added,
+                                    add_expert_recommendation,
                                    ],
                                    id="hidden_buttons_for_callbacks",
                                    style={'display': 'none'})
@@ -920,9 +974,8 @@ def setupLayout(viz_server):
                     html.Div(
                         children=[
                             dbc.Button(
-                                "Explore",
+                                "Expert Assist",
                                 id="expert_agent_button",
-                                className="ml-auto",
                                 n_clicks=0
                             )
                         ],
@@ -948,23 +1001,13 @@ def setupLayout(viz_server):
         is_open=False,
         style={
             "paddingBottom": "20px"
-        }
+        },
     )
 
     loading_recommendations = dcc.Loading(
         id="loading_recommendations",
         type="default",
         children=html.Div(id="loading_recommendations_output"),
-    )
-
-    recommendations_store = dcc.Store(
-        id="recommendations_store"
-    )
-    selected_recommendation_store = dcc.Store(
-        id="selected_recommendation_store"
-    )
-    recommendations_added_to_variant_trees_store = dcc.Store(
-        id="recommendations_added_to_variant_trees_store"
     )
 
     # Final page
@@ -993,9 +1036,6 @@ def setupLayout(viz_server):
                             hidden_interactions,
                             timer_callbacks,
                             modal_issue,
-                            recommendations_store,
-                            selected_recommendation_store,
-                            recommendations_added_to_variant_trees_store,
                         ])
 
     return layout

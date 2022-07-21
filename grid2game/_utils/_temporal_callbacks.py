@@ -71,6 +71,7 @@ def add_callbacks(dash_app, viz_server):
                        Input("go-button", "n_clicks"),
                        Input("gofast-button", "n_clicks"),
                        Input("go_till_game_over-button", "n_clicks"),
+                       Input("go_till_game_over_auto-button", "n_clicks"),
                       ])(viz_server.display_click_data)
 
     # handle display of the action, if needed
@@ -114,6 +115,7 @@ def add_callbacks(dash_app, viz_server):
                        Output("go-button", "className"),
                        Output("gofast-button", "className"),
                        Output("go_till_game_over-button", "className"),
+                       Output("go_till_game_over_auto-button", "className"),
                        Output("is_computing_left", "style"),
                        Output("is_computing_right", "style"),
                        Output("change_graph_title", "n_clicks"),
@@ -127,6 +129,7 @@ def add_callbacks(dash_app, viz_server):
                        Input("go-button", "n_clicks"),
                        Input("gofast-button", "n_clicks"),
                        Input("go_till_game_over-button", "n_clicks"),
+                       Input("go_till_game_over_auto-button", "n_clicks"),
                        Input("untilgo_butt_call_act_on_env", "value"),
                        Input("selfloop_call_act_on_env", "value"),
                        Input("timer", "n_intervals"),
@@ -213,18 +216,22 @@ def add_callbacks(dash_app, viz_server):
     if viz_server._app_heroku is False:
         # this is deactivated on heroku at the moment !
         # load the assistant
-        dash_app.callback([Output("current_assistant_path", "children"),
-                           Output("clear_assistant_path", "n_clicks"),
-                           Output("loading_assistant_output", "children"),
-                          ],
-                          [Input("load_assistant_button", "n_clicks")
-                          ],
-                          [State("select_assistant", "value")]
-                         )(viz_server.load_assistant)
+        dash_app.callback(
+            [
+                Output("current_assistant_path", "children"),
+                Output("clear_assistant_path", "n_clicks"),
+                Output("loading_assistant_output", "children"),
+            ],
+            [Input("load_assistant_button", "n_clicks")],
+            [State("select_assistant", "value")],
+            prevent_initial_call=True,
+        )(viz_server.load_assistant)
 
-        dash_app.callback([Output("select_assistant", "value")],
-                          [Input("clear_assistant_path", "n_clicks")]
-                         )(viz_server.clear_loading)
+        dash_app.callback(
+            [Output("select_assistant", "value")],
+            [Input("clear_assistant_path", "n_clicks")],
+            prevent_initial_call=True,
+        )(viz_server.clear_loading)
 
         # save the current experiment
         dash_app.callback([Output("current_save_path", "children"),
@@ -275,7 +282,8 @@ def add_callbacks(dash_app, viz_server):
         ],
         [
             State("modal_issue", "is_open"),
-        ]
+        ],
+        prevent_initial_call=True,
     )(viz_server.check_issue)
 
     # show the recommendations table
@@ -294,13 +302,16 @@ def add_callbacks(dash_app, viz_server):
             Input("add_to_variant_trees_button", "n_clicks"),
             Input("apply_recommendation_button", "n_clicks"),
             Input("integrate_manual_action", "n_clicks"),
+            Input("add_to_knowledge_base_button", "n_clicks"),
+            Input("add_expert_recommendation", "n_clicks"),
         ],
         [
             State("recommendations_container", "is_open"),
             State("recommendations_store", "data"),
             State("selected_recommendation_store", "data"),
             State("recommendations_added_to_variant_trees_store", "data"),
-        ]
+        ],
+        # prevent_initial_call=True,
     )(viz_server.handle_recommendations)
 
     dash_app.callback(
@@ -310,20 +321,9 @@ def add_callbacks(dash_app, viz_server):
         [
             Input("show_more_issue", "n_clicks"),
             Input("integrate_manual_action", "n_clicks"),
-        ]
+        ],
+        # prevent_initial_call=True,
     )(viz_server.loading_recommendations_table)
-
-    # dash_app.callback(
-    #     [
-    #         Output("recommendations_message", "children"),
-    #     ],
-    #     [
-    #         Input("apply_recommendation_button", "n_clicks"),
-    #     ],
-    #     [
-    #         State("selected_recommendation_store", "data"),
-    #     ],
-    # )(viz_server.apply_recommendation)
 
     dash_app.callback(
         [
@@ -335,6 +335,7 @@ def add_callbacks(dash_app, viz_server):
         [
             State("recommendations_store", "data"),
         ],
+        prevent_initial_call=True,
     )(viz_server.select_recommendation)
 
     # dropdown mode
@@ -349,5 +350,16 @@ def add_callbacks(dash_app, viz_server):
         [
             State("controls_manual_collapse", "is_open"),
             State("controls_auto_collapse", "is_open"),
-        ]
+        ],
     )(viz_server.dropdown_mode)
+
+    dash_app.callback(
+        [
+            dash.dependencies.Output('tabs-main-view', 'value'),
+        ],
+        [
+            dash.dependencies.Input('expert_agent_button', 'n_clicks'),
+            dash.dependencies.Input('add_expert_recommendation', 'n_clicks'),
+        ],
+        prevent_initial_call=True,
+    )(viz_server.open_tab)

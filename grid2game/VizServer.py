@@ -11,6 +11,8 @@ import sys
 import time
 import pandas as pd
 import copy
+import warnings
+import numpy as np
 
 
 import dash
@@ -29,6 +31,18 @@ from grid2game._utils import (add_callbacks_temporal,
 from grid2game.envs import Env
 from grid2game.plot import PlotGrids, PlotTemporalSeries
 
+try:
+    from grid2game.expert.ExpertAssist import Assist
+except (ImportError, ModuleNotFoundError) as e:
+    print("Cannot load assistant")
+    print(e)
+    from grid2game.expert.BaseAssistant import EmptyAssist as Assist
+
+    warnings.warn(
+        "ExpertOp4Grid is not installed and the assist feature will not be available."
+        " To use the Assist feature, you can install ExpertOp4Grid by "
+        "\n\t{} -m pip install ExpertOp4Grid\n".format(sys.executable)
+    )
 
 class VizServer:
     SELF_LOOP_STOP = 0
@@ -220,15 +234,29 @@ class VizServer:
                                                  value='tab-explore-action',
                                                  children=self._layout_action_search)
 
-        tmp_ = setupLayout(self,
-                           self._layout_temporal_tab,
-                           self._layout_action_search_tab)
+        # This layout has neither "choose or assist" nor the graph
+        self.expert_assistant = Assist(env=self.env)
+        self._layout_expert_assist = self.expert_assistant.layout()
+        self._layout_expert_assist_tab = dcc.Tab(
+            label='Expert Assist',
+            value='tab-expert-assist',
+            children=self._layout_expert_assist
+        )
+
+        tmp_ = setupLayout(
+            self,
+            self._layout_temporal_tab,
+            self._layout_action_search_tab,
+            self._layout_expert_assist_tab,
+        )
 
         self.my_app.layout = tmp_
 
+        self.expert_assistant.register_callbacks(self.my_app)
         add_callbacks_temporal(self.my_app, self)
         add_callbacks_action_search(self.my_app, self)
         add_callbacks(self.my_app, self)
+
 
         self.logger.info("Viz server initialized")
 
@@ -239,6 +267,8 @@ class VizServer:
         self._last_action = "assistant"
         self._do_display_action = True
         self._dropdown_value = "assistant"
+
+        self._open_tab = 0
 
 
     def _make_glop_env_config(self, build_args):
@@ -327,6 +357,7 @@ class VizServer:
         go_butt,
         gofast_clicks,
         until_game_over,
+        until_game_over_auto,
         untilgo_butt,
         self_loop,
         timer,
@@ -378,7 +409,7 @@ class VizServer:
             self.need_update_figures = False
             self._check_issue += 1
             check_issue = self._check_issue
-        elif button_id == "go_till_game_over-button":
+        elif button_id in ["go_till_game_over-button", "go_till_game_over_auto-button"]:
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
@@ -482,6 +513,7 @@ class VizServer:
                 self._button_shape,
                 self._go_button_shape,
                 self._gofast_button_shape,
+                self._go_till_go_button_shape,
                 self._go_till_go_button_shape,
                 i_am_computing_state,
                 i_am_computing_state,
@@ -895,14 +927,17 @@ class VizServer:
         sub_res = self.plot_grids.update_sub_figure(self.env._current_action, self._last_sub_id)
         return [sub_res[-1]]
 
-    def display_click_data(self,
-                           clickData,
-                           back_clicked,
-                           step_clicked,
-                           simulate_clicked,
-                           go_clicked,
-                           gofast_clicked,
-                           until_gameover):
+    def display_click_data(
+        self,
+        clickData,
+        back_clicked,
+        step_clicked,
+        simulate_clicked,
+        go_clicked,
+        gofast_clicked,
+        until_gameover,
+        until_gameover_auto,
+    ):
         """display the interaction window when the real time graph is clicked on"""
         do_display_action = 0
         gen_redisp_curtail = ""
@@ -1109,12 +1144,17 @@ class VizServer:
     def tab_content_display(self, tab):
         res = [self._layout_temporal]
 
+        self.logger.debug(f"tab_content_display: tab={tab}")
+
         if tab == 'tab-temporal-view':
             self.need_update_figures = True
             return [self._layout_temporal]
         elif tab == 'tab-explore-action':
             self.need_update_figures = True
             return [self._layout_action_search]
+        elif tab == 'tab-expert-assist':
+            self.need_update_figures = True
+            return [self._layout_expert_assist]
         else:
             msg_ = f"Unknown tab {tab}"
             self.logger.error(msg_)
@@ -1268,6 +1308,7 @@ class VizServer:
             data=recommendations.to_dict("records"),
             style_table={"overflowX": "auto"},
             row_selectable="single",
+            sort_action="native",
             style_cell={
                 "overflow": "hidden",
                 "textOverflow": "ellipsis",
@@ -1316,6 +1357,8 @@ class VizServer:
         n_add_to_variants,
         n_apply,
         n_integrate_manual_action,
+        n_add_to_knowledge_base_button,
+        n_add_expert_recommendation,
         # recommendation container
         is_open,
         # stores
@@ -1324,7 +1367,11 @@ class VizServer:
         recommendations_added_to_variant_trees,
     ):
         button_id = ctx.triggered_id
+
         self.logger.debug(f"handle_recommendations: triggered_id = {button_id}")
+
+        if self.env.expert_selected_action:
+            button_id = "add_expert_recommendation"
 
         if not button_id:
             raise PreventUpdate
@@ -1414,7 +1461,7 @@ class VizServer:
                     recommendations_added_to_variant_trees, variant_tree_added
                 ]
 
-            # Add selection to added recommandations
+            # Add selection to added recommendations
             recommendations_added_to_variant_trees.append(selected_recommendation)
             # Replace current env_tree by variant tree
             # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree,
@@ -1474,9 +1521,9 @@ class VizServer:
         elif button_id == "integrate_manual_action":
             recommendations_added_to_variant_trees = dash.no_update
 
-            # Add only if the recommandations are open
+            # Add only if the recommendations are open
             if not is_open:
-                self.logger.error("Recommandations aren't open !")
+                self.logger.error("Recommendations aren't open !")
 
             agent_name = "Human"
             agent_action = self.env.current_action
@@ -1491,16 +1538,36 @@ class VizServer:
             recommendations_container_open = True
             recommendations_store = recommendations.to_dict()
 
-            # User didn't select a recommendation
-            if not selected_recommendation:
-                recommendations_message = "Please choose a recommendation"
-                recommendations_added_to_variant_trees = dash.no_update
-                return [
-                    recommendations_div, recommendations_container_open,
-                    recommendations_store, recommendations_message,
-                    recommendations_added_to_variant_trees, variant_tree_added
-                ]
+        elif button_id == "add_to_knowledge_base_button":
+            recommendations_store = dash.no_update
+            recommendations_added_to_variant_trees = dash.no_update
 
+            recommendations_message = "Not implemented"
+            return [
+                recommendations_div, recommendations_container_open,
+                recommendations_store, recommendations_message,
+                recommendations_added_to_variant_trees, variant_tree_added
+            ]
+
+        elif button_id == "add_expert_recommendation":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            agent_name = "Expert"
+            # Get action from expert tab
+            agent_action = self.env.expert_selected_action
+
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
+            )
+
+            recommendations_div = self.fill_recommendations_table(recommendations)
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
+
+            # reset expert_selected_action
+            self.env.expert_selected_action = None
 
         else:
             raise PreventUpdate
@@ -1514,10 +1581,14 @@ class VizServer:
             variant_tree_added,
         ]
 
-    def loading_recommendations_table(self, n_show_more, n_integrate_manual_action):
+    def loading_recommendations_table(
+        self,
+        n_show_more,
+        n_integrate_manual_action,
+    ):
         button_id = ctx.triggered_id
 
-        if not button_id:
+        if not button_id and not self.env.expert_selected_action:
             raise PreventUpdate
 
         time.sleep(0.1)
@@ -1537,7 +1608,15 @@ class VizServer:
         selected_recommendation = recommendations.iloc[selected_recommendation_index]
         return [selected_recommendation.to_dict()]
 
-    def dropdown_mode(self, mode, manual_is_open, auto_is_open):
+    def dropdown_mode(
+        self,
+        mode,
+        manual_is_open,
+        auto_is_open,
+    ):
+
+        button_id = ctx.triggered_id
+        self.logger.debug(f"dropdown_mode: triggered_id = {button_id} mode = {mode}")
 
         self.env.mode = mode
 
@@ -1550,3 +1629,17 @@ class VizServer:
             auto_is_open = True
 
         return [manual_is_open, auto_is_open]
+
+    def open_tab(self, explore_click, add_expert_recommendation_click):
+        button_id = ctx.triggered_id
+
+        self.logger.debug(f"open_tab: triggered_id = {button_id} open_tab = {explore_click} close_tab = {add_expert_recommendation_click}")
+
+        if not button_id:
+            return ['tab-temporal-view']
+        elif button_id == "expert_agent_button" and explore_click:
+            return ['tab-expert-assist']
+        elif button_id == "add_expert_recommendation" and add_expert_recommendation_click:
+            return ['tab-temporal-view']
+        else:
+            return [dash.no_update]

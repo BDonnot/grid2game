@@ -146,3 +146,6 @@ g2op_env_customization.py
 g2op_params.json
 **/~$*.pptx
 assistant_test/
+
+# outputs of ExpertOp4Grid
+*.csv

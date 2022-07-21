@@ -93,6 +93,9 @@ class Env(ComputeWrapper):
         self._assistant_seed = assistant_seed
         self.load_assistant(assistant_path)
 
+        # expert operator
+        self.expert_selected_action = None
+
         self.init_state()
 
         # to control which action will be done when
@@ -102,8 +105,8 @@ class Env(ComputeWrapper):
         # actions to explore
         self.all_topo_actions = None
 
-        self.default_mode = self.MODE_LEGACY
-        self.mode = self.default_mode
+        # Default mode
+        self.mode = self.MODE_LEGACY
 
     def is_assistant_illegal(self):
         if "is_illegal" in self._sim_info:
