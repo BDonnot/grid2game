@@ -9,21 +9,40 @@
 import os
 import sys
 import time
+import pandas as pd
+import copy
+import warnings
+import numpy as np
+
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import html, dcc
+from dash import html, dcc, ctx
+from dash.dash_table import DataTable
+from dash.exceptions import PreventUpdate
 
-from grid2game._utils import (add_callbacks_temporal, 
-                              setupLayout_temporal, 
-                              add_callbacks, 
+from grid2game._utils import (add_callbacks_temporal,
+                              setupLayout_temporal,
+                              add_callbacks,
                               setupLayout,
-                              add_callbacks_action_search, 
-                              setupLayout_action_search, 
+                              add_callbacks_action_search,
+                              setupLayout_action_search,
                               )
 from grid2game.envs import Env
 from grid2game.plot import PlotGrids, PlotTemporalSeries
 
+try:
+    from grid2game.expert.ExpertAssist import Assist
+except (ImportError, ModuleNotFoundError) as e:
+    print("Cannot load assistant")
+    print(e)
+    from grid2game.expert.BaseAssistant import EmptyAssist as Assist
+
+    warnings.warn(
+        "ExpertOp4Grid is not installed and the assist feature will not be available."
+        " To use the Assist feature, you can install ExpertOp4Grid by "
+        "\n\t{} -m pip install ExpertOp4Grid\n".format(sys.executable)
+    )
 
 class VizServer:
     SELF_LOOP_STOP = 0
@@ -82,6 +101,20 @@ class VizServer:
             os.path.join(os.path.dirname(__file__), "assets")
         )
 
+        # create the dash app
+        self.my_app = dash.Dash(__name__,
+                                server=server if server is not None else True,
+                                meta_tags=meta_tags,
+                                assets_folder=assets_dir,
+                                external_stylesheets=external_stylesheets,
+                                external_scripts=external_scripts)
+
+        # Configure logging after dash initialization.
+        # Otherwise dash is resetting logging level to INFO
+
+        if not logging_level and build_args.logging_level:
+            logging_level = build_args.logging_level
+
         if logger is None:
             import logging
             self.logger = logging.getLogger(__name__)
@@ -94,19 +127,14 @@ class VizServer:
             if logging_level is not None:
                 fh.setLevel(logging_level)
                 ch.setLevel(logging_level)
+                self.logger.setLevel(logging_level)
             self.logger.addHandler(fh)
             self.logger.addHandler(ch)
         else:
             self.logger = logger.getChild("VizServer")
 
-        # create the dash app
-        self.my_app = dash.Dash(__name__,
-                                server=server if server is not None else True,
-                                meta_tags=meta_tags,
-                                assets_folder=assets_dir,
-                                external_stylesheets=external_stylesheets,
-                                external_scripts=external_scripts)
         self.logger.info("Dash app initialized")
+
         # self.app.config.suppress_callback_exceptions = True
 
         # create the grid2op related things
@@ -187,39 +215,61 @@ class VizServer:
         self.plot_grids.init_figs(self.env.obs, self.env.sim_obs)
         self.real_time = self.plot_grids.figure_rt
         self.forecast = self.plot_grids.figure_forecat
-        
+
+        # Variant trees
+        self.variant_env_trees = []
+        self._variant_tree_added = 0
+        self._check_issue = 0
+
         # initialize the layout
         self._layout_temporal = html.Div(setupLayout_temporal(self),
                                          id="all_temporal")
         self._layout_temporal_tab = dcc.Tab(label='Temporal view',
                                             value=f'tab-temporal-view',
                                             children=self._layout_temporal)
-        
+
         self._layout_action_search = html.Div(setupLayout_action_search(self),
                                               id="all_action_search")
         self._layout_action_search_tab = dcc.Tab(label='Explore actions',
                                                  value='tab-explore-action',
                                                  children=self._layout_action_search)
-        
-        tmp_ = setupLayout(self,
-                           self._layout_temporal_tab,
-                           self._layout_action_search_tab)
-        
+
+        # This layout has neither "choose or assist" nor the graph
+        self.expert_assistant = Assist(env=self.env)
+        self._layout_expert_assist = self.expert_assistant.layout()
+        self._layout_expert_assist_tab = dcc.Tab(
+            label='Expert Assist',
+            value='tab-expert-assist',
+            children=self._layout_expert_assist
+        )
+
+        tmp_ = setupLayout(
+            self,
+            self._layout_temporal_tab,
+            self._layout_action_search_tab,
+            self._layout_expert_assist_tab,
+        )
+
         self.my_app.layout = tmp_
-        
+
+        self.expert_assistant.register_callbacks(self.my_app)
         add_callbacks_temporal(self.my_app, self)
         add_callbacks_action_search(self.my_app, self)
         add_callbacks(self.my_app, self)
-        
+
+
         self.logger.info("Viz server initialized")
 
         # last node id (to not plot twice the same stuff to gain time)
         self._last_node_id = -1
 
         # last action taken
-        self._last_action = "assistant"      
+        self._last_action = "assistant"
         self._do_display_action = True
         self._dropdown_value = "assistant"
+
+        self._open_tab = 0
+
 
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
@@ -254,11 +304,11 @@ class VizServer:
 
     def change_nb_step_go_fast(self, nb_step_go_fast):
         if nb_step_go_fast is None:
-            return dash.no_update, 
+            return dash.no_update,
 
         nb = int(nb_step_go_fast)
         self.nb_step_gofast = nb
-        return f"+ {self.nb_step_gofast}", 
+        return f"+ {self.nb_step_gofast}",
 
     def unit_clicked(self, line_unit, line_side, load_unit, gen_unit, stor_unit,
                      trigger_rt_graph, trigger_for_graph):
@@ -296,22 +346,27 @@ class VizServer:
     def _reset_action_to_assistant_if_not_prev(self):
         if self._last_action != "prev" :
             self._next_action_is_assistant()
-            
+
     # handle the interaction with the grid2op environment
-    def handle_act_on_env(self,
-                          step_butt,
-                          simulate_butt,
-                          back_butt,
-                          reset_butt,
-                          go_butt,
-                          gofast_clicks,
-                          until_game_over,
-                          untilgo_butt,
-                          self_loop,
-                          state_trigger_rt,
-                          state_trigger_for,
-                          state_trigger_self_loop,
-                          timer):
+    def handle_act_on_env(
+        self,
+        step_butt,
+        simulate_butt,
+        back_butt,
+        reset_butt,
+        go_butt,
+        gofast_clicks,
+        until_game_over,
+        until_game_over_auto,
+        untilgo_butt,
+        self_loop,
+        timer,
+        state_trigger_rt,
+        state_trigger_for,
+        state_trigger_self_loop,
+        recommendations_container_is_open,
+        selected_recommendation,
+    ):
         """
         dash do not make "synch" callbacks (two callbacks can be called at the same time),
         however, grid2op environments are not "thread safe": accessing them from different "thread"
@@ -329,7 +384,7 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -344,6 +399,7 @@ class VizServer:
         self._go_till_go_button_shape = "btn btn-secondary"
         change_graph_title = dash.no_update
         update_progress_bar = 1
+        check_issue = dash.no_update
 
         # now register the next computation to do, based on the button triggerd
         if button_id == "step-button":
@@ -351,11 +407,15 @@ class VizServer:
             self.env.next_computation = "step"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
-        elif button_id == "go_till_game_over-button":
+            self._check_issue += 1
+            check_issue = self._check_issue
+        elif button_id in ["go_till_game_over-button", "go_till_game_over_auto-button"]:
             self.env.start_computation()
             self.env.next_computation = "step_end"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = True
+            self._check_issue += 1
+            check_issue = self._check_issue
         elif button_id == "reset-button":
             self.env.start_computation()
             self.env.next_computation = "reset"
@@ -368,6 +428,13 @@ class VizServer:
             self.env.next_computation = "simulate"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
+
+            if self.env.mode != self.env.MODE_LEGACY:
+                if recommendations_container_is_open:
+                    selected_agent_name = self.get_selected_agent_name(selected_recommendation)
+                    selected_action = self.get_variant_action(selected_agent_name)
+                    self.logger.debug(f"Simulate selected action from agent {selected_agent_name}: {selected_action}")
+                    self.env._current_action = selected_action
         elif button_id == "back-button":
             self.env.start_computation()
             self.env.next_computation = "back"
@@ -378,6 +445,8 @@ class VizServer:
             self.env.start_computation()
             self.env.next_computation = "step_rec_fast"
             self.env.next_computation_kwargs = {"nb_step_gofast": self.nb_step_gofast}
+            self._check_issue += 1
+            check_issue = self._check_issue
         elif button_id == "go-button":
             self.go_clicks += 1
             if self.go_clicks % 2:
@@ -390,6 +459,8 @@ class VizServer:
                 self.env.start_computation()
                 self._button_shape = "btn btn-secondary"
                 self._gofast_button_shape = "btn btn-secondary"
+                self._check_issue += 1
+                check_issue = self._check_issue
             self.env.next_computation = "step_rec"
             self.env.next_computation_kwargs = {}
             self.need_update_figures = False
@@ -434,7 +505,7 @@ class VizServer:
             self._go_till_go_button_shape = "btn btn-secondary"
             self._gofast_button_shape = "btn btn-secondary"
             self._button_shape = "btn btn-secondary"
-            
+
         return [display_new_state,
                 self._button_shape,
                 self._button_shape,
@@ -443,10 +514,12 @@ class VizServer:
                 self._go_button_shape,
                 self._gofast_button_shape,
                 self._go_till_go_button_shape,
+                self._go_till_go_button_shape,
                 i_am_computing_state,
                 i_am_computing_state,
                 change_graph_title,
-                update_progress_bar]
+                update_progress_bar,
+                check_issue]
 
     def _wait_for_computing_over(self):
         i = 0
@@ -456,7 +529,41 @@ class VizServer:
             if i >= 20:
                 # in this case, the environment has not finished running for 2s, I stop here
                 # in this case the user should probably call reset another time !
-                raise dash.exceptions.PreventUpdate
+                raise PreventUpdate
+
+    def check_issue(
+        self,
+        n_check_issue,
+        n_show_more,
+        is_open
+    ):
+        button_id = ctx.triggered_id
+        self.logger.debug(f"check_issue: triggered_id = {button_id}")
+
+        if not button_id:
+            raise PreventUpdate
+        # Close modal when clicking on Show more
+        if button_id == "show_more_issue":
+            return [False, ""]
+        # make sure the environment has nothing to compute
+        while self.env.needs_compute():
+            time.sleep(0.1)
+
+        issues = self.env._current_issues
+        if button_id == "check_issue" and issues and not is_open:
+            len_issues = len(issues)
+            if len_issues == 1:
+                issue_text = f"There is {len_issues} issue: "
+            else:
+                issue_text = f"There are {len_issues} issues: "
+            for issue in issues:
+                issue_text += f"{issue}, "
+            # Replace last ', ' by '.' to end the sentence
+            issue_text = '.'.join(issue_text.rsplit(', ', 1))
+            return [True, issue_text]
+        else:
+            raise PreventUpdate
+
 
     def change_graph_title(self, change_graph_title):
         # make sure that the environment has done computing
@@ -479,28 +586,39 @@ class VizServer:
             self.seed = int(seed)
         return [1]
 
-    def computation_wrapper(self, display_new_state, recompute_rt_from_timeline):
-        # simulate a "state" of the application that depends on the computation
-        if not self.env.is_computing():
-            self.env.heavy_compute()
-        
-        if self.env.is_computing() and display_new_state != type(self).GO_MODE:
-            # environment is computing I do not update anything
-            raise dash.exceptions.PreventUpdate
+    def computation_wrapper(
+        self,
+        display_new_state,
+        recompute_rt_from_timeline,
+        variant_tree_added,
+    ):
+        button_id = ctx.triggered_id
 
-        if display_new_state == 1 or display_new_state == type(self).GO_MODE:
+        if button_id == "variant_tree_added":
             trigger_rt = 1
-            trigger_for = 1
-
-            # update the state only if needed
-            if self.env.get_current_node_id() == self._last_node_id:
-                # the state did not change, i do not update anything
-                raise dash.exceptions.PreventUpdate
-            else:
-                self._last_node_id = self.env.get_current_node_id()
-        else:
-            trigger_rt = dash.no_update
             trigger_for = dash.no_update
+        else:
+            # simulate a "state" of the application that depends on the computation
+            if not self.env.is_computing():
+                self.env.heavy_compute()
+
+            if self.env.is_computing() and display_new_state != type(self).GO_MODE:
+                # environment is computing I do not update anything
+                raise PreventUpdate
+
+            if display_new_state == 1 or display_new_state == type(self).GO_MODE:
+                trigger_rt = 1
+                trigger_for = 1
+
+                # update the state only if needed
+                if self.env.get_current_node_id() == self._last_node_id:
+                    # the state did not change, i do not update anything
+                    raise PreventUpdate
+                else:
+                    self._last_node_id = self.env.get_current_node_id()
+            else:
+                trigger_rt = dash.no_update
+                trigger_for = dash.no_update
         return [trigger_rt, trigger_for]
 
     # handle the layout
@@ -512,8 +630,8 @@ class VizServer:
             trigger_rt_graph = 1
             trigger_for_graph = 1
         else:
-            raise dash.exceptions.PreventUpdate
-        
+            raise PreventUpdate
+
         if trigger_rt_graph == 1:
             self.fig_timeline = self.env.get_timeline_figure()
 
@@ -527,7 +645,7 @@ class VizServer:
     def update_progress_bar(self, from_act, from_figs):
         """update the progress bar"""
         # if from_act is None and from_figs is None:
-            # raise dash.exceptions.PreventUpdate
+            # raise PreventUpdate
         if self.env.env_tree.current_node is None:
             # A reset has just been called and the grid2op env is not reset yet
             self._progress_color = "primary"
@@ -573,13 +691,13 @@ class VizServer:
             self.plot_grids.update_forecat(self.env.sim_obs, self.env)
             self.for_datetime = f"{self.env.sim_obs.get_time_stamp():%Y-%m-%d %H:%M}"
         else:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [trigger_for_graph]
 
     def show_temporal_graphs(self, show_temporal_graph):
         """handles the action that displays (or not) the time series graphs"""
         if (show_temporal_graph is None or show_temporal_graph.empty()):
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [1]
 
     # define the style of the temporal graph, whether is how it or not
@@ -595,7 +713,7 @@ class VizServer:
     def update_temporal_figs(self, figrt_trigger, showhide_trigger):
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (showhide_trigger is None or showhide_trigger == 0):
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self.fig_load_gen, self.fig_line_cap = self.plot_temporal.update_trace(self.env, self.env.env_tree)
         return [self.fig_load_gen, self.fig_line_cap]
 
@@ -603,7 +721,7 @@ class VizServer:
         if (figrt_trigger is None or figrt_trigger == 0) and \
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self._wait_for_computing_over()
         if self.env.env_tree.current_node.prev_action_is_illegal:
             is_illegal = 1
@@ -620,7 +738,7 @@ class VizServer:
                 (figfor_trigger is None or figfor_trigger == 0) and \
                 (unit_trigger is None or unit_trigger == 0):
             # nothing really triggered this call
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self._wait_for_computing_over()
         if self.env.is_assistant_illegal():
             is_illegal = 1
@@ -661,7 +779,7 @@ class VizServer:
         self._last_action = "assistant"
         self._do_display_action = True
         self._dropdown_value = "assistant"
-                
+
     def display_action_fun(self,
                            which_action_button,
                            do_display,
@@ -670,19 +788,28 @@ class VizServer:
                            redisp,
                            stor_id, storage_p,
                            line_id, line_status,
-                           sub_id, clicked_sub_fig):
+                           sub_id, clicked_sub_fig,
+                           clicked_real_fig,
+                           recommendations_is_open):
         """
         modify the action taken based on the inputs,
         then displays the action (as text)
         """
         # TODO handle better the action (this is ugly to access self.env._current_action from here)
 
+        style_action_buttons = dash.no_update
+
         ctx = dash.callback_context
         dropdown_value = self._last_action
         update_substation_layout_clicked_from_sub = 0
         if not ctx.triggered:
             # no click have been made yet
-            return [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            return [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -693,26 +820,54 @@ class VizServer:
                 self._last_action = "dn"
                 self._do_display_action = False
                 self._dropdown_value = "dn"
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "assistant":
                 self._next_action_is_assistant()
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "prev":
                 self.env.next_action_is_previous()
                 self._last_action = "prev"
                 self._do_display_action = False
                 self._dropdown_value = "prev"
+                style_action_buttons = {'display': 'none', "width": "70%"}
             elif which_action_button == "manual":
                 self._next_action_is_manual()
+                if self.env.mode != self.env.MODE_LEGACY and recommendations_is_open:
+                    # Show the buttons only not in legacy mode, and if the
+                    # recommendations table is open
+                    style_action_buttons = {'display': 'flex', "width": "70%"}
             else:
                 # nothing is done
                 pass
-            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            res = [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
             return res
+
+        if button_id == "real-time-graph":
+            if self.env.mode != self.env.MODE_LEGACY and recommendations_is_open:
+                style_action_buttons = {'display': 'flex', "width": "70%"}
+                return [
+                    dash.no_update,
+                    dash.no_update,
+                    dash.no_update,
+                    style_action_buttons
+                ]
+
 
         if not self._do_display_action:
             # i should not display the action
-            res = [f"{self.env.current_action}", dropdown_value, update_substation_layout_clicked_from_sub]
+            res = [
+                f"{self.env.current_action}",
+                dropdown_value,
+                update_substation_layout_clicked_from_sub,
+                style_action_buttons
+            ]
             return res
-        
+
         # i need to display the action
         # self._last_action = "manual"
         # dropdown_value = "manual"
@@ -747,34 +902,42 @@ class VizServer:
                     self.env._current_action.set_bus = [(obj_id, new_bus)]
 
         if not is_modif:
-            raise dash.exceptions.PreventUpdate
-        
+            raise PreventUpdate
+
         # TODO optim here to save that if not needed because nothing has changed
-        res = [f"{self.env.current_action}", self._dropdown_value, update_substation_layout_clicked_from_sub]
+        res = [
+            f"{self.env.current_action}",
+            self._dropdown_value,
+            update_substation_layout_clicked_from_sub,
+            style_action_buttons
+        ]
         return res
 
     def display_grid_substation(self, update_substation_layout_clicked_from_sub, update_substation_layout_clicked_from_grid):
         """update the figure of the substation (when zoomed in)"""
         if update_substation_layout_clicked_from_sub != 1 and update_substation_layout_clicked_from_grid != 1:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         if update_substation_layout_clicked_from_sub is None and update_substation_layout_clicked_from_grid is None:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         # update "in real time" the topology of the substation (https://github.com/BDonnot/grid2game/issues/36)
         if self._last_sub_id is None:
             self.logger.error("display_click_data: Unable to update the substatin plot: no know last substation id")
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         sub_res = self.plot_grids.update_sub_figure(self.env._current_action, self._last_sub_id)
         return [sub_res[-1]]
 
-    def display_click_data(self,
-                           clickData,
-                           back_clicked,
-                           step_clicked,
-                           simulate_clicked,
-                           go_clicked,
-                           gofast_clicked,
-                           until_gameover):
+    def display_click_data(
+        self,
+        clickData,
+        back_clicked,
+        step_clicked,
+        simulate_clicked,
+        go_clicked,
+        gofast_clicked,
+        until_gameover,
+        until_gameover_auto,
+    ):
         """display the interaction window when the real time graph is clicked on"""
         do_display_action = 0
         gen_redisp_curtail = ""
@@ -821,7 +984,7 @@ class VizServer:
                 button_id == "go-button" or button_id == "gofast-button" or\
                 button_id == "back-button":
             # i never clicked on simulate, step, go, gofast or back
-            do_display_action = 0 
+            do_display_action = 0
             self._last_sub_id = None
         else:
             # I clicked on the graph of the grid
@@ -852,7 +1015,7 @@ class VizServer:
                 self._last_sub_id = obj_id
                 update_substation_layout_clicked_from_grid = 1
             else:
-                raise dash.exceptions.PreventUpdate
+                raise PreventUpdate
             # self._next_action_is_manual()
         return [do_display_action,
                 style_gen_input, gen_redisp_curtail, gen_id_clicked, *gen_res,
@@ -874,7 +1037,7 @@ class VizServer:
         """loads an assistant and display the right things"""
         loader_state = ""
         if assistant_path is None:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         self.assistant_path = assistant_path.rstrip().lstrip()
         try:
             properly_loaded = self.env.load_assistant(self.assistant_path)
@@ -893,7 +1056,7 @@ class VizServer:
     def clear_loading(self, need_clearing):
         """once an assistant has been """
         if need_clearing == 0:
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         return [""]
 
     def save_expe(self, button, save_expe_path):
@@ -908,7 +1071,7 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         if self.env.is_computing():
             # cannot save while an experiment is running
@@ -968,11 +1131,11 @@ class VizServer:
     def timeline_set_time(self, time_line_graph_clicked):
         if self.env.is_computing():
             # nothing is updated if i am doing a computation
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         if time_line_graph_clicked is None:
             # I did no click on anything
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
 
         res = self.env.handle_click_timeline(time_line_graph_clicked)
         self.need_update_figures = True  # hack to have the progress bar properly recomputed
@@ -980,24 +1143,29 @@ class VizServer:
 
     def tab_content_display(self, tab):
         res = [self._layout_temporal]
-        
+
+        self.logger.debug(f"tab_content_display: tab={tab}")
+
         if tab == 'tab-temporal-view':
             self.need_update_figures = True
             return [self._layout_temporal]
         elif tab == 'tab-explore-action':
             self.need_update_figures = True
             return [self._layout_action_search]
+        elif tab == 'tab-expert-assist':
+            self.need_update_figures = True
+            return [self._layout_expert_assist]
         else:
             msg_ = f"Unknown tab {tab}"
             self.logger.error(msg_)
         return res
-    
+
     def _aux_tab_as_retrieve_updated_figs(self):
         progress_pct = 100. * self._last_step / self._last_max_step
         progress_label = f"{self._last_step} / {self._last_max_step}"
         self.fig_timeline = self.env.get_timeline_figure()
         self.update_obs_fig()
-        
+
         pbar_value = progress_pct
         pbar_label = progress_label
         pbar_color = self._progress_color
@@ -1006,7 +1174,7 @@ class VizServer:
         fig_rt = self.real_time
         return (pbar_value, pbar_label, pbar_color, fig_timeline,
                 dt_label, fig_rt)
-            
+
     def main_action_search(self,
                            refresh_button,
                            explore_butt_pressed,
@@ -1014,12 +1182,12 @@ class VizServer:
         ctx = dash.callback_context
         if not ctx.triggered:
             # no click have been made yet
-            raise dash.exceptions.PreventUpdate
+            raise PreventUpdate
         else:
             button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-        
+
         something_clicked = True
-        
+
         # TODO button color here too !
         i_am_computing_state = {'display': 'block'}
         pbar_value = dash.no_update
@@ -1029,25 +1197,25 @@ class VizServer:
         dt_label = dash.no_update
         fig_rt = dash.no_update
         start_computation = 1
-        
+
         if button_id == "refresh-button_as":
             # (pbar_value, pbar_label, pbar_color, fig_timeline,
             #     dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
             start_computation = dash.no_update
             # hack for it to resynch everything
             self.need_update_figures = True
-        elif button_id == "explore-button_as":        
+        elif button_id == "explore-button_as":
             self.env.next_computation = "explore"
             self.need_update_figures = True
             self.env.start_computation()
         else:
             something_clicked = False
-      
+
         if not self.env.needs_compute():
             # don't start the computation if not needed
             i_am_computing_state = {'display': 'none'}  # deactivate the "i am computing button"
             start_computation = dash.no_update  # I am NOT computing I DO update the graphs
-        
+
         if not self.env.needs_compute() and self.need_update_figures and not something_clicked:
             # in this case, this should be the last call to this function after the "explore"
             # function is finished
@@ -1058,7 +1226,7 @@ class VizServer:
 
             (pbar_value, pbar_label, pbar_color, fig_timeline,
                 dt_label, fig_rt) = self._aux_tab_as_retrieve_updated_figs()
-        
+
         return [start_computation,
                 pbar_value,
                 pbar_label,
@@ -1069,3 +1237,409 @@ class VizServer:
                 1,
                 i_am_computing_state,
                 i_am_computing_state]
+
+    def add_recommendation(
+        self,
+        recommendations_store,
+        agent_name,
+        agent_action,
+    ):
+        # Enable dash loading
+        self.env.start_recommendations_computation()
+
+        # TODO: Handle the tree in a better way:
+        # Do not copy the env_tree, but instead add attributes to the Node and TemporalNodeData
+        # of the variant_node to control their visibility in the timeline graph
+        variant_env_tree = copy.deepcopy(self.env.env_tree)
+
+        current_node = variant_env_tree.current_node
+        variant_node = copy.deepcopy(current_node)
+        current_node.father.add_son(agent_action, variant_node)
+
+        obs, reward, done, info = current_node.get_obs_rewar_done_info()
+        overloads = (obs.rho[obs.rho > 1.0]).tolist()
+        max_rho = obs.rho.max()
+        holding_steps = self.env.nb_steps_from_node_until_end(current_node, variant_env_tree)
+
+        # Go back to current_node
+        variant_env_tree.go_to_node(current_node)
+
+        # TODO: handle several human recommendations
+        self.variant_env_trees.append(
+            {
+                "agent_name": agent_name,
+                "agent_action": agent_action,
+                "variant_env_tree": variant_env_tree,
+            }
+        )
+
+        # Disable dash loading
+        self.env.stop_recommendations_computation()
+
+        d = {
+            'Agent': [agent_name],
+            'Overload': [str(overloads)],
+            'Max Rho': [max_rho],
+            'Holding Time': [holding_steps]
+        }
+
+        new_recommendation = pd.DataFrame(data=d)
+
+        if not recommendations_store:
+            # First recommendation
+            recommendations = new_recommendation
+        else:
+            # Add recommendation to stored recommendations
+            recommendations = pd.DataFrame.from_dict(recommendations_store)
+            recommendations = pd.concat(
+                [recommendations, new_recommendation], axis=0, ignore_index=True
+            )
+
+        # Return dataframe to fill the table
+        return recommendations
+
+
+    def fill_recommendations_table(self, recommendations):
+        recommendations_div = DataTable(
+            id="recommendations_table",
+            columns=[
+                {"name": i, "id": i} for i in recommendations.columns
+            ],
+            data=recommendations.to_dict("records"),
+            style_table={"overflowX": "auto"},
+            row_selectable="single",
+            sort_action="native",
+            style_cell={
+                "overflow": "hidden",
+                "textOverflow": "ellipsis",
+                "maxWidth": 0,
+            },
+            tooltip_data=[
+                {
+                    column: {"value": str(value), "type": "markdown"}
+                    for column, value in row.items()
+                }
+                for row in recommendations.to_dict("rows")
+            ],
+        )
+        return recommendations_div
+
+    def get_selected_agent_name(self, selected_recommendation):
+        df = pd.DataFrame(selected_recommendation, index=[0])
+        agent_name = df['Agent'].item()
+        self.logger.debug(f"selected_agent_name={agent_name}")
+        return agent_name
+
+    def get_variant_action(self, agent_name):
+        variant_action = None
+        for variant_tree_dict in self.variant_env_trees:
+            variant_agent_name = variant_tree_dict.get("agent_name")
+            # TODO: handle several human recommendations, this will retrieve the first human recommendation
+            if variant_agent_name == agent_name:
+                variant_action = variant_tree_dict.get("agent_action")
+        return variant_action
+
+    def get_variant_tree(self, agent_name):
+        variant_tree = None
+        for variant_tree_dict in self.variant_env_trees:
+            variant_agent_name = variant_tree_dict.get("agent_name")
+            # TODO: handle several human recommendations, this will retrieve the first human recommendation
+            if variant_agent_name == agent_name:
+                variant_tree = variant_tree_dict.get("variant_env_tree")
+        return variant_tree
+
+
+    def handle_recommendations(
+        self,
+        # buttons
+        n_show_more,
+        n_close,
+        n_add_to_variants,
+        n_apply,
+        n_integrate_manual_action,
+        n_add_to_knowledge_base_button,
+        n_add_expert_recommendation,
+        # recommendation container
+        is_open,
+        # stores
+        recommendations_store,
+        selected_recommendation,
+        recommendations_added_to_variant_trees,
+    ):
+        button_id = ctx.triggered_id
+
+        self.logger.debug(f"handle_recommendations: triggered_id = {button_id}")
+
+        if self.env.expert_selected_action:
+            button_id = "add_expert_recommendation"
+
+        if not button_id:
+            raise PreventUpdate
+
+        recommendations_div = dash.no_update
+        recommendations_container_open = dash.no_update
+        recommendations_message = None
+        variant_tree_added = dash.no_update
+
+        if button_id == "close_recommendations_button":
+
+            # TODO: restore self._current_action in case of simulations
+
+            # Reset message
+            recommendations_message = ""
+            # Reset stores
+            recommendations_store = None
+            recommendations_added_to_variant_trees = None
+            # Reset issues
+            self.env._current_issues = None
+            # Collapse recommendations
+            recommendations_container_open = False
+
+        elif button_id == "show_more_issue":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            self.variant_env_trees = []
+
+            agent_name = self.format_path(os.path.abspath(self.assistant_path))
+            agent_action = self.env._assistant_action
+
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
+            )
+
+            recommendations_div = self.fill_recommendations_table(recommendations)
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
+
+        elif button_id == "add_to_variant_trees_button":
+            recommendations_store = dash.no_update
+
+            # User didn't select a recommendation
+            if not selected_recommendation:
+                recommendations_message = "Please choose a recommendation"
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            # User first selection, init the selected list
+            if not recommendations_added_to_variant_trees:
+                recommendations_added_to_variant_trees = []
+
+            selected_agent_name = self.get_selected_agent_name(selected_recommendation)
+
+            # Check if selection has already been added
+            for recommendation_added in recommendations_added_to_variant_trees:
+                recommendation_added_df = pd.DataFrame.from_dict(recommendation_added)
+                # TODO: test on more columns than agent's name to handle multi recommendations by same agent
+                added_agent_name = recommendation_added_df['Agent'].item()
+                self.logger.debug(f"added_agent_name={added_agent_name}")
+                if added_agent_name == selected_agent_name:
+                    recommendations_message = "recommendation already added to variant trees",
+                    recommendations_added_to_variant_trees = dash.no_update
+                    return [
+                        recommendations_div, recommendations_container_open,
+                        recommendations_store, recommendations_message,
+                        recommendations_added_to_variant_trees, variant_tree_added
+                    ]
+
+            # Retrieve the variant tree linked to the selected recommendation
+            selected_variant_tree = self.get_variant_tree(selected_agent_name)
+
+            # This shouldn't happen, log the error and inform the user
+            if not selected_variant_tree:
+                self.logger.error(f"Variant tree not found")
+                recommendations_message = "Variant tree not found",
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            # Add selection to added recommendations
+            recommendations_added_to_variant_trees.append(selected_recommendation)
+            # Replace current env_tree by variant tree
+            # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree,
+            # and enable the visibility of the selected variant tree on the timeline graph
+            self.env.env_tree = selected_variant_tree
+
+            recommendations_message = "Variant tree added !"
+
+            # Trigger the chain: computation_wrapper > update_rt_fig to update the timeline_graph
+            self._variant_tree_added += 1
+            variant_tree_added = self._variant_tree_added
+
+        elif button_id == "apply_recommendation_button":
+            recommendations_store = dash.no_update
+            # TODO: Intead of duplicating the env_tree, create all variant nodes on the env_tree
+            # and remove the variant nodes that haven't been added by the user.
+
+            # User didn't select a recommendation
+            if not selected_recommendation:
+                recommendations_message = "Please choose a recommendation"
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            selected_agent_name = self.get_selected_agent_name(selected_recommendation)
+
+            # Retrieve the variant tree linked to the selected recommendation
+            selected_variant_tree = self.get_variant_tree(selected_agent_name)
+
+            # This shouldn't happen, log the error and inform the user
+            if not selected_variant_tree:
+                self.logger.error(f"Variant tree not found")
+                recommendations_message = "Variant tree not found",
+                recommendations_added_to_variant_trees = dash.no_update
+                return [
+                    recommendations_div, recommendations_container_open,
+                    recommendations_store, recommendations_message,
+                    recommendations_added_to_variant_trees, variant_tree_added
+                ]
+
+            # Replace current env_tree by variant tree
+            self.env.env_tree = selected_variant_tree
+
+            # Reset message
+            recommendations_message = ""
+            # Reset stores
+            recommendations_store = None
+            recommendations_added_to_variant_trees = None
+            # Reset issues
+            self.env._current_issues = None
+            # Collapse recommendations
+            recommendations_container_open = False
+
+        elif button_id == "integrate_manual_action":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            # Add only if the recommendations are open
+            if not is_open:
+                self.logger.error("Recommendations aren't open !")
+
+            agent_name = "Human"
+            agent_action = self.env.current_action
+
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
+            )
+
+            recommendations_div = self.fill_recommendations_table(recommendations)
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
+
+        elif button_id == "add_to_knowledge_base_button":
+            recommendations_store = dash.no_update
+            recommendations_added_to_variant_trees = dash.no_update
+
+            recommendations_message = "Not implemented"
+            return [
+                recommendations_div, recommendations_container_open,
+                recommendations_store, recommendations_message,
+                recommendations_added_to_variant_trees, variant_tree_added
+            ]
+
+        elif button_id == "add_expert_recommendation":
+            recommendations_added_to_variant_trees = dash.no_update
+
+            agent_name = "Expert"
+            # Get action from expert tab
+            agent_action = self.env.expert_selected_action
+
+            recommendations = self.add_recommendation(
+                recommendations_store,
+                agent_name,
+                agent_action
+            )
+
+            recommendations_div = self.fill_recommendations_table(recommendations)
+            recommendations_container_open = True
+            recommendations_store = recommendations.to_dict()
+
+            # reset expert_selected_action
+            self.env.expert_selected_action = None
+
+        else:
+            raise PreventUpdate
+
+        return [
+            recommendations_div,
+            recommendations_container_open,
+            recommendations_store,
+            recommendations_message,
+            recommendations_added_to_variant_trees,
+            variant_tree_added,
+        ]
+
+    def loading_recommendations_table(
+        self,
+        n_show_more,
+        n_integrate_manual_action,
+    ):
+        button_id = ctx.triggered_id
+
+        if not button_id and not self.env.expert_selected_action:
+            raise PreventUpdate
+
+        time.sleep(0.1)
+        while self.env.is_computing_recommendations():
+            time.sleep(0.1)
+        return [""]
+
+    def select_recommendation(
+        self,
+        selected_rows,
+        recommendations,
+    ):
+        if not selected_rows:
+            raise PreventUpdate
+        recommendations = pd.DataFrame.from_dict(recommendations)
+        selected_recommendation_index = selected_rows[0]
+        selected_recommendation = recommendations.iloc[selected_recommendation_index]
+        return [selected_recommendation.to_dict()]
+
+    def dropdown_mode(
+        self,
+        mode,
+        manual_is_open,
+        auto_is_open,
+    ):
+
+        button_id = ctx.triggered_id
+        self.logger.debug(f"dropdown_mode: triggered_id = {button_id} mode = {mode}")
+
+        self.env.mode = mode
+
+        if mode in [self.env.MODE_MANUAL, self.env.MODE_LEGACY]:
+            manual_is_open = True
+            auto_is_open = False
+
+        elif mode in [self.env.MODE_RECOMMAND, self.env.MODE_ASSISTANT]:
+            manual_is_open = False
+            auto_is_open = True
+
+        return [manual_is_open, auto_is_open]
+
+    def open_tab(self, explore_click, add_expert_recommendation_click):
+        button_id = ctx.triggered_id
+
+        self.logger.debug(f"open_tab: triggered_id = {button_id} open_tab = {explore_click} close_tab = {add_expert_recommendation_click}")
+
+        if not button_id:
+            return ['tab-temporal-view']
+        elif button_id == "expert_agent_button" and explore_click:
+            return ['tab-expert-assist']
+        elif button_id == "add_expert_recommendation" and add_expert_recommendation_click:
+            return ['tab-temporal-view']
+        else:
+            return [dash.no_update]

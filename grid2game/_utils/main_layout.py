@@ -20,6 +20,10 @@ def setupLayout(viz_server, *tabs):
                 #  children=tabs
                  children=children
                  ),
-        html.Div(id='tabs-content-main-view')
+        html.Div(id='tabs-content-main-view'),
+        # Stores for persistence through tab navigation
+        dcc.Store(id="recommendations_store"),
+        dcc.Store(id="selected_recommendation_store"),
+        dcc.Store(id="recommendations_added_to_variant_trees_store"),
     ])
     return layout
