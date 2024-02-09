@@ -221,6 +221,36 @@ class VizServer:
         self._do_display_action = True
         self._dropdown_value = "assistant"
 
+    def run_server(self,
+                   *,
+                   port=8050,
+                   debug=None,
+                   dev_tools_ui=None,
+                   dev_tools_props_check=None,
+                   dev_tools_serve_dev_bundles=None,
+                   dev_tools_hot_reload=None,
+                   dev_tools_hot_reload_interval=None,
+                   dev_tools_hot_reload_watch_interval=None,
+                   dev_tools_hot_reload_max_retry=None,
+                   dev_tools_silence_routes_logging=None,
+                   dev_tools_prune_errors=None,
+                   **flask_run_options,):
+        self.my_app.run(port=port,
+                        # host=os.getenv("HOST", "127.0.0.1"),
+                        # port=os.getenv("PORT", "8050"),
+                        debug=debug,
+                        dev_tools_ui=dev_tools_ui,
+                        dev_tools_props_check=dev_tools_props_check,
+                        dev_tools_serve_dev_bundles=dev_tools_serve_dev_bundles,
+                        dev_tools_hot_reload=dev_tools_hot_reload,
+                        dev_tools_hot_reload_interval=dev_tools_hot_reload_interval,
+                        dev_tools_hot_reload_watch_interval=dev_tools_hot_reload_watch_interval,
+                        dev_tools_hot_reload_max_retry=dev_tools_hot_reload_max_retry,
+                        dev_tools_silence_routes_logging=dev_tools_silence_routes_logging,
+                        dev_tools_prune_errors=dev_tools_prune_errors,
+                        **flask_run_options
+                        )
+        
     def _make_glop_env_config(self, build_args):
         g2op_config = {}
         cont_ = True
@@ -248,9 +278,6 @@ class VizServer:
                     msg = f"init: error {exc_} is not a file"
                     self.logger.error(msg)
         return g2op_config
-
-    def run_server(self, debug=False):
-        self.my_app.run_server(debug=debug)
 
     def change_nb_step_go_fast(self, nb_step_go_fast):
         if nb_step_go_fast is None:

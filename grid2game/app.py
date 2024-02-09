@@ -54,19 +54,26 @@ def cli():
                         action="store_true", default=False,
                         help="INTERNAL: do not use (inform that the app is running on the heroku server)")
 
+
+    parser.add_argument("--port", required=False,
+                        default=None, type=int,
+                        help="Port to use")
     return parser.parse_args()
 
 
 def get_viz_server(server=None):
     args = cli()
     viz_server = VizServer(build_args=args, server=server)
-    return args.dev, viz_server
+    return args.dev, viz_server, args.port
 
 
 def start_cli():
-    debug, viz_server = get_viz_server()
-    viz_server.run_server(debug=debug)
+    debug, viz_server, port = get_viz_server()
+    if port is None:
+        viz_server.run_server(debug=debug)
+    else:
+        viz_server.run_server(debug=debug, port=int(port))
 
-
+# grid2game --dev --env_name educ_case14_storage --is_test --assistant_path /home/donnotben/Documents/grid2game/assistant_test/demo_SDTS2  --port 8051
 if __name__ == '__main__':
     start_cli()
